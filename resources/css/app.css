@@ -1,0 +1,22 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+@theme {
+    --font-sans: 'Figtree', ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer components {
+    .university-gradient-green {
+        background: linear-gradient(135deg, #2d7a50 0%, #1a5336 50%, #0f3d26 100%);
+    }
+    .university-gradient-gold {
+        background: linear-gradient(135deg, #e6c65c 0%, #d4a72c 50%, #b8922a 100%);
+    }
+    .card-shadow {
+        box-shadow: 0 25px 50px -12px rgba(15, 61, 38, 0.4);
+    }
+}
