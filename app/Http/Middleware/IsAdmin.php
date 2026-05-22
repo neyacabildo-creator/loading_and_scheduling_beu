@@ -21,17 +21,30 @@ class IsAdmin
             return redirect('login');
         }
 
-        // Check if user has admin role (admin_junior_high or admin_grade_school)
         $user = Auth::user();
-        if ($user->role && strpos($user->role->name, 'admin') !== false) {
-            return $next($request);
+        
+        // Ensure role relationship is loaded
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+        
+        // Check if user has junior high admin role or principal role
+        if ($user->role && $user->role->name) {
+            if (in_array($user->role->name, ['admin_junior_high', 'admin', 'principal'])) {
+                return $next($request);
+            }
+            // Grade school admin has their own separate dashboard
+            if ($user->role->name === 'admin_grade_school') {
+                return redirect()->route('grade-school-admin.dashboard');
+            }
         }
 
         // Redirect non-admin users to their appropriate dashboard
-        if ($user->role && $user->role->name === 'teacher') {
+        if ($user->role && $user->role->name && in_array($user->role->name, ['teacher', 'teacher_grade_school', 'teacher_junior_high'])) {
             return redirect('teacher/dashboard');
         }
 
-        return redirect('/');
+        // No valid role match — return 403 to avoid redirect loop
+        abort(403, 'Access denied.');
     }
 }

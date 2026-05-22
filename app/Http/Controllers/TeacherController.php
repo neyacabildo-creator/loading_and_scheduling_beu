@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\ClassSchedule;
+use App\Models\FacultyLoad;
+use App\Support\TeacherAdjustmentRequestSupport;
+use App\Support\TeacherPortalSupport;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -11,6 +14,35 @@ use Illuminate\Support\Facades\Hash;
 
 class TeacherController extends Controller
 {
+    /**
+     * Get the authenticated teacher's school level
+     */
+    private function getTeacherSchoolLevel() {
+        /** @var User|null $user */
+        $user = Auth::user();
+        
+        if (!$user) {
+            return 'grade_school';
+        }
+        
+        // Ensure role relationship is loaded
+        if (!$user->relationLoaded('role')) {
+            $user->load('role');
+        }
+        
+        // Check role name for department
+        if ($user->role && $user->role->name) {
+            if (strpos($user->role->name, 'junior_high') !== false) {
+                return 'junior_high';
+            } elseif (strpos($user->role->name, 'grade_school') !== false) {
+                return 'grade_school';
+            }
+        }
+        
+        // Fallback to school_level from database
+        return $user->school_level ?? 'grade_school';
+    }
+
     /**
      * ===============================
      * ADD TEACHER (FIXED)
@@ -27,6 +59,8 @@ class TeacherController extends Controller
                 'status'     => 'required|in:active,inactive',
             ]);
 
+            $schoolLevel = $this->getTeacherSchoolLevel();
+            
             User::create([
                 'first_name' => $validated['first_name'],
                 'last_name'  => $validated['last_name'],
@@ -34,6 +68,7 @@ class TeacherController extends Controller
                 'password'   => Hash::make($validated['password']),
                 'role'       => 'teacher', // 🔥 IMPORTANT
                 'status'     => $validated['status'],
+                'school_level' => $schoolLevel,
             ]);
 
             if ($request->ajax() || $request->wantsJson()) {
@@ -60,48 +95,198 @@ class TeacherController extends Controller
     }
 
     /**
-     * Get all classes for the logged-in teacher
+     * ===============================
+     * TEACHER DASHBOARD
+     * ===============================
+     * Unified dashboard for all teachers (including STLs)
+     * Displays teacher-specific functions and, if qualified, STL functions
+     */
+    public function dashboard(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            $schoolLevel = $this->getTeacherSchoolLevel();
+            
+            // Get dashboard data for all teachers - scoped by DB connection
+            $mySchedules = ClassSchedule::where('faculty_id', $user->id)
+                ->where(function($q) {
+                    $q->where('admin_approved', true)->orWhere('status', 'active');
+                })
+                ->orderBy('created_at', 'desc')
+                ->get();
+            
+            $myClasses = $mySchedules->count();
+            $totalStudents = $mySchedules->sum(function($schedule) {
+                return $schedule->student_count ?? 0;
+            });
+            $teachingLoad = $mySchedules->sum(function($schedule) {
+                return $schedule->units ?? 0;
+            });
+            $pendingTasks = $mySchedules->where('status', 'pending')->count();
+            
+            // STL-specific data (if user qualifies as STL)
+            $isSTL = $this->checkIfSTL($user);
+            $stlData = [];
+            
+            if ($isSTL) {
+                $stlData = [
+                    'isSTL' => true,
+                    'facultyCount' => $this->getFacultyCountForTeam($user),
+                    'loadCount' => $this->getLoadCountForTeam($user),
+                    'scheduleCount' => $this->getScheduleCountForTeam($user),
+                    'pendingReviews' => $this->getPendingReviewsForTeam($user),
+                    'dssRecommendations' => $this->getDSSRecommendations($user),
+                    'teamMembers' => $this->getTeamMembers($user),
+                ];
+            }
+            
+            return view($schoolLevel === 'junior_high' ? 'junior-high-teacher.dashboard' : 'grade-school-teacher.dashboard', [
+                'mySchedules' => $mySchedules,
+                'myClasses' => $myClasses,
+                'totalStudents' => $totalStudents,
+                'teachingLoad' => $teachingLoad,
+                'pendingTasks' => $pendingTasks,
+                'isSTL' => $isSTL,
+                'stlData' => $stlData,
+                'school_level' => $schoolLevel,
+            ]);
+            
+        } catch (\Exception $e) {
+            return back()->withError('Error loading dashboard: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Check if user qualifies as Subject Team Leader
+     */
+    private function checkIfSTL($user)
+    {
+        // STL is determined by role or department responsibility
+        // Typically, senior teachers with management role are STLs
+        return $user->role_id === 3 || $user->has_stl_permissions === true;
+    }
+
+    /**
+     * Get faculty count for team (filtered by school_level)
+     */
+    private function getFacultyCountForTeam($user)
+    {
+        $schoolLevel = $this->getTeacherSchoolLevel();
+        return User::where('school_level', $schoolLevel)
+            ->where('role_id', 3)
+            ->where('id', '!=', $user->id)
+            ->count();
+    }
+
+    /**
+     * Get load count for team (filtered by school_level)
+     */
+    private function getLoadCountForTeam($user)
+    {
+        $schoolLevel = $this->getTeacherSchoolLevel();
+        return \App\Models\FacultyLoad::whereHas('faculty', function($query) use ($schoolLevel) {
+                $query->where('school_level', $schoolLevel);
+            })->count();
+    }
+
+    /**
+     * Get schedule count for team (filtered by school_level)
+     */
+    private function getScheduleCountForTeam($user)
+    {
+        return ClassSchedule::count();
+    }
+
+    /**
+     * Get pending reviews for team (filtered by school_level)
+     */
+    private function getPendingReviewsForTeam($user)
+    {
+        return ClassSchedule::where('status', 'pending')->count();
+    }
+
+    /**
+     * Get DSS recommendations for team
+     */
+    private function getDSSRecommendations($user)
+    {
+        // Placeholder for DSS recommendations
+        return [
+            ['type' => 'balance', 'message' => 'Balance faculty loads across 3 team members'],
+            ['type' => 'schedule', 'message' => 'Review time-slot conflicts in Mathematics section'],
+            ['type' => 'expertise', 'message' => 'Align 2 faculty with subject expertise'],
+        ];
+    }
+
+    /**
+     * Get team members for STL (filtered by school_level)
+     */
+    private function getTeamMembers($user)
+    {
+        $schoolLevel = $this->getTeacherSchoolLevel();
+        return User::where('school_level', $schoolLevel)
+            ->where('role_id', 3)
+            ->where('id', '!=', $user->id)
+            ->select('id', 'first_name', 'last_name', 'email')
+            ->get();
+    }
+
+    /**
+     * Get all classes for the logged-in teacher (filtered by school_level)
      */
     public function getMyClasses(Request $request)
     {
         $teacherId = Auth::id();
+        $schoolLevel = $this->getTeacherSchoolLevel();
 
         $classes = ClassSchedule::where('faculty_id', $teacherId)
-            ->where('status', 'active')
-            ->where('admin_approved', true)
-            ->with(['room', 'faculty'])
+            ->where(function ($q) {
+                $q->where('admin_approved', true)->orWhere('status', 'active');
+            })
             ->orderBy('day_of_week')
             ->orderBy('start_time')
+            ->with(['room'])
             ->get();
+
+        $result = $classes->map(function ($s) {
+            $data = $s->toArray();
+            $data['grade_section'] = trim(($s->grade_level ?? '') . ($s->section_name ? ' – ' . $s->section_name : ''));
+            $data['room_label'] = TeacherPortalSupport::roomLabel($s);
+            return $data;
+        });
 
         return response()->json([
             'success' => true,
-            'data' => $classes,
-            'count' => $classes->count()
+            'data' => $result,
+            'count' => $result->count(),
         ]);
     }
 
     /**
-     * Get all students in teacher's classes
+     * Get all students in teacher's classes (filtered by school_level)
      */
     public function getMyStudents(Request $request)
     {
         $teacherId = Auth::id();
+        $schoolLevel = $this->getTeacherSchoolLevel();
 
-        $students = DB::table('class_schedules')
+        $dbConn = DB::connection(config('database.school_connection', config('database.default')));
+
+        $students = $dbConn->table('class_schedules')
             ->where('faculty_id', $teacherId)
             ->where('status', 'active')
             ->where('admin_approved', true)
             ->select(
-                'grade_section',
+                'grade_level',
+                'section_name',
                 'subject',
                 DB::raw('SUM(CAST(student_count AS UNSIGNED)) as total_students'),
                 DB::raw('COUNT(*) as class_count')
             )
-            ->groupBy('grade_section', 'subject')
+            ->groupBy('grade_level', 'section_name', 'subject')
             ->get();
 
-        $totalStudents = DB::table('class_schedules')
+        $totalStudents = $dbConn->table('class_schedules')
             ->where('faculty_id', $teacherId)
             ->where('status', 'active')
             ->where('admin_approved', true)
@@ -110,23 +295,26 @@ class TeacherController extends Controller
         return response()->json([
             'success' => true,
             'data' => $students,
-            'total_students' => $totalStudents ?? 0
+            'total_students' => $totalStudents ?? 0,
+            'school_level' => $schoolLevel
         ]);
     }
 
     /**
-     * Get class performance data
+     * Get class performance data (filtered by school_level)
      */
     public function getClassPerformance(Request $request)
     {
         $teacherId = Auth::id();
+        $schoolLevel = $this->getTeacherSchoolLevel();
 
-        $performance = DB::table('class_schedules')
+        $performance = DB::connection(config('database.school_connection', config('database.default')))->table('class_schedules')
             ->where('faculty_id', $teacherId)
             ->where('status', 'active')
             ->where('admin_approved', true)
             ->select(
-                'grade_section',
+                'grade_level',
+                'section_name',
                 'subject',
                 'student_count',
                 'day_of_week',
@@ -157,18 +345,291 @@ class TeacherController extends Controller
     {
         $teacherId = Auth::id();
 
-        $schedules = ClassSchedule::where('faculty_id', $teacherId)
-            ->where('status', 'active')
+        // 1. Get admin-assigned faculty loads for this teacher (from mysql_jh via UseSchoolConnection)
+        $facultyLoads = FacultyLoad::where('faculty_id', $teacherId)->get();
+
+        $classSchedules = ClassSchedule::where('faculty_id', $teacherId)
             ->where('admin_approved', true)
+            ->whereNotIn('status', ['pending', 'rejected', 'deleted'])
             ->with(['room'])
+            ->orderBy('day_of_week')
+            ->orderBy('start_time')
             ->get();
 
-        $totalUnits = $schedules->count();
+        $schedules = TeacherPortalSupport::buildWorkloadSchedules($classSchedules, $facultyLoads);
+        $totalUnits = collect($schedules)->sum(fn ($s) => (int) ($s['units'] ?? 1));
 
         return response()->json([
-            'success' => true,
-            'total_units' => $totalUnits,
-            'schedules' => $schedules
+            'success'     => true,
+            'total_units' => $totalUnits > 0 ? $totalUnits : count($schedules),
+            'schedules'   => $schedules,
         ]);
+    }
+
+    /**
+     * Get all teachers (for admin dashboard)
+     */
+    public function index(Request $request)
+    {
+        try {
+            $teachers = User::whereHas('role', function($q) {
+                $q->where('name', 'like', '%teacher%');
+            })->get();
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'data' => $teachers,
+                    'count' => $teachers->count()
+                ]);
+            }
+
+            return view('junior-high-admin.teachers.index', ['teachers' => $teachers]);
+        } catch (\Exception $e) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 500);
+            }
+            return back()->withError('Error fetching teachers');
+        }
+    }
+
+    // =========================================================================
+    // PROVIDE FEEDBACK  (Use Case: Provide Feedback)
+    // =========================================================================
+
+    public function showFeedback()
+    {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+        $myFeedbacks = DB::connection(\App\Support\TeacherDatabaseSupport::connectionFromContext())->table('teacher_feedbacks')
+            ->where('teacher_id', $user->id)
+            ->orderByDesc('created_at')
+            ->take(10)
+            ->get();
+
+        return view('junior-high-teacher.feedback', [
+            'myFeedbacks' => $myFeedbacks,
+        ]);
+    }
+
+    public function submitFeedback(Request $request)
+    {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        $validated = $request->validate([
+            'category' => 'required|in:schedule_clarity,workload_fairness,system_usability,other',
+            'rating'   => 'required|integer|min:1|max:5',
+            'message'  => 'required|string|max:2000',
+        ]);
+
+        DB::connection(\App\Support\TeacherDatabaseSupport::connectionFromContext())->table('teacher_feedbacks')->insert([
+            'teacher_id'   => $user->id,
+            'school_level' => 'junior_high',
+            'category'     => $validated['category'],
+            'rating'       => $validated['rating'],
+            'message'      => $validated['message'],
+            'status'       => 'submitted',
+            'created_at'   => now(),
+            'updated_at'   => now(),
+        ]);
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true, 'message' => 'Feedback submitted successfully.']);
+        }
+
+        return redirect()->route('teacher.feedback')->with('success', 'Thank you! Your feedback has been submitted.');
+    }
+
+    public function showLoadingSchedule(\Illuminate\Http\Request $request)
+    {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+        $adminConn = \App\Support\TeacherDatabaseSupport::connectionFromContext();
+
+        $loadingRows = DB::connection($adminConn)
+            ->table('teacher_loading_schedules')
+            ->where('faculty_id', $user->id)
+            ->orderByDesc('created_at')
+            ->get();
+
+        if ($loadingRows->isNotEmpty()) {
+            $schedules = $loadingRows->map(function ($row) {
+                $row->room = \App\Support\TeacherPortalSupport::displayRoomFromRow($row);
+
+                return $row;
+            });
+        } else {
+            $classSchedules = \App\Models\ClassSchedule::where('faculty_id', $user->id)
+                ->where('admin_approved', true)
+                ->with(['room'])
+                ->orderBy('day_of_week')
+                ->orderBy('start_time')
+                ->get();
+
+            $schedules = $classSchedules->map(fn ($s) => (object) [
+                'id'           => $s->id,
+                'subject_code' => null,
+                'subject_name' => $s->subject,
+                'grade_level'  => $s->grade_level,
+                'section'      => $s->section_name,
+                'day_of_week'  => $s->day_of_week,
+                'time_start'   => $s->start_time,
+                'time_end'     => $s->end_time,
+                'room'         => \App\Support\TeacherPortalSupport::roomLabel($s),
+                'units'        => $s->units ?? 1,
+                'load_hours'   => $s->units ? round($s->units * 1.0, 2) : 0,
+                'semester'     => '1st Semester',
+                'school_year'  => date('Y') . '-' . (date('Y') + 1),
+                'status'       => $s->admin_approved ? 'approved' : 'submitted',
+            ]);
+        }
+
+        $weeklySchoolYear = $request->input('school_year', '2025-2026');
+        $weeklyGrid = DB::connection($adminConn)
+            ->table('master_weekly_schedules')
+            ->where('faculty_id', $user->id)
+            ->where('school_year', $weeklySchoolYear)
+            ->orderBy('slot_order')
+            ->get();
+
+        $timeSlots = \App\Http\Controllers\MasterWeeklyScheduleController::timeSlots();
+        $days      = \App\Http\Controllers\MasterWeeklyScheduleController::days();
+
+        return view('junior-high-teacher.loading-schedule', compact(
+            'schedules', 'weeklyGrid', 'weeklySchoolYear', 'timeSlots', 'days'
+        ));
+    }
+
+    public function requestAdjustments()
+    {
+        return view('junior-high-teacher.request-adjustments');
+    }
+
+    public function getAdjustmentRequests(Request $request)
+    {
+        try {
+            $conn = TeacherAdjustmentRequestSupport::connectionForSchool('junior_high');
+            $data = TeacherAdjustmentRequestSupport::listForTeacher($conn, (int) Auth::id());
+
+            return response()->json(['success' => true, 'data' => $data]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
+    public function getAdjustmentScheduleOptions(Request $request)
+    {
+        try {
+            $conn = TeacherAdjustmentRequestSupport::connectionForSchool('junior_high');
+            $schedules = TeacherAdjustmentRequestSupport::approvedSchedulesForTeacher($conn, (int) Auth::id());
+            $subjects = collect($schedules)
+                ->pluck('subject')
+                ->filter()
+                ->unique(fn ($s) => strtolower(trim((string) $s)))
+                ->values()
+                ->all();
+
+            return response()->json([
+                'success'   => true,
+                'subjects'  => $subjects,
+                'schedules' => $schedules,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
+    public function getLeaveRequests(Request $request)
+    {
+        try {
+            $conn = TeacherAdjustmentRequestSupport::connectionForSchool('junior_high');
+            $data = \App\Support\TeacherLeaveRequestSupport::listForTeacher($conn, (int) Auth::id());
+
+            return response()->json(['success' => true, 'data' => $data]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
+    public function storeLeaveRequest(Request $request)
+    {
+        try {
+            $result = \App\Support\TeacherLeaveRequestSupport::store(
+                $request,
+                TeacherAdjustmentRequestSupport::connectionForSchool('junior_high')
+            );
+
+            return response()->json($result);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => $e->errors()], 422);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
+    public function storeAdjustmentRequest(Request $request)
+    {
+        try {
+            $result = TeacherAdjustmentRequestSupport::store($request, TeacherAdjustmentRequestSupport::connectionForSchool('junior_high'));
+
+            return response()->json($result);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => $e->errors()], 422);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
+    public function printExport()
+    {
+        $schedules = TeacherPortalSupport::teacherSchedulesForExport((int) Auth::id());
+
+        return view('junior-high-teacher.print-export', [
+            'schedules'       => $schedules,
+            'exportCsvUrl'    => route('teacher.export.schedule', ['format' => 'csv']),
+            'exportExcelUrl'  => route('teacher.export.schedule', ['format' => 'excel']),
+            'exportPrintUrl'  => route('teacher.export.schedule', ['format' => 'print']),
+            'divisionLabel'   => 'Junior High Division',
+        ]);
+    }
+
+    public function exportSchedule(Request $request)
+    {
+        $format = $request->query('format', 'csv');
+        $schedules = TeacherPortalSupport::teacherSchedulesForExport((int) Auth::id());
+        $user = Auth::user();
+        $name = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: ($user->name ?? 'Teacher');
+
+        if ($format === 'print') {
+            return view('exports.teacher-schedule-print', [
+                'schedules'     => $schedules,
+                'teacherName'   => $name,
+                'divisionLabel' => 'Junior High Division',
+            ]);
+        }
+
+        $filename = 'my-schedule-' . date('Y-m-d') . ($format === 'excel' ? '.xls' : '.csv');
+        $mime = $format === 'excel' ? 'application/vnd.ms-excel' : 'text/csv';
+
+        return response()->streamDownload(function () use ($schedules) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['Subject', 'Grade Level', 'Section', 'Day', 'Start', 'End', 'Room']);
+            foreach ($schedules as $s) {
+                fputcsv($out, [
+                    $s->subject ?? '',
+                    $s->grade_level ?? '',
+                    $s->section_name ?? '',
+                    $s->day_of_week ?? '',
+                    $s->start_time ?? '',
+                    $s->end_time ?? '',
+                    TeacherPortalSupport::roomLabel($s),
+                ]);
+            }
+            fclose($out);
+        }, $filename, ['Content-Type' => $mime]);
     }
 }

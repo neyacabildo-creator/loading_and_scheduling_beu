@@ -6,9 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>SPUP - Register</title>
+
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800&display=swap" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
+
     <style>
         body { font-family: 'Figtree', sans-serif; }
         .university-gradient-green {
@@ -39,209 +41,131 @@
         }
     </style>
 </head>
+
 <body class="min-h-screen university-gradient-green">
-    <div class="min-h-screen flex">
-        <!-- Left Side - University Seal Image -->
-        <div class="hidden lg:flex lg:w-1/2 items-center justify-center p-12">
-            <div class="seal-container">
-                <img 
-                    src="{{ asset('images/spup-seal.png') }}" 
-                    alt="St. Paul University Philippines Seal" 
-                    class="seal-glow w-80 h-80 object-contain"
-                >
-            </div>
-        </div>
+<div class="min-h-screen flex">
 
-        <!-- Right Side - Register Form -->
-        <div class="w-full lg:w-1/2 flex items-center justify-center p-8">
-            <div class="w-full max-w-md">
-                <!-- Mobile Logo -->
-                <div class="lg:hidden flex justify-center mb-8">
-                    <img 
-                        src="{{ asset('images/spup-seal.png') }}" 
-                        alt="St. Paul University Philippines Seal" 
-                        class="w-32 h-32 object-contain seal-glow"
-                    >
-                </div>
-
-                <!-- Register Header -->
-                <div class="text-center mb-8">
-                    <h1 class="text-3xl font-bold text-yellow-400 mb-2">REGISTER</h1>
-                    <p class="text-green-200">Create your account</p>
-                </div>
-
-                <!-- Error Messages -->
-                @if ($errors->any())
-                    <div class="mb-4 p-4 bg-red-500/20 border border-red-400/50 rounded-lg">
-                        @foreach ($errors->all() as $error)
-                            <p class="text-red-200 text-sm">{{ $error }}</p>
-                        @endforeach
-                    </div>
-                @endif
-
-                <!-- Register Form -->
-                <form method="POST" action="{{ route('register') }}" class="space-y-6">
-                    @csrf
-
-                    <!-- First Name -->
-                    <div>
-                        <label for="first_name" class="block text-sm font-semibold text-yellow-300 mb-2">
-                            First Name
-                        </label>
-                        <input 
-                            type="text" 
-                            id="first_name" 
-                            name="first_name" 
-                            value="{{ old('first_name') }}"
-                            required 
-                            autofocus
-                            class="w-full px-4 py-3 bg-white/10 border border-green-400/30 rounded-lg text-white placeholder-green-300/50 focus:outline-none focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/30 transition"
-                            placeholder="Enter your first name"
-                        >
-                    </div>
-
-                    <!-- Last Name -->
-                    <div>
-                        <label for="last_name" class="block text-sm font-semibold text-yellow-300 mb-2">
-                            Last Name
-                        </label>
-                        <input 
-                            type="text" 
-                            id="last_name" 
-                            name="last_name" 
-                            value="{{ old('last_name') }}"
-                            required
-                            class="w-full px-4 py-3 bg-white/10 border border-green-400/30 rounded-lg text-white placeholder-green-300/50 focus:outline-none focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/30 transition"
-                            placeholder="Enter your last name"
-                        >
-                    </div>
-
-                    <!-- Email -->
-                    <div>
-                        <label for="email" class="block text-sm font-semibold text-yellow-300 mb-2">
-                            Email Address
-                        </label>
-                        <input 
-                            type="email" 
-                            id="email" 
-                            name="email" 
-                            value="{{ old('email') }}"
-                            required
-                            class="w-full px-4 py-3 bg-white/10 border border-green-400/30 rounded-lg text-white placeholder-green-300/50 focus:outline-none focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/30 transition"
-                            placeholder="Enter your email"
-                        >
-                    </div>
-
-                    <!-- Role -->
-                    <div>
-                        <label for="role_id" class="block text-sm font-semibold text-yellow-300 mb-2">
-                            Role
-                        </label>
-                        <select 
-                            id="role_id" 
-                            name="role_id" 
-                            required
-                            class="w-full px-4 py-3 bg-white/10 border border-green-400/30 rounded-lg text-white focus:outline-none focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/30 transition"
-                        >
-                            <option value="" class="bg-green-900 text-white">Select a role</option>
-                            @if(isset($roles) && $roles->count() > 0)
-                                @foreach($roles as $role)
-                                    <option value="{{ $role->id }}" class="bg-green-900 text-white" {{ old('role_id') == $role->id ? 'selected' : '' }}>{{ $role->display_name }}</option>
-                                @endforeach
-                            @else
-                                <option value="" class="bg-green-900 text-white">No roles available</option>
-                            @endif
-                        </select>
-                    </div>
-
-                    <!-- Position -->
-                    <div>
-                        <label for="position" class="block text-sm font-semibold text-yellow-300 mb-2">
-                            Position
-                        </label>
-                        <input 
-                            type="text" 
-                            id="position" 
-                            name="position" 
-                            value="{{ old('position') }}"
-                            class="w-full px-4 py-3 bg-white/10 border border-green-400/30 rounded-lg text-white placeholder-green-300/50 focus:outline-none focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/30 transition"
-                            placeholder="e.g., Principal, Teacher"
-                        >
-                    </div>
-
-                    <!-- School Level -->
-                    <div>
-                        <label for="school_level" class="block text-sm font-semibold text-yellow-300 mb-2">
-                            School Level
-                        </label>
-                        <select 
-                            id="school_level" 
-                            name="school_level"
-                            class="w-full px-4 py-3 bg-white/10 border border-green-400/30 rounded-lg text-white focus:outline-none focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/30 transition"
-                        >
-                            <option value="" class="bg-green-900 text-white">Select school level</option>
-                            <option value="junior_high" class="bg-green-900 text-white" {{ old('school_level') == 'junior_high' ? 'selected' : '' }}>Junior High</option>
-                            <option value="grade_school" class="bg-green-900 text-white" {{ old('school_level') == 'grade_school' ? 'selected' : '' }}>Grade School</option>
-                        </select>
-                    </div>
-
-                    <!-- Password -->
-                    <div>
-                        <label for="password" class="block text-sm font-semibold text-yellow-300 mb-2">
-                            Password
-                        </label>
-                        <input 
-                            type="password" 
-                            id="password" 
-                            name="password" 
-                            required
-                            class="w-full px-4 py-3 bg-white/10 border border-green-400/30 rounded-lg text-white placeholder-green-300/50 focus:outline-none focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/30 transition"
-                            placeholder="Enter your password"
-                        >
-                    </div>
-
-                    <!-- Confirm Password -->
-                    <div>
-                        <label for="password_confirmation" class="block text-sm font-semibold text-yellow-300 mb-2">
-                            Confirm Password
-                        </label>
-                        <input 
-                            type="password" 
-                            id="password_confirmation" 
-                            name="password_confirmation" 
-                            required
-                            class="w-full px-4 py-3 bg-white/10 border border-green-400/30 rounded-lg text-white placeholder-green-300/50 focus:outline-none focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/30 transition"
-                            placeholder="Confirm your password"
-                        >
-                    </div>
-
-                    <!-- Submit Button -->
-                    <button 
-                        type="submit" 
-                        class="w-full py-3 px-4 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-green-900 font-bold rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
-                    >
-                        REGISTER
-                    </button>
-
-                    <!-- Links -->
-                    <div class="flex items-center justify-center pt-4">
-                        <div class="text-sm">
-                            <span class="text-green-300">Already have an account?</span>
-                            <a href="{{ route('login') }}" class="text-yellow-300 hover:text-yellow-100 font-semibold ml-1 transition">
-                                Login here
-                            </a>
-                        </div>
-                    </div>
-                </form>
-
-                <!-- Footer -->
-                <div class="mt-8 text-center">
-                    <p class="text-green-300/60 text-xs">
-                        © {{ date('Y') }} St. Paul University Philippines. All rights reserved.
-                    </p>
-                </div>
-            </div>
+    <!-- Left Side -->
+    <div class="hidden lg:flex lg:w-1/2 items-center justify-center p-12">
+        <div class="seal-container">
+            <img src="{{ asset('images/spup-seal.png') }}" 
+                 class="seal-glow w-80 h-80 object-contain">
         </div>
     </div>
+
+    <!-- Right Side -->
+    <div class="w-full lg:w-1/2 flex items-center justify-center p-8">
+        <div class="w-full max-w-md">
+
+            <!-- Mobile Logo -->
+            <div class="lg:hidden flex justify-center mb-8">
+                <img src="{{ asset('images/spup-seal.png') }}" 
+                     class="w-32 h-32 object-contain seal-glow">
+            </div>
+
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-yellow-400 mb-2">REGISTER</h1>
+                <p class="text-green-200">Create your account</p>
+            </div>
+
+            <!-- Errors -->
+            @if ($errors->any())
+                <div class="mb-4 p-4 bg-red-500/20 border border-red-400/50 rounded-lg">
+                    @foreach ($errors->all() as $error)
+                        <p class="text-red-200 text-sm">{{ $error }}</p>
+                    @endforeach
+                </div>
+            @endif
+
+            <!-- Form -->
+            <form method="POST" action="{{ route('register') }}" class="space-y-6">
+                @csrf
+
+                <!-- First Name -->
+                <div>
+                    <label class="block text-sm font-semibold text-yellow-300 mb-2">First Name</label>
+                    <input type="text" name="first_name" value="{{ old('first_name') }}" required placeholder="Enter your first name"
+                        class="w-full px-4 py-3 bg-white/10 border border-green-400/30 rounded-lg text-white placeholder-green-300/50 focus:outline-none focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/30 transition">
+                </div>
+
+                <!-- Last Name -->
+                <div>
+                    <label class="block text-sm font-semibold text-yellow-300 mb-2">Last Name</label>
+                    <input type="text" name="last_name" value="{{ old('last_name') }}" required placeholder="Enter your last name"
+                        class="w-full px-4 py-3 bg-white/10 border border-green-400/30 rounded-lg text-white placeholder-green-300/50 focus:outline-none focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/30 transition">
+                </div>
+
+                <!-- Email -->
+                <div>
+                    <label class="block text-sm font-semibold text-yellow-300 mb-2">Email Address</label>
+                    <input type="email" name="email" value="{{ old('email') }}" required placeholder="Enter your email address"
+                        class="w-full px-4 py-3 bg-white/10 border border-green-400/30 rounded-lg text-white placeholder-green-300/50 focus:outline-none focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/30 transition">
+                </div>
+
+                <!-- Role Dropdown (FIXED TEXT VISIBILITY) -->
+                <div>
+                    <label class="block text-sm font-semibold text-yellow-300 mb-2">Role</label>
+                    <select name="role_id" required
+                        class="w-full px-4 py-3 bg-white/10 border border-green-400/30 rounded-lg text-white focus:outline-none focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/30 transition">
+
+                        <option value="" class="bg-green-900 text-white">Select a role</option>
+
+                        @if(isset($roles) && $roles->count() > 0)
+                            @foreach($roles as $role)
+                                <option value="{{ $role->id }}" class="bg-green-900 text-white"
+                                    {{ old('role_id') == $role->id ? 'selected' : '' }}>
+                                    {{ $role->display_name }}
+                                </option>
+                            @endforeach
+                        @endif
+                    </select>
+                </div>
+
+                <!-- Position -->
+                <div>
+                    <label class="block text-sm font-semibold text-yellow-300 mb-2">Position</label>
+                    <input type="text" name="position" value="{{ old('position') }}" placeholder="Enter your position"
+                        class="w-full px-4 py-3 bg-white/10 border border-green-400/30 rounded-lg text-white placeholder-green-300/50 focus:outline-none focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/30 transition">
+                </div>
+
+                <!-- Password -->
+                <div>
+                    <label class="block text-sm font-semibold text-yellow-300 mb-2">Password</label>
+                    <input type="password" name="password" required placeholder="Enter your password"
+                        class="w-full px-4 py-3 bg-white/10 border border-green-400/30 rounded-lg text-white placeholder-green-300/50 focus:outline-none focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/30 transition">
+                </div>
+
+                <!-- Confirm Password -->
+                <div>
+                    
+                    <label class="block text-sm font-semibold text-yellow-300 mb-2">Confirm Password</label>
+                    <input type="password" name="password_confirmation" required placeholder="Enter your confirm password"
+                        class="w-full px-4 py-3 bg-white/10 border border-green-400/30 rounded-lg text-white placeholder-green-300/50 focus:outline-none focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/30 transition">
+                </div>
+
+                <!-- Submit -->
+                <button type="submit"
+                    class="w-full py-3 px-4 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-green-900 font-bold rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200">
+                    REGISTER
+                </button>
+
+                <!-- Login -->
+                <div class="text-center text-sm">
+                    <span class="text-green-300">Already have an account?</span>
+                    <a href="{{ route('login') }}" class="text-yellow-300 hover:text-yellow-100 font-semibold ml-1">
+                        Login here
+                    </a>
+                </div>
+            </form>
+
+            <!-- Footer -->
+            <div class="mt-8 text-center text-xs text-green-300/60">
+                © {{ date('Y') }} St. Paul University Philippines. All rights reserved.
+            </div>
+
+        </div>
+    </div>
+</div>
 </body>
 </html>

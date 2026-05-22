@@ -2,9 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DSSRecommendation;
+use App\Models\FacultyDesignation;
 use App\Models\FacultyLoad;
+use App\Models\LoadConflictLog;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use App\Support\FacultyLoadStats;
+use App\Support\FacultyLoadSupport;
 
 class FacultyLoadController extends Controller
 {
@@ -13,14 +21,99 @@ class FacultyLoadController extends Controller
      */
     public function index(Request $request)
     {
-        $facultyLoads = FacultyLoad::with('faculty')->get();
-        
+        $query = FacultyLoad::orderBy('created_at', 'desc');
+        if ($request->filled('faculty_id')) {
+            $query->where('faculty_id', (int) $request->faculty_id);
+        }
+        $facultyLoads = $query->get();
+
+        // Manually load users from default connection to avoid cross-connection eager loading
+        $userIds = $facultyLoads->pluck('faculty_id')->filter()->unique();
+        $users = $userIds->isNotEmpty() ? User::whereIn('id', $userIds)->get()->keyBy('id') : collect();
+
+        // Collect shared-teacher user IDs for badge rendering
+        $sharedTeacherIds = User::whereHas('role', fn($q) => $q->where('name', 'shared_teacher'))
+            ->pluck('id')->map(fn($id) => (string) $id)->flip()->toArray();
+
+        // Pre-fetch approved schedules for all faculty IDs to compute live stats
+        $allFacultyIds = $facultyLoads->pluck('faculty_id')->filter()->unique()->values()->toArray();
+        $today = now()->format('l'); // e.g. "Monday", "Tuesday"
+        $approvedScheds = \App\Models\ClassSchedule::whereIn('faculty_id', $allFacultyIds)
+            ->where('admin_approved', true)
+            ->where('status', 'active')
+            ->get(['faculty_id', 'subject', 'section_name', 'day_of_week', 'start_time', 'end_time'])
+            ->groupBy('faculty_id');
+
+        $result = $facultyLoads->map(function (FacultyLoad $load) use ($users, $sharedTeacherIds, $approvedScheds, $today) {
+            $data = $load->toArray();
+            $user = $users[$load->faculty_id] ?? null;
+            $data['faculty'] = $user
+                ? ['id' => $load->faculty_id, 'name' => $user->name]
+                : null;
+            // Store denormalised name so the view always has it even without join
+            if (empty($data['teacher_name']) && $user) {
+                $data['teacher_name'] = trim($user->first_name . ' ' . $user->last_name) ?: $user->name;
+            }
+            $data['is_shared_teacher'] = isset($sharedTeacherIds[(string) $load->faculty_id]);
+            $presence = $load->faculty_id
+                ? \App\Support\TeacherPresenceSupport::activeStatusForTeacher('mysql_jh', (int) $load->faculty_id)
+                : null;
+            $data['presence_status'] = $presence['status'] ?? null;
+            $data['presence_label'] = $presence['label'] ?? null;
+
+            // Compute live classes_assigned, load_hours, and status from approved schedules
+            if ($load->faculty_id) {
+                $allScheds = collect($approvedScheds->get($load->faculty_id, []));
+
+                // Today's schedules for display stats
+                $scheds = $allScheds->filter(fn($s) => strcasecmp($s->day_of_week ?? '', $today) === 0);
+                $data['classes_assigned'] = $scheds->count();
+                $totalMinutes = $scheds->sum(function ($s) {
+                    $start = strtotime($s->start_time ?? '00:00');
+                    $end   = strtotime($s->end_time   ?? '00:00');
+                    return max(0, ($end - $start) / 60);
+                });
+                $data['load_hours'] = round($totalMinutes / 60, 1);
+
+                // Detect overload: any day with >5 approved subjects (daily limit = 5)
+                $dayCounts     = $allScheds->groupBy('day_of_week')->map(fn($g) => $g->count());
+                $maxDayCount   = $dayCounts->max() ?? 0;
+                $overloadedDay = $dayCounts->filter(fn($c) => $c > 5)->keys()->first();
+                $data['max_day_count']  = $maxDayCount;
+                $data['overloaded_day'] = $overloadedDay;
+
+                if ($maxDayCount > 5) {
+                    $data['status'] = 'overloaded';
+                } elseif ($scheds->count() > 0) {
+                    $data['status'] = 'not_available';
+                } else {
+                    $data['status'] = 'available';
+                }
+
+                $sharedCount = FacultyLoadSupport::countLoadsForTeacher((int) $load->faculty_id);
+                $data['shared_load_count'] = $sharedCount;
+                $data['shared_load_conflict'] = ($data['is_shared_teacher'] ?? false)
+                    && $sharedCount > FacultyLoadSupport::SHARED_TEACHER_MAX_LOADS;
+                if ($data['shared_load_conflict']) {
+                    $data['status'] = 'overloaded';
+                }
+            }
+
+            $data['load_hours_label'] = FacultyLoadSupport::formatHoursLabel($data['load_hours'] ?? 0);
+            $data['has_user_account'] = FacultyLoadSupport::facultyIdHasRegisteredAccount(
+                (int) ($load->faculty_id ?? 0),
+                'junior_high'
+            );
+
+            return $data;
+        })->filter(fn ($row) => $row['has_user_account'] ?? false)->values();
+
         // Check if this is an API request
         if ($request->wantsJson() || $request->ajax()) {
-            return response()->json(['data' => $facultyLoads]);
+            return response()->json(['data' => $result]);
         }
-        
-        return view('admin.faculty-loads.index', ['facultyLoads' => $facultyLoads]);
+
+        return redirect()->route('admin.faculty-loading');
     }
 
     /**
@@ -28,8 +121,11 @@ class FacultyLoadController extends Controller
      */
     public function create()
     {
-        $teachers = User::whereHas('role', function($q) { $q->where('name', 'teacher'); })->get();
-        return view('admin.faculty-loads.create', ['teachers' => $teachers]);
+        $faculties = User::whereHas('role', function ($query) {
+            $query->where('name', 'faculty');
+        })->get();
+
+        return view('grade-school-admin.faculty-loading.add', compact('faculties'));
     }
 
     /**
@@ -37,116 +133,224 @@ class FacultyLoadController extends Controller
      */
     public function store(Request $request)
     {
-        try {
-            // Validate the request
-            $validated = $request->validate([
-                'faculty_id' => 'required|exists:users,id',
-                'department' => 'required|string|max:100',
-                'classes_assigned' => 'required|integer|min:1',
-                'load_hours' => 'required|numeric|min:0.5|max:999.99',
-                'status' => 'required|in:active,inactive',
-                'notes' => 'nullable|string|max:500',
-            ]);
+        $validated = $request->validate([
+            'faculty_id' => 'required|exists:users,id',
+            'department' => 'nullable|string|max:255',
+            'subject' => 'nullable|string|max:255',
+            'grade_level' => 'nullable|string|max:50',
+            'classes_assigned' => 'required|integer|min:0',
+            'load_hours' => 'required|numeric|min:0',
+            'status' => 'required|in:active,inactive,available,unavailable,not_available',
+            'notes' => 'nullable|string|max:1000',
+        ]);
 
-            $facultyLoad = FacultyLoad::create($validated);
-            $facultyLoad->load('faculty');
-
-            // Return JSON response for API requests
-            if ($request->expectsJson()) {
-                return response()->json(['success' => true, 'message' => 'Faculty load added successfully', 'data' => $facultyLoad], 201);
+        $existingLoad = FacultyLoad::where('faculty_id', $validated['faculty_id'])
+            ->where('grade_level', $validated['grade_level'] ?? null)
+            ->where('subject', $validated['subject'] ?? null)
+            ->first();
+        if ($existingLoad) {
+            $message = 'A faculty load for this teacher with the same grade level and subject already exists.';
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $message], 409);
             }
-
-            return redirect()->route('admin.faculty-loads.index')
-                ->with('success', 'Faculty load added successfully!');
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Validation failed',
-                    'errors' => $e->errors()
-                ], 422);
-            }
-            throw $e;
-        } catch (\Exception $e) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Error: ' . $e->getMessage()
-                ], 500);
-            }
-            throw $e;
+            return redirect()->route('admin.faculty-loading')->with('error', $message);
         }
+
+        try {
+            FacultyLoadSupport::assertFacultyLoadAccount((int) $validated['faculty_id'], 'junior_high');
+            FacultyLoadSupport::assertSharedTeacherLoadLimit((int) $validated['faculty_id']);
+        } catch (\InvalidArgumentException $e) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            }
+            return redirect()->route('admin.faculty-loading')->with('error', $e->getMessage());
+        }
+
+        $teacher = User::find($validated['faculty_id']);
+        $validated['teacher_name'] = $teacher ? (trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name) : null;
+
+        if (($validated['status'] ?? null) === 'unavailable') {
+            $validated['status'] = 'not_available';
+        }
+        $validated['load_hours'] = FacultyLoadStats::computeLoadHours(
+            (int) $validated['faculty_id'],
+            $validated['grade_level'] ?? null,
+            $validated['subject'] ?? null
+        );
+        $validated['status'] = FacultyLoadStats::resolveStatus((int) $validated['faculty_id']);
+
+        $load = FacultyLoad::create($validated);
+        FacultyLoadSupport::refreshTeacherLoadingScheduleRow($load);
+        FacultyLoadSupport::applySharedTeacherLoadConflict((int) $load->faculty_id, $load->id);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Faculty load added successfully.']);
+        }
+
+        return redirect()->route('admin.faculty-loading')->with('success', 'Faculty load added successfully.');
     }
 
     /**
      * Show edit form or get faculty load details (JSON API)
      */
-    public function show(FacultyLoad $facultyLoad, Request $request)
+    public function show(Request $request, $id)
     {
+        $facultyLoad = FacultyLoad::on('mysql_jh')->findOrFail($id);
+
         if ($request->wantsJson()) {
-            return response()->json($facultyLoad->load('faculty'));
+            $facultyLoad->setRelation('faculty', $facultyLoad->faculty_id ? User::find($facultyLoad->faculty_id) : null);
+            return response()->json($facultyLoad);
         }
 
-        $teachers = User::whereHas('role', function($q) { $q->where('name', 'teacher'); })->get();
-        return view('admin.faculty-loads.edit', ['facultyLoad' => $facultyLoad, 'teachers' => $teachers]);
+        $teachers = User::where('school_level', 'junior_high')
+            ->whereHas('role', function($q) { $q->where('name', 'like', '%teacher%'); })->get();
+        return redirect()->route('admin.faculty-loading.edit', $id);
     }
 
     /**
-     * Show edit form
+     * Show edit form for a faculty load.
      */
-    public function edit(FacultyLoad $facultyLoad)
+    public function edit($id)
     {
-        $teachers = User::whereHas('role', function($q) { $q->where('name', 'teacher'); })->get();
-        return view('admin.faculty-loads.edit', ['facultyLoad' => $facultyLoad, 'teachers' => $teachers]);
+        $facultyLoad = FacultyLoad::findOrFail($id);
+        $faculties = User::whereHas('role', function ($query) {
+            $query->where('name', 'faculty');
+        })->get();
+
+        return view('grade-school-admin.faculty-loading.edit', compact('facultyLoad', 'faculties'));
     }
 
     /**
-     * Update a faculty load (JSON API version)
+     * Update the specified faculty load in storage (JSON API).
      */
-    public function update(Request $request, FacultyLoad $facultyLoad)
+    public function update(Request $request, $id)
     {
-        // Check if this is an API request
-        if ($request->wantsJson()) {
+        try {
+            $facultyLoad = FacultyLoad::findOrFail($id);
+            $oldGrade = $facultyLoad->grade_level;
+            $oldSubject = $facultyLoad->subject;
+
             $validated = $request->validate([
-                'load_hours' => 'nullable|numeric|min:0.5|max:999.99',
-                'status' => 'nullable|in:active,inactive,adjusted',
-                'classes_assigned' => 'nullable|string|max:500',
+                'faculty_id'       => [
+                    'required',
+                    'exists:users,id',
+                    function ($attribute, $value, $fail) {
+                        $user = User::with('role')->find($value);
+                        if (!$user || $user->school_level !== 'junior_high') {
+                            $fail('The selected teacher must have a Junior High user account in User Accounts.');
+                            return;
+                        }
+                        if (!$user->role || stripos($user->role->name, 'teacher') === false) {
+                            $fail('The selected faculty member must be a registered teacher or instructor.');
+                        }
+                    },
+                ],
+                'subject'          => 'nullable|string|max:255',
+                'grade_level'      => 'nullable|string|max:50',
+                'classes_assigned' => 'nullable|integer|min:0',
+                'load_hours'       => 'nullable|numeric|min:0',
+                'status'           => 'nullable|in:available,unavailable,not_available,overloaded,active,inactive,part-time',
+                'notes'            => 'nullable|string|max:1000',
             ]);
 
+            $teacher = User::find($validated['faculty_id']);
+            $validated['teacher_name'] = $teacher
+                ? (trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name)
+                : null;
+
+            if (($validated['status'] ?? null) === 'unavailable') {
+                $validated['status'] = 'not_available';
+            }
+
+            try {
+                FacultyLoadSupport::assertFacultyLoadAccount((int) $validated['faculty_id'], 'junior_high');
+                if ((int) $validated['faculty_id'] !== (int) $facultyLoad->faculty_id) {
+                    FacultyLoadSupport::assertSharedTeacherLoadLimit((int) $validated['faculty_id']);
+                }
+            } catch (\InvalidArgumentException $e) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            }
+
+            $validated['load_hours'] = FacultyLoadStats::computeLoadHours(
+                (int) $validated['faculty_id'],
+                $validated['grade_level'] ?? null,
+                $validated['subject'] ?? null
+            );
+            $validated['status'] = FacultyLoadStats::resolveStatus((int) $validated['faculty_id']);
+
             $facultyLoad->update($validated);
-            return response()->json(['success' => true, 'data' => $facultyLoad]);
+            $facultyLoad->refresh();
+
+            FacultyLoadSupport::syncSchedulesAfterLoadChange(
+                (int) $facultyLoad->faculty_id,
+                $oldGrade,
+                $oldSubject,
+                $facultyLoad->grade_level,
+                $facultyLoad->subject
+            );
+            FacultyLoadSupport::refreshTeacherLoadingScheduleRow($facultyLoad, $oldSubject);
+            FacultyLoadSupport::applySharedTeacherLoadConflict((int) $facultyLoad->faculty_id, $facultyLoad->id);
+
+            $facultyLoad->setRelation('faculty', $teacher);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Faculty load updated successfully.',
+                'data'    => $facultyLoad,
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'errors' => $e->errors(), 'message' => 'Validation failed'], 422);
+        } catch (\Exception $e) {
+            Log::error('Update faculty load error: ' . $e->getMessage());
+
+            return response()->json(['success' => false, 'message' => 'Error updating faculty load: ' . $e->getMessage()], 500);
         }
-
-        // Web form version
-        $validated = $request->validate([
-            'faculty_id' => 'required|exists:users,id',
-            'department' => 'required|string|max:100',
-            'classes_assigned' => 'required|integer|min:1',
-            'load_hours' => 'required|numeric|min:0.5|max:999.99',
-            'status' => 'required|in:active,inactive',
-            'notes' => 'nullable|string|max:500',
-        ]);
-
-        $facultyLoad->update($validated);
-
-        return redirect()->route('admin.faculty-loads.index')
-            ->with('success', 'Faculty load updated successfully!');
     }
 
     /**
      * Delete a faculty load (JSON API version)
      */
-    public function destroy(Request $request, FacultyLoad $facultyLoad)
+    public function destroy(Request $request, $id)
     {
-        $facultyLoad->delete();
+        try {
+            $facultyLoad = FacultyLoad::on('mysql_jh')->findOrFail($id);
+            $removed = FacultyLoadSupport::cascadeDeleteForFacultyLoad($facultyLoad);
+            $facultyLoad->delete();
 
-        // Return JSON for API requests
-        if ($request->wantsJson()) {
-            return response()->json(['success' => true, 'message' => 'Faculty load deleted successfully!']);
+            $detail = sprintf(
+                'Removed %d schedule(s), %d pending record(s), and cleared %d weekly timetable row(s).',
+                $removed['schedules'],
+                $removed['pending'] ?? 0,
+                $removed['weekly']
+            );
+
+            // Return JSON for API requests
+            if ($request->wantsJson() || $request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Faculty load deleted successfully. ' . $detail,
+                    'removed' => $removed,
+                ], 200);
+            }
+
+            return redirect()->route('admin.faculty-loading')
+                ->with('success', 'Faculty load deleted successfully!');
+        } catch (\Exception $e) {
+            Log::error('Delete faculty load error: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+
+            if ($request->wantsJson() || $request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error deleting faculty load: ' . $e->getMessage()
+                ], 500);
+            }
+
+            return redirect()->route('admin.faculty-loading')
+                ->with('error', 'Error deleting faculty load!');
         }
-
-        return redirect()->route('admin.faculty-loads.index')
-            ->with('success', 'Faculty load deleted successfully!');
     }
 
     /**
@@ -154,8 +358,104 @@ class FacultyLoadController extends Controller
      */
     public function getFacultyLoadsApi()
     {
-        return response()->json([
-            'data' => FacultyLoad::with('faculty')->get()
-        ]);
+        $loads = FacultyLoad::get();
+        $userIds = $loads->pluck('faculty_id')->filter()->unique();
+        $users = $userIds->isNotEmpty() ? User::whereIn('id', $userIds)->get()->keyBy('id') : collect();
+        $loads->each(fn($l) => $l->setRelation('faculty', $users[$l->faculty_id] ?? null));
+        return response()->json(['data' => $loads]);
+    }
+
+    private function resolveFacultyLoadStatus(float $loadHours, string $requestedStatus): string
+    {
+        if ($loadHours > 6) {
+            return 'overloaded';
+        }
+
+        return $requestedStatus === 'overload' ? 'overloaded' : $requestedStatus;
+    }
+
+    /**
+     * Returns current availability status based on approved active schedule at current day/time.
+     */
+    private function computeAvailabilityStatus(int $facultyId): string
+    {
+        if ($facultyId <= 0) {
+            return 'available';
+        }
+
+        $currentTime = now()->format('H:i');
+        $currentDay = now()->format('l');
+
+        $activeSchedule = \App\Models\ClassSchedule::where('faculty_id', $facultyId)
+            ->where('day_of_week', $currentDay)
+            ->where('start_time', '<=', $currentTime)
+            ->where('end_time', '>', $currentTime)
+            ->where('admin_approved', true)
+            ->where('status', 'active')
+            ->exists();
+
+        return $activeSchedule ? 'not_available' : 'available';
+    }
+
+    /**
+     * Check whether the newly added load pushes the faculty member over their
+     * designation limit, and write conflict + DSS records if so.
+     */
+    private function checkDesignationLimit(
+        int $facultyId,
+        int $newClassesAssigned,
+        float $newLoadHours,
+        int $loadId
+    ): void {
+        try {
+            $schoolYear = date('Y') . '-' . (date('Y') + 1);
+
+            $designation = FacultyDesignation::where('faculty_id', $facultyId)
+                ->where('school_year', $schoolYear)
+                ->first();
+
+            if (!$designation) {
+                return;
+            }
+
+            // Sum ALL loads for this teacher (including the one just created)
+            $totalClasses = FacultyLoad::where('faculty_id', $facultyId)->sum('classes_assigned');
+            $totalHours   = FacultyLoad::where('faculty_id', $facultyId)->sum('load_hours');
+
+            $classesExceeded = $totalClasses > $designation->max_classes;
+            $hoursExceeded   = (float) $totalHours > (float) $designation->max_load_hours;
+
+            if (!$classesExceeded && !$hoursExceeded) {
+                return;
+            }
+
+            $type        = $classesExceeded ? 'designation_exceeded' : 'overload';
+            $severity    = $classesExceeded ? 'critical' : 'warning';
+            $description = $classesExceeded
+                ? "Teacher has {$totalClasses} classes but {$designation->designation_type} limit is {$designation->max_classes}."
+                : "Teacher has {$totalHours} load hours but {$designation->designation_type} limit is {$designation->max_load_hours}h.";
+
+            LoadConflictLog::create([
+                'faculty_id'       => $facultyId,
+                'conflict_type'    => $type,
+                'description'      => $description,
+                'severity'         => $severity,
+                'related_load_id'  => $loadId,
+                'detected_at'      => now(),
+                'status'           => 'open',
+            ]);
+
+            DSSRecommendation::create([
+                'type'              => 'load_limit',
+                'priority'          => $severity === 'critical' ? 'high' : 'medium',
+                'issue'             => $description,
+                'solution'          => 'Review and redistribute subjects for this teacher based on their ' . $designation->designation_type . ' designation.',
+                'status'            => 'pending',
+                'related_faculty_id' => $facultyId,
+            ]);
+        } catch (\Exception $e) {
+            // Non-blocking: log the error but do not interrupt the load creation
+            Log::error('checkDesignationLimit failed: ' . $e->getMessage());
+        }
     }
 }

@@ -3,23 +3,20 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Traits\UseSchoolConnection;
 
 class Room extends Model
 {
+    use UseSchoolConnection;
     protected $fillable = [
         'room_number',
         'building',
         'capacity',
         'features',
-        'has_laboratory',
-        'has_projector',
-        'has_ac',
         'status',
+        'school_level',
     ];
 
     protected $casts = [
-        'has_laboratory' => 'boolean',
-        'has_projector' => 'boolean',
-        'has_ac' => 'boolean',
     ];
 }

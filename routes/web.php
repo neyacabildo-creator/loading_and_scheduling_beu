@@ -1,77 +1,179 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
-use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\Auth\NewPasswordController;
+use App\Http\Controllers\Auth\PasswordResetLinkController;
+// RegisteredUserController removed — public self-registration is disabled.
+// Accounts are created exclusively by Principals via /principal/users.
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\FacultyLoadController;
 use App\Http\Controllers\TeacherController;
+use App\Http\Controllers\STLController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
-use App\Http\Controllers\AdminController;
 
-Route::prefix('api/admin')->group(function () {
-    Route::get('/schedules', [AdminController::class, 'getSchedules']);
-    Route::post('/schedules/{id}/approve', [AdminController::class, 'approveSchedule']);
-    Route::post('/schedules/{id}/reject', [AdminController::class, 'rejectSchedule']);
-    Route::put('/schedules/{id}', [AdminController::class, 'updateSchedule']);
-    Route::delete('/schedules/{id}', [AdminController::class, 'deleteSchedule']);
-    Route::post('/teachers', [AdminController::class, 'addTeacher']);
-    Route::post('/rooms', [AdminController::class, 'addRoom']);
+// Verification endpoint — restricted to principal; no longer a public info-leak
+Route::middleware(['auth', 'principal.admin'])->get('/api/verify-setup', function () {
+    $roles = \App\Models\Role::all();
+    $users = \App\Models\User::with('role')->get();
+
+    return response()->json([
+        'roles' => $roles->map(fn($r) => [
+            'id'           => $r->id,
+            'name'         => $r->name,
+            'display_name' => $r->display_name,
+        ]),
+        'users' => $users->map(fn($u) => [
+            'id'           => $u->id,
+            'email'        => $u->email,
+            'name'         => $u->name,
+            'role_id'      => $u->role_id,
+            'school_level' => $u->school_level,
+            'role'         => $u->role?->name,
+        ]),
+    ]);
 });
 
 Route::get('/', function () {
-    return view('welcome');
+    if (Auth::check()) {
+        $user = Auth::user()->load('role');
+        $role = $user->role?->name;
+
+        return match ($role) {
+            'principal'            => redirect()->route('principal.dashboard'),
+            'super_admin'          => redirect()->route('principal.dashboard'),
+            'admin_grade_school'   => redirect()->route('grade-school-admin.dashboard'),
+            'admin_junior_high', 'admin' => redirect()->route('admin.dashboard'),
+            'teacher_grade_school' => redirect()->route('grade-school-teacher.dashboard'),
+            'teacher_junior_high', 'teacher' => redirect()->route('teacher.dashboard'),
+            'shared_teacher'       => redirect()->route('shared-teacher.dashboard'),
+            default                => redirect()->route('dashboard'),
+        };
+    }
+
+    return redirect()->route('login');
 });
 
+// Show login page to anyone (not protected by guest middleware)
+Route::get('login', [AuthenticatedSessionController::class, 'create'])->name('login');
+
+// CSRF token refresh endpoint — called by login page JS to keep token alive and prevent 419
+Route::get('/csrf-refresh', function () {
+    return response()->json(['token' => csrf_token()]);
+})->name('csrf.refresh');
+
 Route::middleware('guest')->group(function () {
-    Route::get('register', [RegisteredUserController::class, 'create'])->name('register');
-    Route::post('register', [RegisteredUserController::class, 'store']);
-    Route::get('login', [AuthenticatedSessionController::class, 'create'])->name('login');
-    Route::post('login', [AuthenticatedSessionController::class, 'store']);
+    // Public self-registration is disabled — accounts are created by Principals only.
+    // Login throttled to 10 attempts per minute per IP to slow brute-force attacks.
+    Route::post('login', [AuthenticatedSessionController::class, 'store'])->middleware('throttle:10,1');
+
+    Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
+    Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
+
+    Route::get('reset-password', [NewPasswordController::class, 'create'])->name('password.reset');
+    Route::post('reset-password', [NewPasswordController::class, 'store'])->name('password.store');
 });
 
 Route::middleware('auth')->group(function () {
-    // Teacher-only dashboard
-    Route::middleware('teacher')->group(function () {
-        Route::get('teacher/dashboard', function () {
-            $mySchedules = \App\Models\ClassSchedule::where('faculty_id', Auth::id())
-                ->where('admin_approved', true)
-                ->where('status', 'active')
-                ->with(['faculty', 'room'])
-                ->orderBy('created_at', 'desc')
-                ->take(10)
-                ->get();
-            return view('teacher.dashboard', ['mySchedules' => $mySchedules]);
-        })->name('teacher.dashboard');
+    Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
+    Route::post('auth/heartbeat', [AuthenticatedSessionController::class, 'heartbeat'])->name('auth.heartbeat');
+
+    // Protected API routes for admin (Junior High)
+    Route::middleware(['admin', 'school.db:mysql_jh'])->prefix('api/admin')->group(function () {
+        Route::get('/combined-schedules', [\App\Http\Controllers\AdminController::class, 'getCombinedSchedules']);
+        Route::get('/room-for-section', [ScheduleController::class, 'getRoomForSection']);
+        Route::get('/schedules', [\App\Http\Controllers\AdminController::class, 'getSchedules']);
+        Route::get('/schedules/{id}', [\App\Http\Controllers\AdminController::class, 'getSchedule']);
+        Route::get('/schedules/{id}/history', [\App\Http\Controllers\AdminController::class, 'getScheduleHistory']);
+        Route::post('/schedules/{id}/approve', [\App\Http\Controllers\AdminController::class, 'approveSchedule']);
+        Route::post('/schedules/{id}/reject', [\App\Http\Controllers\AdminController::class, 'rejectSchedule']);
+        Route::put('/schedules/{id}', [\App\Http\Controllers\AdminController::class, 'updateSchedule']);
+        Route::delete('/schedules/{id}', [\App\Http\Controllers\AdminController::class, 'deleteSchedule']);
+        Route::post('/teachers', [\App\Http\Controllers\AdminController::class, 'addTeacher']);
+        Route::post('/rooms', [\App\Http\Controllers\AdminController::class, 'addRoom']);
+
+        // Cross-DB: JH admin reading teacher data from mysql_jh_teacher
+        Route::get('/teacher/adjustment-requests', [\App\Http\Controllers\AdminController::class, 'getTeacherAdjustmentRequests']);
+        Route::post('/teacher/adjustment-requests/{id}/approve', [\App\Http\Controllers\AdminController::class, 'approveTeacherAdjustmentRequest']);
+        Route::post('/teacher/adjustment-requests/{id}/reject', [\App\Http\Controllers\AdminController::class, 'rejectTeacherAdjustmentRequest']);
+        Route::get('/teacher/leave-requests', [\App\Http\Controllers\AdminController::class, 'getTeacherLeaveRequests']);
+        Route::post('/teacher/leave-requests/{id}/approve', [\App\Http\Controllers\AdminController::class, 'approveTeacherLeaveRequest']);
+        Route::post('/teacher/leave-requests/{id}/reject', [\App\Http\Controllers\AdminController::class, 'rejectTeacherLeaveRequest']);
+        Route::get('/teacher/subject-assignments', [\App\Http\Controllers\AdminController::class, 'getTeacherSubjectAssignments']);
+    });
+    // Teacher-only dashboard (Junior High)
+    Route::middleware(['teacher', 'school.db:mysql_jh'])->group(function () {
+        Route::get('teacher/dashboard', [\App\Http\Controllers\TeacherController::class, 'dashboard'])->name('teacher.dashboard');
         
         Route::get('teacher/class-schedule', function () {
-            return view('teacher.class-schedule');
+            return view('junior-high-teacher.class-schedule');
         })->name('teacher.class-schedule');
         
         Route::get('teacher/my-classes', function () {
-            return view('teacher.my-classes');
+            return view('junior-high-teacher.my-classes');
         })->name('teacher.my-classes');
         
         Route::get('teacher/my-students', function () {
-            return view('teacher.my-students');
+            return view('junior-high-teacher.my-students');
         })->name('teacher.my-students');
         
         Route::get('teacher/class-performance', function () {
-            return view('teacher.class-performance');
+            return view('junior-high-teacher.class-performance');
         })->name('teacher.class-performance');
         
         Route::get('teacher/faculty-loading', function () {
-            return view('teacher.faculty-loading');
+            return view('junior-high-teacher.faculty-loading');
         })->name('teacher.faculty-loading');
         
         Route::get('teacher/grade-submission', function () {
-            return view('teacher.grade-submission');
+            return view('junior-high-teacher.grade-submission');
         })->name('teacher.grade-submission');
         
-        Route::get('teacher/print-export', function () {
-            return view('teacher.print-export');
-        })->name('teacher.print-export');
+        Route::get('teacher/print-export', [\App\Http\Controllers\TeacherController::class, 'printExport'])->name('teacher.print-export');
+        Route::get('teacher/export/schedule', [\App\Http\Controllers\TeacherController::class, 'exportSchedule'])->name('teacher.export.schedule');
+
+        Route::get('teacher/request-adjustments', [\App\Http\Controllers\TeacherController::class, 'requestAdjustments'])->name('teacher.request-adjustments');
+        Route::redirect('teacher/request-adjustments-stl', '/teacher/request-adjustments');
+
+        Route::get('teacher/feedback', [\App\Http\Controllers\TeacherController::class, 'showFeedback'])->name('teacher.feedback');
+        Route::post('teacher/feedback', [\App\Http\Controllers\TeacherController::class, 'submitFeedback'])->name('teacher.feedback.submit');
+
+        Route::get('teacher/loading-schedule', [\App\Http\Controllers\TeacherController::class, 'showLoadingSchedule'])->name('teacher.loading-schedule');
+
+        Route::get('teacher/settings', function () {
+            return view('junior-high-teacher.settings');
+        })->name('teacher.settings');
+
+        Route::post('teacher/profile/photo', function (\Illuminate\Http\Request $request) {
+            $request->validate(['photo' => 'required|image|mimes:jpeg,png,jpg,gif,webp|max:2048']);
+            /** @var \App\Models\User $user */
+            $user = Auth::user();
+            if ($user->profile_photo_path) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($user->profile_photo_path);
+            }
+            $path = $request->file('photo')->store('profile-photos', 'public');
+            $user->profile_photo_path = $path;
+            $user->save();
+            return redirect()->route('teacher.settings')->with('success', 'Profile photo updated successfully.');
+        })->name('teacher.profile.photo');
+
+        Route::put('teacher/profile', function (\Illuminate\Http\Request $request) {
+            /** @var \App\Models\User $user */
+            $user = Auth::user();
+            $data = $request->validate([
+                'current_password' => 'required_with:password|string',
+                'password'         => 'nullable|string|min:8|confirmed',
+            ]);
+            if (!empty($data['password'])) {
+                if (!\Illuminate\Support\Facades\Hash::check($data['current_password'] ?? '', $user->password)) {
+                    return back()->withErrors(['current_password' => 'Current password is incorrect.']);
+                }
+                $user->password = \Illuminate\Support\Facades\Hash::make($data['password']);
+                $user->save();
+            }
+            return redirect()->route('teacher.settings')->with('success', 'Profile updated successfully.');
+        })->name('teacher.profile.update');
         
         // Teacher API endpoints
         Route::get('api/teacher/classes', [\App\Http\Controllers\TeacherController::class, 'getMyClasses']);
@@ -81,75 +183,535 @@ Route::middleware('auth')->group(function () {
         Route::get('api/teacher/grades', [\App\Http\Controllers\TeacherController::class, 'getGrades']);
         Route::post('api/teacher/grades/submit', [\App\Http\Controllers\TeacherController::class, 'submitGrades']);
         Route::get('api/teacher/schedules', [ScheduleController::class, 'getTeacherSchedules'])->name('teacher.schedules');
+        Route::get('api/teacher/adjustment-requests', [\App\Http\Controllers\TeacherController::class, 'getAdjustmentRequests']);
+        Route::get('api/teacher/adjustment-schedules', [\App\Http\Controllers\TeacherController::class, 'getAdjustmentScheduleOptions']);
+        Route::post('api/teacher/adjustment-requests', [\App\Http\Controllers\TeacherController::class, 'storeAdjustmentRequest']);
+        Route::get('api/teacher/leave-requests', [\App\Http\Controllers\TeacherController::class, 'getLeaveRequests']);
+        Route::post('api/teacher/leave-requests', [\App\Http\Controllers\TeacherController::class, 'storeLeaveRequest']);
+        Route::get('api/teacher/notifications', [\App\Http\Controllers\TeacherNotificationController::class, 'index']);
+        Route::post('api/teacher/notifications/read', [\App\Http\Controllers\TeacherNotificationController::class, 'markRead']);
+    });
+
+    // Subject Team Leader (STL) routes - Enhanced teacher with extended permissions (Junior High)
+    Route::middleware(['teacher', 'school.db:mysql_jh'])->group(function () {
+        // STL Core Features
+        Route::get('teacher/manage-faculty-loading-stl', [STLController::class, 'manageFacultyLoading'])->name('teacher.manage-faculty-loading-stl');
+        Route::get('teacher/assign-subjects-stl', [STLController::class, 'assignSubjects'])->name('teacher.assign-subjects-stl');
+        Route::post('teacher/assign-subjects-stl', [STLController::class, 'storeSubjectAssignment'])->name('teacher.store-subject-assignment');
+        
+        Route::get('teacher/dss-recommendations-stl', [STLController::class, 'viewDSSRecommendations'])->name('teacher.dss-recommendations-stl');
+        Route::get('teacher/request-adjustments-stl', function () {
+            return redirect()->route('teacher.request-adjustments');
+        })->name('teacher.request-adjustments-stl');
+        
+        Route::get('teacher/workload-history-stl', [STLController::class, 'viewWorkloadHistory'])->name('teacher.workload-history-stl');
+        Route::get('teacher/generate-reports-stl', [STLController::class, 'generateReports'])->name('teacher.generate-reports-stl');
+        Route::get('teacher/review-schedule', function () {
+            return view('junior-high-teacher.review-schedule');
+        })->name('teacher.review-schedule');
+
+        // STL API Endpoints
+        Route::prefix('api/stl')->group(function () {
+            // Dashboard metrics
+            Route::get('faculty-count', [\App\Http\Controllers\STLController::class, 'getFacultyCount']);
+            Route::get('loading-count', [\App\Http\Controllers\STLController::class, 'getLoadingCount']);
+            Route::get('schedule-count', [\App\Http\Controllers\STLController::class, 'getScheduleCount']);
+            Route::get('pending-count', [\App\Http\Controllers\STLController::class, 'getPendingCount']);
+            Route::get('recent-activities', [\App\Http\Controllers\STLController::class, 'getRecentActivities']);
+            Route::get('schedules-for-review', [\App\Http\Controllers\STLController::class, 'getSchedulesForReview']);
+            
+            // Faculty and assignment management
+            Route::get('assignments', function () {
+                return response()->json(['success' => true, 'data' => \App\Models\FacultyLoad::with('faculty')->get()->map(fn($l) => [
+                    'id'           => $l->id,
+                    'faculty_id'   => $l->faculty_id,
+                    'faculty_name' => $l->faculty ? trim($l->faculty->first_name . ' ' . $l->faculty->last_name) : ($l->teacher_name ?? 'Unknown'),
+                    'subject'      => $l->subject,
+                    'load_hours'   => $l->load_hours,
+                ])]);
+            });
+            Route::delete('assignments/{id}', function ($id) {
+                \App\Models\FacultyLoad::destroy($id);
+                return response()->json(['success' => true, 'message' => 'Assignment deleted']);
+            });
+            
+            // Subject statistics
+            Route::get('subject-stats', function () {
+                $stats = \App\Models\FacultyLoad::selectRaw('subject, COUNT(*) as faculty_count, SUM(load_hours) as total_hours')
+                    ->groupBy('subject')->get();
+                return response()->json(['success' => true, 'stats' => $stats]);
+            });
+            
+            // DSS Recommendations — use real DSSEngine
+            Route::get('dss-recommendations', function () {
+                try {
+                    $engine = new \App\Services\DSSEngine();
+                    $results = $engine->analyze();
+                    $recs = collect($results['recommendations'] ?? [])->map(fn($r, $i) => [
+                        'id'          => $r['id'] ?? ($i + 1),
+                        'title'       => $r['title'] ?? $r['type'] ?? 'Recommendation',
+                        'description' => $r['description'] ?? $r['message'] ?? '',
+                        'priority'    => $r['priority'] ?? 'Medium',
+                        'action'      => $r['action'] ?? $r['suggestion'] ?? '',
+                        'impact'      => $r['impact'] ?? '',
+                        'completed'   => false,
+                    ])->values();
+                    return response()->json(['success' => true, 'recommendations' => $recs]);
+                } catch (\Exception $e) {
+                    return response()->json(['success' => true, 'recommendations' => []]);
+                }
+            });
+            Route::post('accept-recommendation/{id}', function ($id) {
+                return response()->json(['success' => true, 'message' => 'Recommendation noted']);
+            });
+            
+            // Workload History — per-faculty load summary from faculty_loads
+            Route::get('workload-history', function () {
+                $loads = \App\Models\FacultyLoad::all();
+                $byFaculty = $loads->groupBy('faculty_id');
+                $data = $byFaculty->map(function ($group, $facultyId) {
+                    $user = \App\Models\User::find($facultyId);
+                    $total = $group->sum('load_hours');
+                    return [
+                        'id'           => $facultyId,
+                        'name'         => $user ? trim($user->first_name . ' ' . $user->last_name) ?: $user->name : ($group->first()->teacher_name ?? 'Unknown'),
+                        'total_load'   => $total,
+                        'assignments'  => $group->count(),
+                        'average_load' => $group->count() > 0 ? round($total / $group->count(), 1) : 0,
+                        'trend'        => 'stable',
+                    ];
+                })->values();
+                return response()->json(['success' => true, 'faculties' => $data]);
+            });
+            
+            // Schedule Adjustment Requests
+            Route::post('request-adjustment', [\App\Http\Controllers\STLController::class, 'requestAdjustment']);
+            Route::get('my-adjustment-requests', function () {
+                $requests = \App\Support\TeacherAdjustmentRequestSupport::listForTeacher(
+                    \App\Support\TeacherAdjustmentRequestSupport::adminConnectionForSchool('junior_high'),
+                    (int) \Illuminate\Support\Facades\Auth::id()
+                );
+                return response()->json(['success' => true, 'requests' => $requests]);
+            });
+            
+            // Report Generation
+            Route::post('generate-report/{type}', [\App\Http\Controllers\STLController::class, 'generateReports']);
+        });
+
+        // Teacher-level API endpoints (shared with STL)
+        Route::prefix('api/teacher')->group(function () {
+            Route::get('faculty-count', [\App\Http\Controllers\STLController::class, 'getFacultyCount']);
+            Route::get('loading-count', [\App\Http\Controllers\STLController::class, 'getLoadingCount']);
+            Route::get('schedule-count', [\App\Http\Controllers\STLController::class, 'getScheduleCount']);
+            Route::get('pending-count', [\App\Http\Controllers\STLController::class, 'getPendingCount']);
+            Route::get('recent-activities', [\App\Http\Controllers\STLController::class, 'getRecentActivities']);
+        });
     });
     
-    // Admin-only dashboard
-    Route::middleware('admin')->group(function () {
-        Route::get('admin/dashboard', function () {
-            $schedules = \App\Models\ClassSchedule::with(['faculty', 'room', 'approver'])->get();
-            $totalUsers = \App\Models\User::count();
-            $totalSchedules = $schedules->count();
-            $pendingApprovals = $schedules->where('admin_approved', false)->where('status', 'pending')->count();
-            
-            return view('admin.dashboard', [
-                'schedules' => $schedules,
-                'totalUsers' => $totalUsers,
-                'totalSchedules' => $totalSchedules,
-                'pendingApprovals' => $pendingApprovals,
-            ]);
-        })->name('admin.dashboard');
+    // Admin-only dashboard (Junior High) — uses loading_scheduling_jh
+    Route::middleware(['admin', 'school.db:mysql_jh'])->group(function () {
+        Route::get('admin/dashboard', [\App\Http\Controllers\Admin\DashboardController::class, 'index'])->name('admin.dashboard');
         
         // Management features
         Route::get('admin/class-schedule', function () {
-            return view('admin.class-schedule');
+            return view('junior-high-admin.class-schedule');
         })->name('admin.class-schedule');
         
-        Route::get('admin/faculty-loading', function () {
-            return view('admin.faculty-loading');
-        })->name('admin.faculty-loading');
+        Route::get('admin/faculty-loading', [\App\Http\Controllers\Admin\FacultyLoadingController::class, 'index'])->name('admin.faculty-loading');
+        Route::get('admin/faculty-loading/create', [\App\Http\Controllers\Admin\FacultyLoadingController::class, 'create'])->name('admin.faculty-loading.create');
+        Route::post('admin/faculty-loading/store', [\App\Http\Controllers\Admin\FacultyLoadingController::class, 'store'])->name('admin.faculty-loading.store');
+        Route::get('admin/faculty-loading/{id}/edit', [\App\Http\Controllers\Admin\FacultyLoadingController::class, 'edit'])->name('admin.faculty-loading.edit');
+        Route::put('admin/faculty-loading/{id}', [\App\Http\Controllers\Admin\FacultyLoadingController::class, 'update'])->name('admin.faculty-loading.update');
+
+        // Faculty Load Balance Optimizer — JH Admin
+        Route::get('admin/load-balance', [\App\Http\Controllers\Admin\LoadBalanceController::class, 'indexJH'])->name('admin.load-balance');
+
+        // Master Weekly Schedule — JH Admin
+        Route::get('admin/master-schedule/{teacherId}', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'manageJH'])->name('admin.master-schedule.manage');
+        Route::get('admin/master-schedule/{teacherId}/card', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'cardViewJH'])->name('admin.master-schedule.card');
+        Route::post('admin/master-schedule/{teacherId}', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'save'])->name('admin.master-schedule.save');
+        Route::delete('admin/master-schedule/{teacherId}', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'clear'])->name('admin.master-schedule.clear');
         
         Route::get('admin/dss-recommendations', function () {
-            return view('admin.dss-recommendations');
+            return view('junior-high-admin.dss-recommendations');
         })->name('admin.dss-recommendations');
-        
-        Route::get('admin/print-export', function () {
-            return view('admin.print-export');
-        })->name('admin.print-export');
+
+        // DSS Engine API — Junior High Admin
+        Route::prefix('api/admin/dss')->group(function () {
+            Route::post('analyze',       [\App\Http\Controllers\Admin\DSSController::class, 'analyze']);
+            Route::get('workload',       [\App\Http\Controllers\Admin\DSSController::class, 'workload']);
+            Route::get('rooms',          [\App\Http\Controllers\Admin\DSSController::class, 'rooms']);
+            Route::get('notifications',  [\App\Http\Controllers\Admin\DSSController::class, 'notifications']);
+        });
+
+        // Load Balance API — JH Admin
+        Route::get('api/admin/load-balance/data', [\App\Http\Controllers\Admin\LoadBalanceController::class, 'data']);
+
+        Route::get('admin/print-export', [\App\Http\Controllers\AdminController::class, 'printExportSchedule'])->name('admin.print-export');
+
+        Route::get('admin/reports', function () {
+            return view('junior-high-admin.reports.index');
+        })->name('admin.reports');
+
+        Route::get('admin/reports/history', [\App\Http\Controllers\AdminController::class, 'reportHistory'])
+            ->name('admin.reports.history');
+        Route::get('admin/reports/generate/{type}', [\App\Http\Controllers\AdminController::class, 'generateInstitutionReport'])
+            ->name('admin.reports.generate');
+
+        Route::get('admin/users', function () {
+            $users = \App\Models\User::where('school_level', 'junior_high')
+                ->with('role')->latest()->get();
+            $roles = \App\Models\Role::whereNotIn('name', ['principal'])->get();
+            return view('junior-high-admin.users.index', compact('users', 'roles'));
+        })->name('admin.users');
+
+        Route::get('admin/users/create', function () {
+            return redirect()->route('admin.users');
+        })->name('admin.users.create');
+
+        Route::post('admin/users', [\App\Http\Controllers\AdminController::class, 'storeUser'])
+            ->name('admin.users.store');
+        Route::patch('admin/users/{user}', [\App\Http\Controllers\AdminController::class, 'updateUser'])
+            ->name('admin.users.update');
+        Route::patch('admin/users/{user}/toggle', [\App\Http\Controllers\AdminController::class, 'toggleUserActive'])
+            ->name('admin.users.toggle');
+        Route::delete('admin/users/{user}', [\App\Http\Controllers\AdminController::class, 'destroyUser'])
+            ->name('admin.users.destroy');
+
+        Route::get('admin/users/{user}/edit', function () {
+            return view('junior-high-admin.users.edit');
+        })->name('admin.users.edit');
+
+        // Export routes for JH admin
+        Route::get('admin/export/csv',   [\App\Http\Controllers\AdminController::class, 'exportCsv'])->name('admin.export.csv');
+        Route::get('admin/export/excel', [\App\Http\Controllers\AdminController::class, 'exportExcel'])->name('admin.export.excel');
+
+        Route::get('admin/system-logs', [\App\Http\Controllers\AdminController::class, 'systemLogs'])->name('admin.system-logs');
+
+        Route::get('admin/settings', function () {
+            $backupDir = storage_path('app/backups/jh');
+            $backupFiles = [];
+            if (is_dir($backupDir)) {
+                foreach (array_reverse(glob($backupDir . '/*.json')) as $f) {
+                    $backupFiles[] = [
+                        'name' => basename($f),
+                        'size' => round(filesize($f) / 1024, 1) . ' KB',
+                        'date' => date('M d, Y H:i', filemtime($f)),
+                    ];
+                }
+            }
+            return view('junior-high-admin.settings.index', compact('backupFiles'));
+        })->name('admin.settings');
+
+        Route::get('admin/backup/download', [\App\Http\Controllers\AdminController::class, 'backupDownload'])->name('admin.backup.download');
+        Route::post('admin/backup/restore',  [\App\Http\Controllers\AdminController::class, 'backupRestore'])->name('admin.backup.restore');
+
+        Route::put('admin/profile', function (\Illuminate\Http\Request $request) {
+            /** @var \App\Models\User $user */
+            $user = Auth::user();
+            $data = $request->validate([
+                'first_name'       => 'required|string|max:100',
+                'last_name'        => 'required|string|max:100',
+                'email'            => 'required|email|unique:users,email,' . $user->id,
+                'current_password' => 'required_with:password|string',
+                'password'         => 'nullable|string|min:8|confirmed',
+            ]);
+            $user->first_name = $data['first_name'];
+            $user->last_name  = $data['last_name'];
+            $user->email      = $data['email'];
+            if (!empty($data['password'])) {
+                if (!\Illuminate\Support\Facades\Hash::check($data['current_password'] ?? '', $user->password)) {
+                    return back()->withErrors(['current_password' => 'Current password is incorrect.']);
+                }
+                $user->password = \Illuminate\Support\Facades\Hash::make($data['password']);
+            }
+            $user->save();
+            return redirect()->route('admin.settings')->with('success', 'Profile updated successfully.');
+        })->name('admin.profile.update');
+
+        Route::post('admin/profile/photo', function (\Illuminate\Http\Request $request) {
+            $request->validate(['photo' => 'required|image|mimes:jpeg,png,jpg,gif,webp|max:2048']);
+            /** @var \App\Models\User $user */
+            $user = Auth::user();
+            if ($user->profile_photo_path) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($user->profile_photo_path);
+            }
+            $path = $request->file('photo')->store('profile-photos', 'public');
+            $user->profile_photo_path = $path;
+            $user->save();
+            return redirect()->route('admin.settings')->with('success', 'Profile photo updated successfully.');
+        })->name('admin.profile.photo');
+
 
         // Rooms management
+        Route::get('admin/rooms-sections', [RoomController::class, 'index'])->name('admin.rooms-sections.index');
         Route::resource('admin/rooms', RoomController::class, ['names' => [
             'index' => 'admin.rooms.index',
             'create' => 'admin.rooms.create',
             'store' => 'admin.rooms.store',
+            'show' => 'admin.rooms.show',
             'edit' => 'admin.rooms.edit',
             'update' => 'admin.rooms.update',
             'destroy' => 'admin.rooms.destroy',
         ]]);
 
-        // Faculty Loads management
-        Route::resource('admin/faculty-loads', FacultyLoadController::class, ['names' => [
-            'index' => 'admin.faculty-loads.index',
-            'create' => 'admin.faculty-loads.create',
-            'store' => 'admin.faculty-loads.store',
-            'edit' => 'admin.faculty-loads.edit',
-            'update' => 'admin.faculty-loads.update',
-            'destroy' => 'admin.faculty-loads.destroy',
-        ]]);
+        // Schedule Approval management
+        Route::prefix('admin/schedule-approval')->group(function() {
+            Route::get('/', [\App\Http\Controllers\Admin\ScheduleApprovalController::class, 'index'])->name('admin.schedule-approval.index');
+            Route::get('{schedule}', [\App\Http\Controllers\Admin\ScheduleApprovalController::class, 'show'])->name('admin.schedule-approval.show');
+            Route::post('{schedule}/approve', [\App\Http\Controllers\Admin\ScheduleApprovalController::class, 'approve'])->name('admin.schedule-approval.approve');
+            Route::post('{schedule}/reject', [\App\Http\Controllers\Admin\ScheduleApprovalController::class, 'reject'])->name('admin.schedule-approval.reject');
+        });
 
-        // Schedule creation form (admin only)
+        // Faculty Loads API endpoints
+        Route::get('api/faculty-loads', [FacultyLoadController::class, 'index']);
+        Route::post('api/faculty-loads', [FacultyLoadController::class, 'store']);
+        Route::get('api/faculty-loads/{id}', [FacultyLoadController::class, 'show']);
+        Route::put('api/faculty-loads/{id}', [FacultyLoadController::class, 'update']);
+        Route::delete('api/faculty-loads/{id}', [FacultyLoadController::class, 'destroy']);
+        // ── Shared Teachers Management (JH Admin) ────────────────────────────
+        Route::get('admin/shared-teachers', function () {
+            $sharedTeachers = \App\Models\SharedTeacher::orderBy('teacher_name')->get();
+            $jhTeachers     = \App\Models\User::where('school_level', 'junior_high')
+                ->whereHas('role', fn($q) => $q->where('name', 'like', '%teacher%'))
+                ->orderBy('first_name')->get();
+            return view('junior-high-admin.shared-teachers', compact('sharedTeachers', 'jhTeachers'));
+        })->name('admin.shared-teachers.index');
+
+        Route::post('admin/shared-teachers', function (\Illuminate\Http\Request $request) {
+            $data = $request->validate([
+                'faculty_id'   => 'nullable|integer',
+                'teacher_name' => 'required|string|max:150',
+                'email'        => 'nullable|email|max:150',
+                'department'   => 'nullable|string|max:100',
+                'notes'        => 'nullable|string|max:500',
+            ]);
+            $data['school_level'] = 'junior_high';
+            $data['is_active']    = true;
+            \App\Models\SharedTeacher::create($data);
+            return redirect()->route('admin.shared-teachers.index')
+                ->with('success', 'Shared teacher added successfully.');
+        })->name('admin.shared-teachers.store');
+
+        Route::patch('admin/shared-teachers/{id}/toggle', function ($id) {
+            $st = \App\Models\SharedTeacher::findOrFail($id);
+            $st->update(['is_active' => !$st->is_active]);
+            return redirect()->route('admin.shared-teachers.index')
+                ->with('success', $st->teacher_name . ' marked ' . ($st->is_active ? 'active' : 'inactive') . '.');
+        })->name('admin.shared-teachers.toggle');
+
+        Route::delete('admin/shared-teachers/{id}', function ($id) {
+            \App\Models\SharedTeacher::findOrFail($id)->delete();
+            return redirect()->route('admin.shared-teachers.index')
+                ->with('success', 'Shared teacher removed.');
+        })->name('admin.shared-teachers.destroy');
+
+        // Shared Teacher schedule-request review (JH admin)
+        Route::get('admin/shared-teacher-requests', [\App\Http\Controllers\SharedTeacherPortalController::class, 'adminJhRequests'])
+            ->name('admin.shared-teacher-requests');
+        Route::patch('admin/shared-teacher-requests/{id}/approve', [\App\Http\Controllers\SharedTeacherPortalController::class, 'adminJhApprove'])
+            ->name('admin.shared-teacher-requests.approve');
+        Route::patch('admin/shared-teacher-requests/{id}/reject', [\App\Http\Controllers\SharedTeacherPortalController::class, 'adminJhReject'])
+            ->name('admin.shared-teacher-requests.reject');
+        Route::patch('admin/teacher-schedule-requests/{id}/approve', [\App\Http\Controllers\SharedTeacherPortalController::class, 'adminJhApproveScheduleRequest'])
+            ->name('admin.teacher-schedule-requests.approve');
+        Route::patch('admin/teacher-schedule-requests/{id}/reject', [\App\Http\Controllers\SharedTeacherPortalController::class, 'adminJhRejectScheduleRequest'])
+            ->name('admin.teacher-schedule-requests.reject');
+        Route::patch('admin/teacher-leave-requests/{id}/approve', [\App\Http\Controllers\SharedTeacherPortalController::class, 'adminJhApproveLeaveRequest'])
+            ->name('admin.teacher-leave-requests.approve');
+        Route::patch('admin/teacher-leave-requests/{id}/reject', [\App\Http\Controllers\SharedTeacherPortalController::class, 'adminJhRejectLeaveRequest'])
+            ->name('admin.teacher-leave-requests.reject');
+
         Route::get('admin/schedule/create', function () {
             $rooms = \App\Models\Room::where('status', 'available')->get();
-            $teachers = \App\Models\User::whereHas('role', function($q) { $q->where('name', 'teacher'); })->get();
-            return view('admin.schedule-form', ['rooms' => $rooms, 'teachers' => $teachers]);
+            $teachers = \App\Models\User::where('school_level', 'junior_high')
+                ->whereHas('role', function($q) { $q->where('name', 'like', '%teacher%'); })
+                ->get();
+            // Build teacher→subjects map from faculty loads for smart teacher filtering
+            $teacherSubjects = \App\Models\FacultyLoad::select('faculty_id', 'subject')
+                ->whereNotNull('subject')->where('subject', '!=', '')
+                ->get()->groupBy('faculty_id')
+                ->map(fn($loads) => $loads->flatMap(fn($l) => array_map('trim', explode(',', $l->subject)))->unique()->values()->toArray())
+                ->toArray();
+            // Build grade→teacher_ids map so the form can filter teachers per grade
+            $teachersByGrade = \App\Models\FacultyLoad::select('faculty_id', 'grade_level')
+                ->whereNotNull('grade_level')->where('grade_level', '!=', '')
+                ->get()->groupBy('grade_level')
+                ->map(fn($rows) => $rows->pluck('faculty_id')->unique()->values()->toArray())
+                ->toArray();
+            // Build grade→subject→teacher_ids map using approved class schedules
+            // (class_schedules uses the same subject values as the form selects)
+            $teachersByGradeAndSubject = [];
+            \App\Models\ClassSchedule::select('faculty_id', 'grade_level', 'subject')
+                ->whereNotNull('grade_level')->where('grade_level', '!=', '')
+                ->whereNotNull('subject')->where('subject', '!=', '')
+                ->where('admin_approved', true)
+                ->get()
+                ->each(function($cs) use (&$teachersByGradeAndSubject) {
+                    $grade = trim($cs->grade_level);
+                    $subj  = strtoupper(trim($cs->subject));
+                    if ($grade === '' || $subj === '') return;
+                    $teachersByGradeAndSubject[$grade][$subj][] = $cs->faculty_id;
+                });
+            foreach ($teachersByGradeAndSubject as $g => $subjects) {
+                foreach ($subjects as $s => $ids) {
+                    $teachersByGradeAndSubject[$g][$s] = array_values(array_unique($ids));
+                }
+            }
+            $jhSubjectNormForGrade = [
+                'ARALING PANLIPUNAN'                        => ['AP'],
+                'CHRISTIAN LIVING EDUCATION'                => ['CLVE'],
+                'TECHNOLOGY AND LIVELIHOOD EDUCATION'      => ['TLE'],
+                'MATHEMATICS'                               => ['MATHEMATICS'],
+                'ADVANCED MATHEMATICS'                     => ['ADV MATH'],
+                'SCIENCE'                                   => ['SCIENCE'],
+                'ADVANCED SCIENCE'                         => ['ADV SCI'],
+                'ENGLISH'                                   => ['ENGLISH'],
+                'FILIPINO'                                  => ['FILIPINO'],
+                'MAPEH'                                     => ['MAPEH'],
+                'COMPUTER EDUCATION'                        => ['COMP'],
+            ];
+            \App\Support\FacultyLoadSupport::mergeTeachersByGradeAndSubjectFromLoads(
+                $teachersByGradeAndSubject,
+                $jhSubjectNormForGrade
+            );
+            // Build teacher conflict data: faculty_id → [{day, start, end, section}]
+            $teacherConflicts = \App\Models\ClassSchedule::select('faculty_id','day_of_week','start_time','end_time','section_name','grade_level')
+                ->where('admin_approved', true)
+                ->whereNotNull('day_of_week')->whereNotNull('start_time')
+                ->get()
+                ->groupBy('faculty_id')
+                ->map(fn($rows) => $rows->map(fn($r) => [
+                    'day'     => $r->day_of_week,
+                    'start'   => substr($r->start_time, 0, 5),
+                    'end'     => substr($r->end_time ?? '', 0, 5),
+                    'section' => trim(($r->grade_level ?? '') . ' ' . ($r->section_name ?? '')),
+                ])->values())
+                ->toArray();
+            // Also include cross-school (GS) conflicts for shared teachers
+            $jhSharedIds = \App\Models\SharedTeacher::where('is_active', true)->pluck('faculty_id')->toArray();
+            if (!empty($jhSharedIds)) {
+                $gsConflictRows = \Illuminate\Support\Facades\DB::connection('mysql_gs')
+                    ->table('class_schedules')
+                    ->whereIn('faculty_id', $jhSharedIds)
+                    ->where('admin_approved', true)
+                    ->whereNotNull('day_of_week')->whereNotNull('start_time')
+                    ->get(['faculty_id','day_of_week','start_time','end_time','section_name','grade_level']);
+                foreach ($gsConflictRows as $r) {
+                    $fid = (string) $r->faculty_id;
+                    if (!isset($teacherConflicts[$fid])) $teacherConflicts[$fid] = [];
+                    $teacherConflicts[$fid][] = [
+                        'day'     => $r->day_of_week,
+                        'start'   => substr($r->start_time, 0, 5),
+                        'end'     => substr($r->end_time ?? '', 0, 5),
+                        'section' => trim(($r->grade_level ?? '') . ' ' . ($r->section_name ?? '')) . ' (GS)',
+                    ];
+                }
+            }
+            // Active shared teachers for this school level
+            $sharedTeachers = \App\Models\SharedTeacher::where('is_active', true)
+                ->orderBy('teacher_name')
+                ->get(['id','faculty_id','teacher_name','school_level','subjects'])
+                ->toArray();
+            // Build subject→teacher_ids from faculty loads (JH abbreviation normalization)
+            $jhSubjectNorm = [
+                'ARALING PANLIPUNAN'                        => ['AP'],
+                'CHRISTIAN LIVING EDUCATION'                => ['CLVE'],
+                'TECHNOLOGY AND LIVELIHOOD EDUCATION'      => ['TLE'],
+                'MATHEMATICS'                               => ['MATHEMATICS'],
+                'ADVANCED MATHEMATICS'                     => ['ADV MATH'],
+                'SCIENCE'                                   => ['SCIENCE'],
+                'ADVANCED SCIENCE'                         => ['ADV SCI'],
+                'ENGLISH'                                   => ['ENGLISH'],
+                'FILIPINO'                                  => ['FILIPINO'],
+                'MAPEH'                                     => ['MAPEH'],
+                'COMPUTER EDUCATION'                        => ['COMP'],
+            ];
+            $teachersBySubject = [];
+            \App\Models\FacultyLoad::select('faculty_id', 'subject')
+                ->whereNotNull('subject')->where('subject', '!=', '')
+                ->get()
+                ->each(function($fl) use (&$teachersBySubject, $jhSubjectNorm) {
+                    foreach (array_map('trim', explode(',', $fl->subject)) as $sub) {
+                        if ($sub === '') continue;
+                        $raw = strtoupper($sub);
+                        $targets = $jhSubjectNorm[$raw] ?? [$raw];
+                        foreach ($targets as $key) {
+                            $teachersBySubject[$key][] = $fl->faculty_id;
+                        }
+                    }
+                });
+            foreach ($teachersBySubject as $k => $ids) {
+                $teachersBySubject[$k] = array_values(array_unique($ids));
+            }
+            // Also add shared teachers' subjects from shared_teachers.subjects
+            foreach ($sharedTeachers as $st) {
+                if (!($st['faculty_id'] ?? null)) continue;
+                $stSubjects = $st['subjects'] ?? null;
+                if (is_string($stSubjects)) $stSubjects = json_decode($stSubjects, true);
+                if (!is_array($stSubjects)) continue;
+                foreach ($stSubjects as $sub) {
+                    $raw = strtoupper(trim((string) $sub));
+                    if ($raw === '') continue;
+                    $targets = $jhSubjectNorm[$raw] ?? [$raw];
+                    foreach ($targets as $key) {
+                        $teachersBySubject[$key][] = $st['faculty_id'];
+                    }
+                }
+            }
+            foreach ($teachersBySubject as $k => $ids) {
+                $teachersBySubject[$k] = array_values(array_unique($ids));
+            }
+            // Add shared teachers (with subjects assigned) to all JH grade levels
+            // so they appear in the grade filter even before a subject is selected
+            $jhGrades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'];
+            foreach ($sharedTeachers as $st) {
+                if (!($st['faculty_id'] ?? null)) continue;
+                $stSubjects = $st['subjects'] ?? null;
+                if (is_string($stSubjects)) $stSubjects = json_decode($stSubjects, true);
+                if (!is_array($stSubjects) || empty($stSubjects)) continue;
+                foreach ($jhGrades as $grade) {
+                    $teachersByGrade[$grade][] = $st['faculty_id'];
+                }
+            }
+            foreach ($teachersByGrade as $g => $ids) {
+                $teachersByGrade[$g] = array_values(array_unique($ids));
+            }
+            // Build merged teacher list: regular JH teachers + active shared teachers
+            $allTeachersForDropdown = $teachers->map(fn($t) => ['id' => $t->id, 'name' => $t->name])->values()->toArray();
+            $allTeacherIds = array_column($allTeachersForDropdown, 'id');
+            foreach ($sharedTeachers as $st) {
+                if (!($st['faculty_id'] ?? null)) continue;
+                if (!in_array($st['faculty_id'], $allTeacherIds, false)) {
+                    $allTeachersForDropdown[] = ['id' => $st['faculty_id'], 'name' => $st['teacher_name'] . ' (Shared)'];
+                    $allTeacherIds[] = $st['faculty_id'];
+                }
+            }
+            return view('junior-high-admin.schedule-form', [
+                'rooms'                      => $rooms,
+                'teachers'                   => $teachers,
+                'teacherSubjects'            => $teacherSubjects,
+                'teachersByGrade'            => $teachersByGrade,
+                'teachersByGradeAndSubject'  => $teachersByGradeAndSubject,
+                'teacherConflicts'           => $teacherConflicts,
+                'sharedTeachers'             => $sharedTeachers,
+                'teachersBySubject'          => $teachersBySubject,
+                'allTeachersForDropdown'     => $allTeachersForDropdown,
+            ]);
         })->name('admin.schedule.create');
-        
+
+        // Auto Schedule Generator (JH admin)
+        Route::get('admin/schedule/generate',         [\App\Http\Controllers\ScheduleGeneratorController::class, 'show'])->name('admin.schedule.generate');
+        Route::post('admin/schedule/generate/preview',[\App\Http\Controllers\ScheduleGeneratorController::class, 'preview'])->name('admin.schedule.generate.preview');
+        Route::post('admin/schedule/generate/confirm',[\App\Http\Controllers\ScheduleGeneratorController::class, 'confirm'])->name('admin.schedule.generate.confirm');
+
         // Schedule form submission (form POST)
         Route::post('admin/schedule/store', [ScheduleController::class, 'store'])->name('admin.schedule.store');
         
         // Schedule management API endpoints
         Route::get('api/admin/schedules', [ScheduleController::class, 'index'])->name('admin.schedules.index');
-        Route::get('api/admin/schedules/{schedule}', [ScheduleController::class, 'show'])->name('admin.schedules.show');
         Route::get('api/admin/schedules/pending', [ScheduleController::class, 'getPendingSchedules'])->name('admin.schedules.pending');
+        Route::get('api/admin/schedules/{schedule}', [ScheduleController::class, 'show'])->name('admin.schedules.show');
         Route::post('api/admin/schedules', [ScheduleController::class, 'store'])->name('schedule.store');
         Route::post('api/admin/schedules/{schedule}/approve', [ScheduleController::class, 'approve'])->name('schedule.approve');
         Route::post('api/admin/schedules/{schedule}/reject', [ScheduleController::class, 'reject'])->name('schedule.reject');
@@ -157,6 +719,19 @@ Route::middleware('auth')->group(function () {
         Route::delete('api/admin/schedules/{schedule}', [ScheduleController::class, 'destroy'])->name('schedule.destroy');
         Route::get('api/admin/schedules/{schedule}/history', [ScheduleController::class, 'getHistory'])->name('schedule.history');
         
+        // Available rooms for a time slot (automated room assignment)
+        Route::get('api/admin/available-rooms', [ScheduleController::class, 'getAvailableRooms'])->name('admin.available-rooms');
+
+        // Scheduling conflicts and detection
+        Route::get('api/admin/schedules/conflicts/summary', [ScheduleController::class, 'getConflictsSummary'])->name('admin.schedules.conflicts');
+        Route::post('api/admin/schedules/check-duplicate', [ScheduleController::class, 'checkDuplicate'])->name('admin.schedules.check-duplicate');
+
+        // Teacher filtering by grade and subject
+        Route::get('api/admin/teachers/by-grade-subject', [ScheduleController::class, 'getTeachersByGradeAndSubject'])->name('admin.teachers.by-grade-subject');
+
+        // Faculty load availability status
+        Route::get('api/admin/faculty-load-status', [ScheduleController::class, 'getFacultyLoadStatus'])->name('admin.faculty-load-status');
+
         // Rooms API endpoints
         Route::get('api/rooms', [RoomController::class, 'index']);
         Route::post('api/rooms', [RoomController::class, 'store']);
@@ -165,42 +740,879 @@ Route::middleware('auth')->group(function () {
         Route::delete('api/rooms/{room}', [RoomController::class, 'destroy']);
         
         // Teachers/Faculty API endpoints
-        Route::get('api/teachers', [AdminController::class, 'getTeachers']);
-        Route::post('api/teachers', [AdminController::class, 'addTeacher']);
-        Route::put('api/teachers/{id}', [AdminController::class, 'updateTeacher']);
-        Route::delete('api/teachers/{id}', [AdminController::class, 'deleteTeacher']);
-        
-        // Faculty Loads API endpoints
-        Route::get('api/faculty-loads', [FacultyLoadController::class, 'index']);
-        Route::post('api/faculty-loads', [FacultyLoadController::class, 'store']);
-        Route::get('api/faculty-loads/{facultyLoad}', [FacultyLoadController::class, 'show']);
-        Route::put('api/faculty-loads/{facultyLoad}', [FacultyLoadController::class, 'update']);
-        Route::delete('api/faculty-loads/{facultyLoad}', [FacultyLoadController::class, 'destroy']);
+        Route::get('api/teachers', [\App\Http\Controllers\AdminController::class, 'getTeachers']);
+        Route::post('api/teachers', [\App\Http\Controllers\AdminController::class, 'addTeacher']);
+        Route::put('api/teachers/{id}', [\App\Http\Controllers\AdminController::class, 'updateTeacher']);
+        Route::delete('api/teachers/{id}', [\App\Http\Controllers\AdminController::class, 'deleteTeacher']);
+        Route::patch('api/teachers/{id}/toggle-active', [\App\Http\Controllers\AdminController::class, 'toggleTeacherActive']);
     });
     
     // Shared endpoints (both teacher and admin)
     Route::get('api/schedules/approved', [ScheduleController::class, 'getApprovedSchedules'])->name('schedules.approved');
     
-    // Fallback dashboard - redirect to role-specific dashboard
+    // Fallback dashboard — redirects each role to their proper portal
     Route::get('dashboard', function () {
-        $user = Auth::user();
-        if ($user->role) {
-            if (strpos($user->role->name, 'admin') !== false) {
-                return redirect()->route('admin.dashboard');
-            } elseif ($user->role->name === 'teacher') {
-                return redirect()->route('teacher.dashboard');
-            }
-        }
-        return view('dashboard');
+        $role = Auth::user()->load('role')->role?->name;
+        return match ($role) {
+            'principal'                         => redirect()->route('principal.dashboard'),
+            'super_admin'                       => redirect()->route('principal.dashboard'),
+            'admin_grade_school'                => redirect()->route('grade-school-admin.dashboard'),
+            'admin_junior_high', 'admin'        => redirect()->route('admin.dashboard'),
+            'teacher_grade_school'              => redirect()->route('grade-school-teacher.dashboard'),
+            'teacher_junior_high', 'teacher'    => redirect()->route('teacher.dashboard'),
+            'shared_teacher'                    => redirect()->route('shared-teacher.dashboard'),
+            default => abort(403, 'No dashboard configured for your role.'),
+        };
     })->name('dashboard');
     
+    // POST-only logout — GET logout removed to prevent CSRF-based forced sign-out
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
-    
-    Route::get('logout', function () {
-        Auth::guard('web')->logout();
-        request()->session()->invalidate();
-        request()->session()->regenerateToken();
-        return redirect('/');
-    })->name('logout.get');
+
+    // ── Shared Teacher Portal ─────────────────────────────────────────────
+    Route::middleware('shared.teacher')->prefix('shared-teacher')->group(function () {
+        Route::get('dashboard', [\App\Http\Controllers\SharedTeacherPortalController::class, 'dashboard'])
+            ->name('shared-teacher.dashboard');
+        Route::get('requests', [\App\Http\Controllers\SharedTeacherPortalController::class, 'requests'])
+            ->name('shared-teacher.requests');
+        Route::get('requests/schedules', [\App\Http\Controllers\SharedTeacherPortalController::class, 'requestSchedules'])
+            ->name('shared-teacher.requests.schedules');
+        Route::post('requests', [\App\Http\Controllers\SharedTeacherPortalController::class, 'storeRequest'])
+            ->name('shared-teacher.requests.store');
+        Route::get('api/shared-teacher/notifications', [\App\Http\Controllers\TeacherNotificationController::class, 'index']);
+        Route::post('api/shared-teacher/notifications/read', [\App\Http\Controllers\TeacherNotificationController::class, 'markRead']);
+    });
 });
+
+// =============================================================================
+// GRADE SCHOOL ADMIN ROUTES - School Level Segregation
+// =============================================================================
+
+// GS admin — uses loading_scheduling_gs
+Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolAdmin::class, 'school.db:mysql_gs'])->group(function () {
+    // Grade School Admin Dashboard
+    Route::get('grade-school-admin/dashboard', [
+        \App\Http\Controllers\GradeSchoolAdminController::class, 'dashboard'
+    ])->name('grade-school-admin.dashboard');
+
+    // Grade School Admin Classes & Schedules
+    Route::get('grade-school-admin/class-schedule', [
+        \App\Http\Controllers\GradeSchoolAdminController::class, 'classSchedule'
+    ])->name('grade-school-admin.class-schedule');
+
+    // Grade School Admin Faculty Loading
+    Route::get('grade-school-admin/faculty-loading', [
+        \App\Http\Controllers\GradeSchoolAdminController::class, 'facultyLoading'
+    ])->name('grade-school-admin.faculty-loading');
+
+    // Faculty Load Balance Optimizer — GS Admin
+    Route::get('grade-school-admin/load-balance', [\App\Http\Controllers\Admin\LoadBalanceController::class, 'indexGS'])->name('grade-school-admin.load-balance');
+
+    // Master Weekly Schedule — GS Admin
+    Route::get('grade-school-admin/master-schedule/{teacherId}', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'manageGS'])->name('grade-school-admin.master-schedule.manage');
+    Route::get('grade-school-admin/master-schedule/{teacherId}/card', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'cardViewGS'])->name('grade-school-admin.master-schedule.card');
+    Route::post('grade-school-admin/master-schedule/{teacherId}', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'save'])->name('grade-school-admin.master-schedule.save');
+    Route::delete('grade-school-admin/master-schedule/{teacherId}', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'clear'])->name('grade-school-admin.master-schedule.clear');
+
+    // Grade School Admin Rooms Management (full CRUD)
+    Route::resource('grade-school-admin/rooms', \App\Http\Controllers\GradeSchoolRoomController::class, ['names' => [
+        'index'  => 'grade-school-admin.rooms.index',
+        'create' => 'grade-school-admin.rooms.create',
+        'store'  => 'grade-school-admin.rooms.store',
+        'show'   => 'grade-school-admin.rooms.show',
+        'edit'   => 'grade-school-admin.rooms.edit',
+        'update' => 'grade-school-admin.rooms.update',
+        'destroy'=> 'grade-school-admin.rooms.destroy',
+    ]]);
+
+    // Grade School Admin Users Management
+    Route::get('grade-school-admin/users', [
+        \App\Http\Controllers\GradeSchoolAdminController::class, 'users'
+    ])->name('grade-school-admin.users.index');
+    Route::get('grade-school-admin/users/create', function () {
+        return redirect()->route('grade-school-admin.users.index');
+    })->name('grade-school-admin.users.create');
+    Route::post('grade-school-admin/users', [
+        \App\Http\Controllers\GradeSchoolAdminController::class, 'storeUser'
+    ])->name('grade-school-admin.users.store');
+    Route::get('grade-school-admin/users/{user}/edit', function () {
+        return view('grade-school-admin.users.edit');
+    })->name('grade-school-admin.users.edit');
+
+    // Grade School Admin Schedule Approval
+    Route::get('grade-school-admin/schedule-approval', [
+        \App\Http\Controllers\GradeSchoolAdminController::class, 'scheduleApproval'
+    ])->name('grade-school-admin.schedule-approval.index');
+
+    // Grade School Admin Reports
+    Route::get('grade-school-admin/reports', [
+        \App\Http\Controllers\GradeSchoolAdminController::class, 'reports'
+    ])->name('grade-school-admin.reports.index');
+
+    Route::get('grade-school-admin/reports/history', [
+        \App\Http\Controllers\GradeSchoolAdminController::class, 'reportHistory'
+    ])->name('grade-school-admin.reports.history');
+
+    Route::get('grade-school-admin/reports/generate/{type}', [
+        \App\Http\Controllers\GradeSchoolAdminController::class, 'generateInstitutionReport'
+    ])->name('grade-school-admin.reports.generate');
+
+    // Grade School Admin Rooms & Sections
+    Route::get('grade-school-admin/rooms-sections', [
+        \App\Http\Controllers\GradeSchoolAdminController::class, 'roomsSections'
+    ])->name('grade-school-admin.rooms-sections.index');
+
+    // Grade School Admin Generate Schedule
+    Route::get('grade-school-admin/schedule/create', [
+        \App\Http\Controllers\GradeSchoolAdminController::class, 'scheduleCreate'
+    ])->name('grade-school-admin.schedule.create');
+
+    // ── Shared Teachers Management (GS Admin) ────────────────────────────
+    Route::get('grade-school-admin/shared-teachers', function () {
+        $sharedTeachers = (new \App\Models\SharedTeacher)->setConnection('mysql_gs')->newQuery()
+            ->orderBy('teacher_name')->get();
+        $gsTeachers = \App\Models\User::where('school_level', 'grade_school')
+            ->whereHas('role', fn($q) => $q->where('name', 'like', '%teacher%'))
+            ->orderBy('first_name')->get();
+        return view('grade-school-admin.shared-teachers', compact('sharedTeachers', 'gsTeachers'));
+    })->name('grade-school-admin.shared-teachers.index');
+
+    Route::post('grade-school-admin/shared-teachers', function (\Illuminate\Http\Request $request) {
+        $data = $request->validate([
+            'faculty_id'   => 'nullable|integer',
+            'teacher_name' => 'required|string|max:150',
+            'email'        => 'nullable|email|max:150',
+            'department'   => 'nullable|string|max:100',
+            'notes'        => 'nullable|string|max:500',
+        ]);
+        $data['school_level'] = 'grade_school';
+        $data['is_active']    = true;
+        (new \App\Models\SharedTeacher)->setConnection('mysql_gs')->newQuery()->create($data);
+        return redirect()->route('grade-school-admin.shared-teachers.index')
+            ->with('success', 'Shared teacher added successfully.');
+    })->name('grade-school-admin.shared-teachers.store');
+
+    Route::patch('grade-school-admin/shared-teachers/{id}/toggle', function ($id) {
+        $st = (new \App\Models\SharedTeacher)->setConnection('mysql_gs')->newQuery()->findOrFail($id);
+        $st->update(['is_active' => !$st->is_active]);
+        return redirect()->route('grade-school-admin.shared-teachers.index')
+            ->with('success', $st->teacher_name . ' marked ' . ($st->is_active ? 'active' : 'inactive') . '.');
+    })->name('grade-school-admin.shared-teachers.toggle');
+
+    Route::delete('grade-school-admin/shared-teachers/{id}', function ($id) {
+        (new \App\Models\SharedTeacher)->setConnection('mysql_gs')->newQuery()->findOrFail($id)->delete();
+        return redirect()->route('grade-school-admin.shared-teachers.index')
+            ->with('success', 'Shared teacher removed.');
+    })->name('grade-school-admin.shared-teachers.destroy');
+
+    // Shared Teacher schedule-request review (GS admin)
+    Route::get('grade-school-admin/shared-teacher-requests', [\App\Http\Controllers\SharedTeacherPortalController::class, 'adminGsRequests'])
+        ->name('grade-school-admin.shared-teacher-requests');
+    Route::patch('grade-school-admin/shared-teacher-requests/{id}/approve', [\App\Http\Controllers\SharedTeacherPortalController::class, 'adminGsApprove'])
+        ->name('grade-school-admin.shared-teacher-requests.approve');
+    Route::patch('grade-school-admin/shared-teacher-requests/{id}/reject', [\App\Http\Controllers\SharedTeacherPortalController::class, 'adminGsReject'])
+        ->name('grade-school-admin.shared-teacher-requests.reject');
+    Route::patch('grade-school-admin/teacher-schedule-requests/{id}/approve', [\App\Http\Controllers\SharedTeacherPortalController::class, 'adminGsApproveScheduleRequest'])
+        ->name('grade-school-admin.teacher-schedule-requests.approve');
+    Route::patch('grade-school-admin/teacher-schedule-requests/{id}/reject', [\App\Http\Controllers\SharedTeacherPortalController::class, 'adminGsRejectScheduleRequest'])
+        ->name('grade-school-admin.teacher-schedule-requests.reject');
+    Route::patch('grade-school-admin/teacher-leave-requests/{id}/approve', [\App\Http\Controllers\SharedTeacherPortalController::class, 'adminGsApproveLeaveRequest'])
+        ->name('grade-school-admin.teacher-leave-requests.approve');
+    Route::patch('grade-school-admin/teacher-leave-requests/{id}/reject', [\App\Http\Controllers\SharedTeacherPortalController::class, 'adminGsRejectLeaveRequest'])
+        ->name('grade-school-admin.teacher-leave-requests.reject');
+
+
+    Route::post('grade-school-admin/schedule/store', [
+        \App\Http\Controllers\GradeSchoolAdminController::class, 'storeSchedule'
+    ])->name('grade-school-admin.schedule.store');
+
+    // Auto Schedule Generator (GS admin)
+    Route::get('grade-school-admin/schedule/generate',          [\App\Http\Controllers\ScheduleGeneratorController::class, 'show'])->name('grade-school-admin.schedule.generate');
+    Route::post('grade-school-admin/schedule/generate/preview', [\App\Http\Controllers\ScheduleGeneratorController::class, 'preview'])->name('grade-school-admin.schedule.generate.preview');
+    Route::post('grade-school-admin/schedule/generate/confirm', [\App\Http\Controllers\ScheduleGeneratorController::class, 'confirm'])->name('grade-school-admin.schedule.generate.confirm');
+
+    // Grade School Admin DSS Recommendations
+    Route::get('grade-school-admin/dss-recommendations', [
+        \App\Http\Controllers\GradeSchoolAdminController::class, 'dssRecommendations'
+    ])->name('grade-school-admin.dss-recommendations');
+
+    // DSS Engine API — Grade School Admin
+    Route::middleware(['school.db:mysql_gs'])->prefix('api/grade-school-admin/dss')->group(function () {
+        Route::post('analyze',       [\App\Http\Controllers\Admin\DSSController::class, 'analyze']);
+        Route::get('workload',       [\App\Http\Controllers\Admin\DSSController::class, 'workload']);
+        Route::get('rooms',          [\App\Http\Controllers\Admin\DSSController::class, 'rooms']);
+        Route::get('notifications',  [\App\Http\Controllers\Admin\DSSController::class, 'notifications']);
+    });
+
+    // Grade School Admin Print / Export
+    Route::get('grade-school-admin/print-export', [
+        \App\Http\Controllers\GradeSchoolAdminController::class, 'printExport'
+    ])->name('grade-school-admin.print-export');
+    Route::get('grade-school-admin/export/csv',   [\App\Http\Controllers\GradeSchoolAdminController::class, 'exportCsv'])->name('grade-school-admin.export.csv');
+    Route::get('grade-school-admin/export/excel', [\App\Http\Controllers\GradeSchoolAdminController::class, 'exportExcel'])->name('grade-school-admin.export.excel');
+
+    // Grade School Admin System Logs
+    Route::get('grade-school-admin/system-logs', [
+        \App\Http\Controllers\GradeSchoolAdminController::class, 'systemLogs'
+    ])->name('grade-school-admin.system-logs');
+
+    // Grade School Admin Settings
+    Route::get('grade-school-admin/settings', [
+        \App\Http\Controllers\GradeSchoolAdminController::class, 'settings'
+    ])->name('grade-school-admin.settings');
+    Route::get('grade-school-admin/backup/download', [\App\Http\Controllers\GradeSchoolAdminController::class, 'backupDownload'])->name('grade-school-admin.backup.download');
+    Route::post('grade-school-admin/backup/restore',  [\App\Http\Controllers\GradeSchoolAdminController::class, 'backupRestore'])->name('grade-school-admin.backup.restore');
+
+    Route::put('grade-school-admin/profile', function (\Illuminate\Http\Request $request) {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+        $data = $request->validate([
+            'first_name'       => 'required|string|max:100',
+            'last_name'        => 'required|string|max:100',
+            'email'            => 'required|email|unique:users,email,' . $user->id,
+            'current_password' => 'required_with:password|string',
+            'password'         => 'nullable|string|min:8|confirmed',
+        ]);
+        $user->first_name = $data['first_name'];
+        $user->last_name  = $data['last_name'];
+        $user->email      = $data['email'];
+        if (!empty($data['password'])) {
+            if (!\Illuminate\Support\Facades\Hash::check($data['current_password'] ?? '', $user->password)) {
+                return back()->withErrors(['current_password' => 'Current password is incorrect.']);
+            }
+            $user->password = \Illuminate\Support\Facades\Hash::make($data['password']);
+        }
+        $user->save();
+        return redirect()->route('grade-school-admin.settings')->with('success', 'Profile updated successfully.');
+    })->name('grade-school-admin.profile.update');
+
+    Route::post('grade-school-admin/profile/photo', function (\Illuminate\Http\Request $request) {
+        $request->validate(['photo' => 'required|image|mimes:jpeg,png,jpg,gif,webp|max:2048']);
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+        if ($user->profile_photo_path) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($user->profile_photo_path);
+        }
+        $path = $request->file('photo')->store('profile-photos', 'public');
+        $user->profile_photo_path = $path;
+        $user->save();
+        return redirect()->route('grade-school-admin.settings')->with('success', 'Profile photo updated successfully.');
+    })->name('grade-school-admin.profile.photo');
+
+    // Grade School Admin API Routes
+    Route::prefix('api/grade-school-admin')->group(function () {
+        // Schedules
+        Route::get('/schedules', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'getSchedules'
+        ]);
+        Route::get('/combined-schedules', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'getCombinedSchedules'
+        ]);
+        Route::get('/schedules/{id}', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'getSchedule'
+        ]);
+        Route::get('/schedules/{id}/history', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'getScheduleHistory'
+        ]);
+        Route::post('/schedules/{id}/approve', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'approveSchedule'
+        ]);
+        Route::post('/schedules/{id}/reject', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'rejectSchedule'
+        ]);
+        Route::put('/schedules/{id}', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'updateSchedule'
+        ]);
+        Route::delete('/schedules/{id}', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'deleteSchedule'
+        ]);
+
+        // Teachers
+        Route::post('/teachers', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'addTeacher'
+        ]);
+        Route::get('/teachers', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'getTeachers'
+        ]);
+        Route::put('/teachers/{id}', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'updateTeacher'
+        ]);
+        Route::delete('/teachers/{id}', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'deleteTeacher'
+        ]);
+        Route::patch('/teachers/{id}/toggle-active', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'toggleTeacherActive'
+        ]);
+
+        // Rooms
+        Route::post('/rooms', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'addRoom'
+        ]);
+        Route::get('/rooms', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'getRooms'
+        ]);
+        Route::put('/rooms/{id}', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'updateRoom'
+        ]);
+        Route::delete('/rooms/{id}', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'deleteRoom'
+        ]);
+
+        // Available rooms for a time slot (automated room assignment)
+        Route::get('/available-rooms', [ScheduleController::class, 'getAvailableRooms'])->name('grade-school-admin.available-rooms');
+        Route::get('/room-for-section', [ScheduleController::class, 'getRoomForSection']);
+
+        // Faculty Loads
+        Route::get('/faculty-loads', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'getFacultyLoads'
+        ]);
+        Route::post('/faculty-loads', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'addFacultyLoad'
+        ]);
+        Route::put('/faculty-loads/{id}', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'updateFacultyLoad'
+        ]);
+        Route::delete('/faculty-loads/{id}', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'deleteFacultyLoad'
+        ]);
+
+        // Cross-DB: GS admin reading teacher data from mysql_gs_teacher
+        Route::get('/teacher/adjustment-requests', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'getTeacherAdjustmentRequests'
+        ]);
+        Route::post('/teacher/adjustment-requests/{id}/approve', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'approveTeacherAdjustmentRequest'
+        ]);
+        Route::post('/teacher/adjustment-requests/{id}/reject', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'rejectTeacherAdjustmentRequest'
+        ]);
+        Route::get('/teacher/leave-requests', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'getTeacherLeaveRequests'
+        ]);
+        Route::post('/teacher/leave-requests/{id}/approve', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'approveTeacherLeaveRequest'
+        ]);
+        Route::post('/teacher/leave-requests/{id}/reject', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'rejectTeacherLeaveRequest'
+        ]);
+        Route::get('/teacher/subject-assignments', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'getTeacherSubjectAssignments'
+        ]);
+
+        // Scheduling conflicts and detection
+        Route::get('/schedules/conflicts/summary', [ScheduleController::class, 'getConflictsSummary'])->name('grade-school-admin.schedules.conflicts');
+        Route::post('/schedules/check-duplicate', [ScheduleController::class, 'checkDuplicate'])->name('grade-school-admin.schedules.check-duplicate');
+
+        // Teacher filtering by grade and subject
+        Route::get('/teachers/by-grade-subject', [ScheduleController::class, 'getTeachersByGradeAndSubject'])->name('grade-school-admin.teachers.by-grade-subject');
+
+        // Faculty load availability status
+        Route::get('/faculty-load-status', [ScheduleController::class, 'getFacultyLoadStatus'])->name('grade-school-admin.faculty-load-status');
+
+        // Load Balance API — GS Admin
+        Route::get('/load-balance/data', [\App\Http\Controllers\Admin\LoadBalanceController::class, 'data']);
+    });
+});
+
+// =============================================================================
+// PRINCIPAL ROUTES — Principal / Secretary
+// Full control over both school levels; handles admin permission requests
+// =============================================================================
+
+Route::middleware(['auth', 'principal.admin'])->prefix('principal')->name('principal.')->group(function () {
+    Route::get('/dashboard',           [\App\Http\Controllers\PrincipalController::class, 'dashboard'])->name('dashboard');
+
+    Route::get('/users',               [\App\Http\Controllers\PrincipalController::class, 'users'])->name('users');
+    Route::post('/users',              [\App\Http\Controllers\PrincipalController::class, 'storeUser'])->name('users.store');
+    Route::patch('/users/{user}',      [\App\Http\Controllers\PrincipalController::class, 'updateUser'])->name('users.update');
+    Route::patch('/users/{user}/toggle',[\App\Http\Controllers\PrincipalController::class, 'toggleUserActive'])->name('users.toggle');
+    Route::delete('/users/{user}',      [\App\Http\Controllers\PrincipalController::class, 'deleteUser'])->name('users.destroy');
+
+    Route::get('/permission-requests', [\App\Http\Controllers\PrincipalController::class, 'permissionRequests'])->name('permission-requests');
+    Route::patch('/permission-requests/{permissionRequest}/approve', [\App\Http\Controllers\PrincipalController::class, 'approveRequest'])->name('requests.approve');
+    Route::patch('/permission-requests/{permissionRequest}/reject',  [\App\Http\Controllers\PrincipalController::class, 'rejectRequest'])->name('requests.reject');
+
+    Route::get('/system-logs',         [\App\Http\Controllers\PrincipalController::class, 'systemLogs'])->name('system-logs');
+    Route::get('/teacher-logs/junior-high',  [\App\Http\Controllers\PrincipalController::class, 'teacherLogsJH'])->name('teacher-logs.jh');
+    Route::get('/teacher-logs/grade-school', [\App\Http\Controllers\PrincipalController::class, 'teacherLogsGS'])->name('teacher-logs.gs');
+
+    Route::get('/api/stats',           [\App\Http\Controllers\PrincipalController::class, 'apiStats'])->name('api.stats');
+
+    Route::get('/schedule-approvals',  [\App\Http\Controllers\PrincipalController::class, 'schedulePendingApprovals'])->name('schedule-approvals');
+    Route::post('/schedule-approvals/{school}/{id}/approve', [\App\Http\Controllers\PrincipalController::class, 'approveSchedule'])->name('schedule-approvals.approve');
+    Route::post('/schedule-approvals/{school}/{id}/reject',  [\App\Http\Controllers\PrincipalController::class, 'rejectSchedule'])->name('schedule-approvals.reject');
+
+    Route::get('/database',            [\App\Http\Controllers\PrincipalController::class, 'database'])->name('database');
+    Route::patch('/settings/{key}',    [\App\Http\Controllers\PrincipalController::class, 'updateSetting'])->name('settings.update');
+});
+
+// Legacy URLs → principal portal
+Route::redirect('/super-admin', '/principal/dashboard', 301);
+Route::get('/super-admin/{path?}', function (?string $path = null) {
+    $path = trim((string) $path, '/');
+
+    return redirect($path === '' ? '/principal/dashboard' : '/principal/' . $path, 301);
+})->where('path', '.*');
+
+// ── Shared Teachers Panel API (accessible to any authenticated admin) ─────────
+Route::middleware(['auth'])->get('/api/shared-teachers-panel', function () {
+    // Primary source: users with the shared_teacher role
+    $roleSharedIds = \Illuminate\Support\Facades\DB::table('users')
+        ->whereIn('role_id', \Illuminate\Support\Facades\DB::table('roles')->where('name', 'shared_teacher')->pluck('id'))
+        ->pluck('id')->toArray();
+
+    // Also include teachers explicitly added to shared_teachers table in JH DB
+    $jhSharedTableIds = \Illuminate\Support\Facades\DB::connection('mysql_jh')
+        ->table('shared_teachers')->where('is_active', true)
+        ->distinct()->pluck('faculty_id')->filter()->values()->toArray();
+
+    // Only role-based OR explicitly added to shared_teachers table
+    $sharedIds = array_values(array_unique(array_merge($roleSharedIds, $jhSharedTableIds)));
+
+    if (empty($sharedIds)) {
+        return response()->json(['success' => true, 'data' => [], 'conflict_count' => 0]);
+    }
+
+    $users = \Illuminate\Support\Facades\DB::table('users')
+        ->whereIn('id', $sharedIds)->select('id', 'first_name', 'last_name')->get()->keyBy('id');
+
+    // faculty_designations lives in the school DBs (mysql_jh / mysql_gs), not in the default DB
+    $desigJH = \Illuminate\Support\Facades\DB::connection('mysql_jh')->table('faculty_designations')
+        ->whereIn('faculty_id', $sharedIds)->select('faculty_id', 'designation_type', 'max_classes', 'max_load_hours')
+        ->get()->keyBy('faculty_id');
+    $desigGS = \Illuminate\Support\Facades\DB::connection('mysql_gs')->table('faculty_designations')
+        ->whereIn('faculty_id', $sharedIds)->select('faculty_id', 'designation_type', 'max_classes', 'max_load_hours')
+        ->get()->keyBy('faculty_id');
+    // Merge: GS first, then JH overrides (JH designation takes precedence for shared teachers)
+    $designations = $desigGS->merge($desigJH)->keyBy('faculty_id');
+
+    $defaultMaxClasses   = ['regular' => 6, 'coordinator' => 3, 'dept_head' => 4, 'shared' => 4, 'part_time' => 3];
+    $defaultMaxLoadHours = ['regular' => 24, 'coordinator' => 12, 'dept_head' => 16, 'shared' => 16, 'part_time' => 12];
+
+    $jhLoads = \Illuminate\Support\Facades\DB::connection('mysql_jh')->table('faculty_loads')
+        ->whereIn('faculty_id', $sharedIds)
+        ->selectRaw('faculty_id, SUM(classes_assigned) as classes, SUM(load_hours) as hours')
+        ->groupBy('faculty_id')->get()->keyBy('faculty_id');
+
+    $gsLoads = \Illuminate\Support\Facades\DB::connection('mysql_gs')->table('faculty_loads')
+        ->whereIn('faculty_id', $sharedIds)
+        ->selectRaw('faculty_id, SUM(classes_assigned) as classes, SUM(load_hours) as hours')
+        ->groupBy('faculty_id')->get()->keyBy('faculty_id');
+
+    // ── Subjects per teacher from faculty_loads ───────────────────────────
+    $jhSubjectsRaw = \Illuminate\Support\Facades\DB::connection('mysql_jh')->table('faculty_loads')
+        ->whereIn('faculty_id', $sharedIds)->whereNotNull('subject')
+        ->select('faculty_id', 'subject')->get()->groupBy('faculty_id');
+
+    $gsSubjectsRaw = \Illuminate\Support\Facades\DB::connection('mysql_gs')->table('faculty_loads')
+        ->whereIn('faculty_id', $sharedIds)->whereNotNull('subject')
+        ->select('faculty_id', 'subject')->get()->groupBy('faculty_id');
+
+    $jhScheds = \Illuminate\Support\Facades\DB::connection('mysql_jh')->table('class_schedules')
+        ->whereIn('faculty_id', $sharedIds)->whereIn('status', ['active', 'approved', 'pending'])
+        ->select('faculty_id', 'subject', 'day_of_week', 'start_time', 'end_time', 'section_name')
+        ->get()->groupBy('faculty_id');
+
+    $gsScheds = \Illuminate\Support\Facades\DB::connection('mysql_gs')->table('class_schedules')
+        ->whereIn('faculty_id', $sharedIds)->whereIn('status', ['active', 'approved', 'pending'])
+        ->select('faculty_id', 'subject', 'day_of_week', 'start_time', 'end_time', 'section_name')
+        ->get()->groupBy('faculty_id');
+
+    $result = [];
+    $conflictCount = 0;
+
+    foreach ($sharedIds as $id) {
+        $user = $users[$id] ?? null;
+        $name = $user ? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) : "User #$id";
+
+        $jhClasses = (int) ($jhLoads[$id]->classes ?? 0);
+        $jhHours   = (float) ($jhLoads[$id]->hours  ?? 0);
+        $gsClasses = (int) ($gsLoads[$id]->classes ?? 0);
+        $gsHours   = (float) ($gsLoads[$id]->hours  ?? 0);
+
+        $desig = $designations[$id] ?? null;
+        $desigType    = $desig->designation_type ?? 'regular';
+        $maxClasses   = (int)   ($desig->max_classes    ?? ($defaultMaxClasses[$desigType]   ?? 6));
+        $maxLoadHours = (float) ($desig->max_load_hours ?? ($defaultMaxLoadHours[$desigType] ?? 24));
+
+        $myJH = collect($jhScheds[$id] ?? []);
+        $myGS = collect($gsScheds[$id] ?? []);
+        $conflicts = [];
+
+        foreach ($myJH as $jhs) {
+            foreach ($myGS as $gss) {
+                if (strtolower($jhs->day_of_week ?? '') !== strtolower($gss->day_of_week ?? '')) continue;
+                $jStart = strtotime($jhs->start_time ?? '00:00');
+                $jEnd   = strtotime($jhs->end_time   ?? '00:00');
+                $gStart = strtotime($gss->start_time ?? '00:00');
+                $gEnd   = strtotime($gss->end_time   ?? '00:00');
+                if ($jStart < $gEnd && $jEnd > $gStart) {
+                    $conflicts[] = [
+                        'day'        => $jhs->day_of_week,
+                        'jh_subject' => $jhs->subject,
+                        'jh_time'    => ($jhs->start_time ?? '') . '–' . ($jhs->end_time ?? ''),
+                        'jh_section' => $jhs->section_name,
+                        'gs_subject' => $gss->subject,
+                        'gs_time'    => ($gss->start_time ?? '') . '–' . ($gss->end_time ?? ''),
+                        'gs_section' => $gss->section_name,
+                    ];
+                }
+            }
+        }
+
+        if (count($conflicts) > 0) $conflictCount++;
+
+        $total  = $jhHours + $gsHours;
+        $status = $total > $maxLoadHours ? 'overloaded'
+                : ($total > $maxLoadHours * 0.8 ? 'near_limit' : 'ok');
+
+        $jhSubjectStr = collect($jhSubjectsRaw[$id] ?? [])->pluck('subject')->filter()->unique()->implode(', ');
+        $gsSubjectStr = collect($gsSubjectsRaw[$id] ?? [])->pluck('subject')->filter()->unique()->implode(', ');
+
+        $result[] = [
+            'id'          => $id,
+            'name'        => $name ?: "User #$id",
+            'jh_subjects' => $jhSubjectStr ?: '—',
+            'gs_subjects' => $gsSubjectStr ?: '—',
+            'jh_classes'     => $jhClasses,
+            'jh_hours'       => $jhHours,
+            'gs_classes'     => $gsClasses,
+            'gs_hours'       => $gsHours,
+            'max_classes'    => $maxClasses,
+            'max_hours'      => $maxLoadHours,
+            'total_hours'    => $total,
+            'status'         => $status,
+            'conflicts'      => $conflicts,
+            'jh_schedules'   => $myJH->map(fn($s) => ['subject' => $s->subject, 'day' => $s->day_of_week, 'start' => $s->start_time, 'end' => $s->end_time, 'section' => $s->section_name])->values(),
+            'gs_schedules'   => $myGS->map(fn($s) => ['subject' => $s->subject, 'day' => $s->day_of_week, 'start' => $s->start_time, 'end' => $s->end_time, 'section' => $s->section_name])->values(),
+        ];
+    }
+
+    // Deduplicate by name — keep the entry with the most data (classes + schedules)
+    $best = [];
+    foreach ($result as $entry) {
+        $key = strtolower(trim($entry['name']));
+        if (!isset($best[$key])) {
+            $best[$key] = $entry;
+        } else {
+            $existingScore = $best[$key]['jh_classes'] + $best[$key]['gs_classes']
+                           + count($best[$key]['jh_schedules']) + count($best[$key]['gs_schedules']);
+            $newScore = $entry['jh_classes'] + $entry['gs_classes']
+                      + count($entry['jh_schedules']) + count($entry['gs_schedules']);
+            if ($newScore > $existingScore) $best[$key] = $entry;
+        }
+    }
+    $result = array_values($best);
+    $conflictCount = count(array_filter($result, fn($e) => count($e['conflicts']) > 0));
+
+    usort($result, fn($a, $b) =>
+        (count($b['conflicts']) <=> count($a['conflicts'])) ?:
+        (($b['status'] === 'overloaded' ? 1 : 0) <=> ($a['status'] === 'overloaded' ? 1 : 0))
+    );
+
+    return response()->json(['success' => true, 'data' => $result, 'conflict_count' => $conflictCount]);
+})->name('api.shared-teachers-panel');
+
+// Admin → Principal permission requests (JH and GS admins share the same controller)
+Route::middleware(['auth', 'admin'])->group(function () {
+    Route::get('/admin/permission-requests',                         [\App\Http\Controllers\PermissionRequestController::class, 'index'])->name('admin.permission-requests');
+    Route::post('/admin/permission-requests',                        [\App\Http\Controllers\PermissionRequestController::class, 'store'])->name('admin.permission-requests.store');
+    Route::patch('/admin/permission-requests/{permissionRequest}/cancel', [\App\Http\Controllers\PermissionRequestController::class, 'cancel'])->name('admin.permission-requests.cancel');
+});
+
+Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolAdmin::class])->group(function () {
+    Route::get('/grade-school-admin/permission-requests',                         [\App\Http\Controllers\PermissionRequestController::class, 'index'])->name('grade-school-admin.permission-requests');
+    Route::post('/grade-school-admin/permission-requests',                        [\App\Http\Controllers\PermissionRequestController::class, 'store'])->name('grade-school-admin.permission-requests.store');
+    Route::patch('/grade-school-admin/permission-requests/{permissionRequest}/cancel', [\App\Http\Controllers\PermissionRequestController::class, 'cancel'])->name('grade-school-admin.permission-requests.cancel');
+});
+
+// =============================================================================
+// GRADE SCHOOL TEACHER ROUTES - School Level Segregation
+// =============================================================================
+
+Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolTeacher::class, 'school.db:mysql_gs'])->group(function () {
+    // Grade School Teacher Dashboard
+    Route::get('grade-school-teacher/dashboard', [
+        \App\Http\Controllers\GradeSchoolTeacherController::class, 'dashboard'
+    ])->name('grade-school-teacher.dashboard');
+
+    // Grade School Teacher Classes
+    Route::get('grade-school-teacher/class-schedule', [
+        \App\Http\Controllers\GradeSchoolTeacherController::class, 'classSchedule'
+    ])->name('grade-school-teacher.class-schedule');
+
+    Route::get('grade-school-teacher/my-classes', [
+        \App\Http\Controllers\GradeSchoolTeacherController::class, 'myClasses'
+    ])->name('grade-school-teacher.my-classes');
+
+    Route::get('grade-school-teacher/my-students', [
+        \App\Http\Controllers\GradeSchoolTeacherController::class, 'myStudents'
+    ])->name('grade-school-teacher.my-students');
+
+    Route::get('grade-school-teacher/class-performance', [
+        \App\Http\Controllers\GradeSchoolTeacherController::class, 'classPerformance'
+    ])->name('grade-school-teacher.class-performance');
+
+    // Grade School Teacher Faculty Loading
+    Route::get('grade-school-teacher/faculty-loading', [
+        \App\Http\Controllers\GradeSchoolTeacherController::class, 'facultyLoading'
+    ])->name('grade-school-teacher.faculty-loading');
+
+    // Grade School Teacher Export/Print
+    Route::get('grade-school-teacher/print-export', [
+        \App\Http\Controllers\GradeSchoolTeacherController::class, 'printExport'
+    ])->name('grade-school-teacher.print-export');
+
+    Route::get('grade-school-teacher/export/schedule', [
+        \App\Http\Controllers\GradeSchoolTeacherController::class, 'exportSchedule'
+    ])->name('grade-school-teacher.export.schedule');
+
+    Route::get('grade-school-teacher/feedback', [\App\Http\Controllers\GradeSchoolTeacherController::class, 'showFeedback'])->name('grade-school-teacher.feedback');
+    Route::post('grade-school-teacher/feedback', [\App\Http\Controllers\GradeSchoolTeacherController::class, 'submitFeedback'])->name('grade-school-teacher.feedback.submit');
+
+    Route::get('grade-school-teacher/loading-schedule', [\App\Http\Controllers\GradeSchoolTeacherController::class, 'showLoadingSchedule'])->name('grade-school-teacher.loading-schedule');
+
+    Route::get('grade-school-teacher/settings', function () {
+        return view('grade-school-teacher.settings');
+    })->name('grade-school-teacher.settings');
+
+    Route::post('grade-school-teacher/profile/photo', function (\Illuminate\Http\Request $request) {
+        $request->validate(['photo' => 'required|image|mimes:jpeg,png,jpg,gif,webp|max:2048']);
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+        if ($user->profile_photo_path) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($user->profile_photo_path);
+        }
+        $path = $request->file('photo')->store('profile-photos', 'public');
+        $user->profile_photo_path = $path;
+        $user->save();
+        return redirect()->route('grade-school-teacher.settings')->with('success', 'Profile photo updated successfully.');
+    })->name('grade-school-teacher.profile.photo');
+
+    Route::put('grade-school-teacher/profile', function (\Illuminate\Http\Request $request) {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+        $data = $request->validate([
+            'current_password' => 'required_with:password|string',
+            'password'         => 'nullable|string|min:8|confirmed',
+        ]);
+        if (!empty($data['password'])) {
+            if (!\Illuminate\Support\Facades\Hash::check($data['current_password'] ?? '', $user->password)) {
+                return back()->withErrors(['current_password' => 'Current password is incorrect.']);
+            }
+            $user->password = \Illuminate\Support\Facades\Hash::make($data['password']);
+            $user->save();
+        }
+        return redirect()->route('grade-school-teacher.settings')->with('success', 'Profile updated successfully.');
+    })->name('grade-school-teacher.profile.update');
+
+    // ---- New STL / Use-Case Routes (GS Teacher) ----
+    Route::get('grade-school-teacher/manage-faculty-loading', [
+        \App\Http\Controllers\GradeSchoolTeacherController::class, 'manageFacultyLoading'
+    ])->name('grade-school-teacher.manage-faculty-loading');
+
+    Route::get('grade-school-teacher/dss-recommendations', [
+        \App\Http\Controllers\GradeSchoolTeacherController::class, 'dssRecommendations'
+    ])->name('grade-school-teacher.dss-recommendations');
+
+    Route::get('grade-school-teacher/review-schedule', [
+        \App\Http\Controllers\GradeSchoolTeacherController::class, 'reviewSchedule'
+    ])->name('grade-school-teacher.review-schedule');
+
+    Route::get('grade-school-teacher/generate-reports', [
+        \App\Http\Controllers\GradeSchoolTeacherController::class, 'generateReports'
+    ])->name('grade-school-teacher.generate-reports');
+
+    Route::get('grade-school-teacher/assign-subjects', [
+        \App\Http\Controllers\GradeSchoolTeacherController::class, 'assignSubjects'
+    ])->name('grade-school-teacher.assign-subjects');
+
+    Route::get('grade-school-teacher/request-adjustments', [
+        \App\Http\Controllers\GradeSchoolTeacherController::class, 'requestAdjustments'
+    ])->name('grade-school-teacher.request-adjustments');
+
+    Route::get('grade-school-teacher/workload-history', [
+        \App\Http\Controllers\GradeSchoolTeacherController::class, 'workloadHistory'
+    ])->name('grade-school-teacher.workload-history');
+
+    // Grade School Teacher API Routes
+    Route::prefix('api/grade-school-teacher')->group(function () {
+        // Classes
+        Route::get('/classes', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'getMyClasses'
+        ]);
+
+        // Students
+        Route::get('/students', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'getMyStudents'
+        ]);
+
+        // Performance
+        Route::get('/performance', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'getClassPerformance'
+        ]);
+
+        // Faculty Load
+        Route::get('/faculty-load', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'getFacultyLoad'
+        ]);
+
+        // Grades
+        Route::get('/grades', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'getGrades'
+        ]);
+        Route::post('/grades/submit', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'submitGrades'
+        ]);
+
+        // Manage Faculty Loading
+        Route::get('/manage-faculty-load', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'getTeamFacultyLoads'
+        ]);
+        Route::post('/manage-faculty-load', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'storeTeamFacultyLoad'
+        ]);
+        Route::delete('/manage-faculty-load/{id}', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'deleteTeamFacultyLoad'
+        ]);
+
+        // DSS Recommendations
+        Route::get('/dss-recommendations', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'getDSSRecommendationsAPI'
+        ]);
+
+        // Review Schedule
+        Route::get('/schedules', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'getSchedulesForReview'
+        ]);
+
+        // Subject Assignments
+        Route::get('/subject-assignments', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'getSubjectAssignments'
+        ]);
+        Route::post('/subject-assignments', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'storeSubjectAssignment'
+        ]);
+        Route::delete('/subject-assignments/{id}', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'deleteSubjectAssignment'
+        ]);
+
+        // Adjustment Requests
+        Route::get('/adjustment-requests', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'getAdjustmentRequests'
+        ]);
+        Route::get('/adjustment-schedules', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'getAdjustmentScheduleOptions'
+        ]);
+        Route::post('/adjustment-requests', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'storeAdjustmentRequest'
+        ]);
+        Route::get('/leave-requests', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'getLeaveRequests'
+        ]);
+        Route::post('/leave-requests', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'storeLeaveRequest'
+        ]);
+        Route::get('/notifications', [\App\Http\Controllers\TeacherNotificationController::class, 'index']);
+        Route::post('/notifications/read', [\App\Http\Controllers\TeacherNotificationController::class, 'markRead']);
+
+        // Workload History
+        Route::get('/workload-history', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'getWorkloadHistory'
+        ]);
+
+        // Generate Reports
+        Route::post('/generate-report', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'generateReportData'
+        ]);
+    });
+});
+
+// =============================================================================
+// SHARED CROSS-DIVISION TEACHER LOAD API (accessible to any authenticated user)
+// Used by faculty-loading modals in both JH and GS admin to show designation
+// limits and cross-division load warnings without manual checking.
+// =============================================================================
+Route::middleware(['auth'])->get('/api/teacher-cross-load/{userId}', function ($userId) {
+    $defaultMaxClasses   = ['regular' => 6, 'coordinator' => 3, 'dept_head' => 4, 'shared' => 4, 'part_time' => 3];
+    $defaultMaxLoadHours = ['regular' => 24, 'coordinator' => 12, 'dept_head' => 16, 'shared' => 16, 'part_time' => 12];
+
+    // Designation info (from main DB)
+    $desig = \Illuminate\Support\Facades\DB::table('faculty_designations')
+        ->where('user_id', $userId)
+        ->select('designation_type', 'max_classes', 'max_load_hours')
+        ->first();
+
+    $desigType    = $desig->designation_type ?? 'regular';
+    $maxClasses   = (int) ($desig->max_classes    ?? ($defaultMaxClasses[$desigType]   ?? 6));
+    $maxLoadHours = (float) ($desig->max_load_hours ?? ($defaultMaxLoadHours[$desigType] ?? 24));
+
+    // JH load
+    $jhLoad = \Illuminate\Support\Facades\DB::connection('mysql_jh')
+        ->table('faculty_loads')
+        ->where('faculty_id', $userId)
+        ->selectRaw('SUM(classes_assigned) as classes, SUM(load_hours) as hours')
+        ->first();
+
+    // GS load
+    $gsLoad = \Illuminate\Support\Facades\DB::connection('mysql_gs')
+        ->table('faculty_loads')
+        ->where('faculty_id', $userId)
+        ->selectRaw('SUM(classes_assigned) as classes, SUM(load_hours) as hours')
+        ->first();
+
+    return response()->json([
+        'success'       => true,
+        'designation'   => $desigType,
+        'max_classes'   => $maxClasses,
+        'max_load_hours'=> $maxLoadHours,
+        'jh_classes'    => (int) ($jhLoad->classes ?? 0),
+        'jh_hours'      => (float) ($jhLoad->hours ?? 0),
+        'gs_classes'    => (int) ($gsLoad->classes ?? 0),
+        'gs_hours'      => (float) ($gsLoad->hours ?? 0),
+        'total_hours'   => (float) ($jhLoad->hours ?? 0) + (float) ($gsLoad->hours ?? 0),
+    ]);
+})->name('api.teacher-cross-load');
+
+// =============================================================================
+// Subjects API — provides list of available subjects for form dropdowns
+// =============================================================================
+Route::middleware(['auth'])->get('/api/subjects', function () {
+    // Get distinct subjects from both JH and GS class schedules, plus sensible defaults
+    $jhSubjects = \Illuminate\Support\Facades\DB::connection('mysql_jh')
+        ->table('class_schedules')
+        ->select('subject')
+        ->distinct()
+        ->orderBy('subject')
+        ->pluck('subject')
+        ->filter(fn($s) => !empty($s))
+        ->toArray();
+
+    $gsSubjects = \Illuminate\Support\Facades\DB::connection('mysql_gs')
+        ->table('class_schedules')
+        ->select('subject')
+        ->distinct()
+        ->orderBy('subject')
+        ->pluck('subject')
+        ->filter(fn($s) => !empty($s))
+        ->toArray();
+
+    // Merge and deduplicate
+    $allSubjects = array_values(array_unique(array_merge($jhSubjects, $gsSubjects)));
+
+    // Add common defaults if not already present
+    $defaults = ['Mathematics', 'Science', 'English', 'Social Studies', 'Physical Education', 'Arts', 'Music'];
+    foreach ($defaults as $default) {
+        if (!in_array($default, $allSubjects)) {
+            $allSubjects[] = $default;
+        }
+    }
+
+    // Sort alphabetically
+    sort($allSubjects);
+
+    return response()->json([
+        'success'  => true,
+        'subjects' => $allSubjects,
+    ]);
+})->name('api.subjects');
 

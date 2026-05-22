@@ -21,15 +21,25 @@ class IsTeacher
             return redirect('login');
         }
 
-        // Check if user has teacher role
+        // Check if user has junior high or generic teacher role
         $user = Auth::user();
-        if ($user->role && $user->role->name === 'teacher') {
+        if ($user->role && in_array($user->role->name, ['teacher', 'teacher_junior_high'])) {
             return $next($request);
         }
 
-        // Redirect non-teacher users to their appropriate dashboard
-        if ($user->role && (strpos($user->role->name, 'admin') !== false)) {
-            return redirect('admin/dashboard');
+        // Grade school teacher has their own separate dashboard
+        if ($user->role && $user->role->name === 'teacher_grade_school') {
+            return redirect()->route('grade-school-teacher.dashboard');
+        }
+
+        // Redirect admin users to their appropriate dashboard
+        if ($user->role && $user->role->name) {
+            if ($user->role->name === 'admin_grade_school') {
+                return redirect()->route('grade-school-admin.dashboard');
+            }
+            if (in_array($user->role->name, ['admin_junior_high', 'admin'])) {
+                return redirect()->route('admin.dashboard');
+            }
         }
 
         return redirect('/');

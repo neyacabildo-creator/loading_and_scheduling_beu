@@ -1,0 +1,789 @@
+﻿{{-- resources/views/junior-high-admin/schedule-form.blade.php --}}
+@extends('layouts.admin')
+
+@section('title', 'Create Schedule')
+
+@section('content')
+<style>
+.sf-card{background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:.75rem;padding:1.5rem;margin-bottom:1.5rem;box-shadow:var(--shadow-sm);}
+.sf-controls{display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:1.5rem;}
+.sf-control-group{display:flex;flex-direction:column;gap:.4rem;}
+.sf-control-group label{font-size:.8rem;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;}
+.sf-select{padding:.6rem .9rem;border:1px solid var(--border-color);border-radius:.375rem;background:var(--bg-secondary);color:var(--text-primary);font-size:.875rem;min-width:160px;cursor:pointer;}
+.sf-select:focus{outline:none;border-color:var(--green-primary);box-shadow:0 0 0 3px rgba(45,122,80,.12);}
+.sf-table{width:100%;border-collapse:collapse;font-size:.82rem;}
+.sf-table th{padding:.6rem .5rem;background:var(--bg-tertiary);border:1px solid var(--border-color);text-align:center;font-weight:700;color:var(--text-primary);font-size:.8rem;}
+.sf-table .time-col{width:80px;padding:.5rem .4rem;background:var(--bg-tertiary);border:1px solid var(--border-color);text-align:center;font-size:.72rem;color:var(--text-secondary);font-weight:600;white-space:nowrap;}
+.sf-table .break-row td{background:rgba(245,158,11,.07);border:1px solid var(--border-color);padding:.45rem;text-align:center;font-size:.72rem;color:#92400e;font-weight:700;letter-spacing:.06em;}
+.sf-cell{padding:.35rem;border:1px solid var(--border-color);vertical-align:top;min-width:130px;}
+.sf-subject{width:100%;padding:.35rem .4rem;border:1px solid var(--border-color);border-radius:.25rem;background:var(--bg-secondary);color:var(--text-primary);font-size:.75rem;margin-bottom:.3rem;text-transform:uppercase;box-sizing:border-box;}
+.sf-subject:focus{outline:none;border-color:var(--green-primary);}
+.sf-teacher{width:100%;padding:.3rem .35rem;border:1px solid var(--border-color);border-radius:.25rem;background:var(--bg-secondary);color:var(--text-primary);font-size:.72rem;box-sizing:border-box;}
+.sf-teacher:focus{outline:none;border-color:var(--green-primary);}
+.sf-submit-btn{padding:.75rem 2rem;background:linear-gradient(135deg,var(--green-primary),#0d3d20);color:#fff;border:none;border-radius:.5rem;cursor:pointer;font-weight:600;font-size:.9rem;transition:all .2s;}
+.sf-submit-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(45,122,80,.3);}
+.sf-add-subject-btn{display:none;}/* removed — kept for any future use */
+.sf-conflict-warn{font-size:.67rem;color:#dc2626;margin-top:.2rem;display:none;line-height:1.3;}
+.sf-teacher.sf-conflict{border-color:#dc2626 !important;background:rgba(220,38,38,.05) !important;}
+.sf-shared-panel{margin-top:.3rem;border-top:1px dashed var(--border-color);padding-top:.28rem;}
+.sf-shared-panel-title{font-size:.62rem;color:var(--text-secondary);font-weight:600;margin-bottom:.2rem;text-transform:uppercase;letter-spacing:.04em;}
+.sf-shared-item{display:inline-block;font-size:.65rem;background:rgba(59,130,246,.1);color:#2563eb;border-radius:.2rem;padding:.1rem .38rem;margin:.1rem .1rem .1rem 0;cursor:pointer;border:1px solid rgba(59,130,246,.25);}
+.sf-shared-item:hover{background:rgba(59,130,246,.22);}
+</style>
+
+<div class="header">
+    <div class="header-left">
+        <svg width="22" height="22" fill="none" stroke="#2d7a50" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        <h1 class="page-title">Create Class Schedule</h1>
+    </div>
+    <div class="header-right">
+    </div>
+</div>
+
+@if(session('success'))
+<div style="background:rgba(45,122,80,.15);border:1px solid var(--green-primary);color:var(--green-primary);padding:1rem;border-radius:.5rem;margin-bottom:1.5rem;font-weight:500;">
+    ✓ {{ session('success') }}
+</div>
+@endif
+@if(session('error'))
+<div style="background:rgba(200,50,50,.1);border:1px solid #c83232;color:#c83232;padding:1rem;border-radius:.5rem;margin-bottom:1.5rem;font-weight:500;">
+    {{ session('error') }}
+</div>
+@endif
+
+<form action="{{ route('admin.schedule.store') }}" method="POST" id="sfForm">
+    @csrf
+
+    <!-- Controls -->
+    <div class="sf-card">
+        <div class="sf-controls">
+            <div class="sf-control-group">
+                <label>Grade Level</label>
+                <select name="grade_level" id="sfGrade" class="sf-select" required onchange="sfUpdateSections()">
+                    <option value="">— Select Grade —</option>
+                    <option value="Grade 7">Grade 7</option>
+                    <option value="Grade 8">Grade 8</option>
+                    <option value="Grade 9">Grade 9</option>
+                    <option value="Grade 10">Grade 10</option>
+                </select>
+            </div>
+            <div class="sf-control-group">
+                <label>Day of Week</label>
+                <select name="day_of_week" id="sfDay" class="sf-select" required>
+                    <option value="">— Select Day —</option>
+                    <option value="Monday">Monday</option>
+                    <option value="Tuesday">Tuesday</option>
+                    <option value="Wednesday">Wednesday</option>
+                    <option value="Thursday">Thursday</option>
+                    <option value="Friday">Friday</option>
+                </select>
+            </div>
+            <div class="sf-control-group">
+                <label>Schedule Date</label>
+                <input type="date" name="schedule_date" id="sfDate" class="sf-select" value="{{ old('schedule_date') }}">
+            </div>
+        </div>
+        <p style="font-size:.8rem;color:var(--text-secondary);margin:0;">Select a grade level and day, then fill in the subjects and assign teachers per section/time slot.</p>
+    </div>
+
+    <!-- Grid -->
+    <div class="sf-card" style="overflow-x:auto;position:relative;" id="sfGridCard">
+        <div id="sfGridOverlay" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.04);display:flex;align-items:center;justify-content:center;z-index:10;border-radius:.75rem;backdrop-filter:blur(3px);">
+            <div style="background:var(--bg-secondary);border:2px dashed var(--border-color);border-radius:.75rem;padding:2rem 3rem;text-align:center;box-shadow:var(--shadow-sm);">
+                <svg width="40" height="40" fill="none" stroke="#2d7a50" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto .75rem;display:block;"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                <p style="font-size:1rem;font-weight:700;color:var(--text-primary);margin:0 0 .4rem 0;">Select a Grade Level First</p>
+                <p style="font-size:.82rem;color:var(--text-secondary);margin:0;">Choose a grade level above to unlock the schedule grid.</p>
+            </div>
+        </div>
+        <table class="sf-table">
+            <thead>
+                <tr>
+                    <th style="width:80px;">Time</th>
+                    <th id="sfH0"><span class="sf-grade-badge" id="sfBadge0">—</span><br>SECTION 1</th>
+                    <th id="sfH1"><span class="sf-grade-badge" id="sfBadge1">—</span><br>SECTION 2</th>
+                    <th id="sfH2"><span class="sf-grade-badge" id="sfBadge2">—</span><br>SECTION 3</th>
+                    <th id="sfH3"><span class="sf-grade-badge" id="sfBadge3">—</span><br>SECTION 4</th>
+                    <th id="sfH4"><span class="sf-grade-badge" id="sfBadge4">—</span><br>SECTION 5</th>
+                </tr>
+
+            </thead>
+            <tbody>
+                {{-- Row 1: 7:45-8:45 --}}
+                <tr>
+                    <td class="time-col">7:45<br>8:45</td>
+                    @for($i=0;$i<5;$i++)
+                    <td class="sf-cell">
+                        <select name="slots[0745_0845][{{ $i }}][subject]" class="sf-subject">
+                            <option value="">— Subject —</option>
+                            <option value="MAPEH">MAPEH</option>
+                            <option value="AP">AP</option>
+                            <option value="COMP">COMP</option>
+                            <option value="ADV SCI">ADV SCI</option>
+                            <option value="CLVE">CLVE</option>
+                            <option value="MATHEMATICS">MATHEMATICS</option>
+                            <option value="ADV MATH">ADV MATH</option>
+                            <option value="FILIPINO">FILIPINO</option>
+                            <option value="ENGLISH">ENGLISH</option>
+                            <option value="SCIENCE">SCIENCE</option>
+                            <option value="TLE">TLE</option>
+                        </select>
+                        <select name="slots[0745_0845][{{ $i }}][faculty_id]" class="sf-teacher">
+                            <option value="">— Teacher —</option>
+                            @foreach($allTeachersForDropdown as $t)
+                            <option value="{{ $t['id'] }}">{{ $t['name'] }}</option>
+                            @endforeach
+                        </select>
+                    </td>
+                    @endfor
+                </tr>
+                {{-- Recess --}}
+                <tr class="break-row">
+                    <td class="time-col" style="background:rgba(245,158,11,.07);font-size:.68rem;color:#92400e;">8:45<br>9:15</td>
+                    <td colspan="5">✦ RECESS BREAK ✦</td>
+                </tr>
+                {{-- Row 2: 9:15-10:15 --}}
+                <tr>
+                    <td class="time-col">9:15<br>10:15</td>
+                    @for($i=0;$i<5;$i++)
+                    <td class="sf-cell">
+                        <select name="slots[0915_1015][{{ $i }}][subject]" class="sf-subject">
+                            <option value="">— Subject —</option>
+                            <option value="MAPEH">MAPEH</option>
+                            <option value="AP">AP</option>
+                            <option value="COMP">COMP</option>
+                            <option value="ADV SCI">ADV SCI</option>
+                            <option value="CLVE">CLVE</option>
+                            <option value="MATHEMATICS">MATHEMATICS</option>
+                            <option value="ADV MATH">ADV MATH</option>
+                            <option value="FILIPINO">FILIPINO</option>
+                            <option value="ENGLISH">ENGLISH</option>
+                            <option value="SCIENCE">SCIENCE</option>
+                            <option value="TLE">TLE</option>
+                        </select>
+                        <select name="slots[0915_1015][{{ $i }}][faculty_id]" class="sf-teacher">
+                            <option value="">— Teacher —</option>
+                            @foreach($allTeachersForDropdown as $t)
+                            <option value="{{ $t['id'] }}">{{ $t['name'] }}</option>
+                            @endforeach
+                        </select>
+                    </td>
+                    @endfor
+                </tr>
+                {{-- Row 3: 10:15-11:15 --}}
+                <tr>
+                    <td class="time-col">10:15<br>11:15</td>
+                    @for($i=0;$i<5;$i++)
+                    <td class="sf-cell">
+                        <select name="slots[1015_1115][{{ $i }}][subject]" class="sf-subject">
+                            <option value="">— Subject —</option>
+                            <option value="MAPEH">MAPEH</option>
+                            <option value="AP">AP</option>
+                            <option value="COMP">COMP</option>
+                            <option value="ADV SCI">ADV SCI</option>
+                            <option value="CLVE">CLVE</option>
+                            <option value="MATHEMATICS">MATHEMATICS</option>
+                            <option value="ADV MATH">ADV MATH</option>
+                            <option value="FILIPINO">FILIPINO</option>
+                            <option value="ENGLISH">ENGLISH</option>
+                            <option value="SCIENCE">SCIENCE</option>
+                            <option value="TLE">TLE</option>
+                        </select>
+                        <select name="slots[1015_1115][{{ $i }}][faculty_id]" class="sf-teacher">
+                            <option value="">— Teacher —</option>
+                            @foreach($allTeachersForDropdown as $t)
+                            <option value="{{ $t['id'] }}">{{ $t['name'] }}</option>
+                            @endforeach
+                        </select>
+                    </td>
+                    @endfor
+                </tr>
+                {{-- Row 4: 11:15-12:15 --}}
+                <tr>
+                    <td class="time-col">11:15<br>12:15</td>
+                    @for($i=0;$i<5;$i++)
+                    <td class="sf-cell">
+                        <select name="slots[1115_1215][{{ $i }}][subject]" class="sf-subject">
+                            <option value="">— Subject —</option>
+                            <option value="MAPEH">MAPEH</option>
+                            <option value="AP">AP</option>
+                            <option value="COMP">COMP</option>
+                            <option value="ADV SCI">ADV SCI</option>
+                            <option value="CLVE">CLVE</option>
+                            <option value="MATHEMATICS">MATHEMATICS</option>
+                            <option value="ADV MATH">ADV MATH</option>
+                            <option value="FILIPINO">FILIPINO</option>
+                            <option value="ENGLISH">ENGLISH</option>
+                            <option value="SCIENCE">SCIENCE</option>
+                            <option value="TLE">TLE</option>
+                        </select>
+                        <select name="slots[1115_1215][{{ $i }}][faculty_id]" class="sf-teacher">
+                            <option value="">— Teacher —</option>
+                            @foreach($allTeachersForDropdown as $t)
+                            <option value="{{ $t['id'] }}">{{ $t['name'] }}</option>
+                            @endforeach
+                        </select>
+                    </td>
+                    @endfor
+                </tr>
+                {{-- Lunch --}}
+                <tr class="break-row">
+                    <td class="time-col" style="background:rgba(245,158,11,.07);font-size:.68rem;color:#92400e;">12:15<br>1:15</td>
+                    <td colspan="5">✦ LUNCH BREAK ✦</td>
+                </tr>
+                {{-- Row 5: 1:15-2:15 --}}
+                <tr>
+                    <td class="time-col">1:15<br>2:15</td>
+                    @for($i=0;$i<5;$i++)
+                    <td class="sf-cell">
+                        <select name="slots[1315_1415][{{ $i }}][subject]" class="sf-subject">
+                            <option value="">— Subject —</option>
+                            <option value="MAPEH">MAPEH</option>
+                            <option value="AP">AP</option>
+                            <option value="COMP">COMP</option>
+                            <option value="ADV SCI">ADV SCI</option>
+                            <option value="CLVE">CLVE</option>
+                            <option value="MATHEMATICS">MATHEMATICS</option>
+                            <option value="ADV MATH">ADV MATH</option>
+                            <option value="FILIPINO">FILIPINO</option>
+                            <option value="ENGLISH">ENGLISH</option>
+                            <option value="SCIENCE">SCIENCE</option>
+                            <option value="TLE">TLE</option>
+                        </select>
+                        <select name="slots[1315_1415][{{ $i }}][faculty_id]" class="sf-teacher">
+                            <option value="">— Teacher —</option>
+                            @foreach($allTeachersForDropdown as $t)
+                            <option value="{{ $t['id'] }}">{{ $t['name'] }}</option>
+                            @endforeach
+                        </select>
+                    </td>
+                    @endfor
+                </tr>
+                {{-- Row 6: 2:15-3:15 --}}
+                <tr>
+                    <td class="time-col">2:15<br>3:15</td>
+                    @for($i=0;$i<5;$i++)
+                    <td class="sf-cell">
+                        <select name="slots[1415_1515][{{ $i }}][subject]" class="sf-subject">
+                            <option value="">— Subject —</option>
+                            <option value="MAPEH">MAPEH</option>
+                            <option value="AP">AP</option>
+                            <option value="COMP">COMP</option>
+                            <option value="ADV SCI">ADV SCI</option>
+                            <option value="CLVE">CLVE</option>
+                            <option value="MATHEMATICS">MATHEMATICS</option>
+                            <option value="ADV MATH">ADV MATH</option>
+                            <option value="FILIPINO">FILIPINO</option>
+                            <option value="ENGLISH">ENGLISH</option>
+                            <option value="SCIENCE">SCIENCE</option>
+                            <option value="TLE">TLE</option>
+                        </select>
+                        <select name="slots[1415_1515][{{ $i }}][faculty_id]" class="sf-teacher">
+                            <option value="">— Teacher —</option>
+                            @foreach($allTeachersForDropdown as $t)
+                            <option value="{{ $t['id'] }}">{{ $t['name'] }}</option>
+                            @endforeach
+                        </select>
+                    </td>
+                    @endfor
+                </tr>
+                {{-- Row 7: 3:15-4:15 --}}
+                <tr>
+                    <td class="time-col">3:15<br>4:15</td>
+                    @for($i=0;$i<5;$i++)
+                    <td class="sf-cell">
+                        <select name="slots[1515_1615][{{ $i }}][subject]" class="sf-subject">
+                            <option value="">— Subject —</option>
+                            <option value="MAPEH">MAPEH</option>
+                            <option value="AP">AP</option>
+                            <option value="COMP">COMP</option>
+                            <option value="ADV SCI">ADV SCI</option>
+                            <option value="CLVE">CLVE</option>
+                            <option value="MATHEMATICS">MATHEMATICS</option>
+                            <option value="ADV MATH">ADV MATH</option>
+                            <option value="FILIPINO">FILIPINO</option>
+                            <option value="ENGLISH">ENGLISH</option>
+                            <option value="SCIENCE">SCIENCE</option>
+                            <option value="TLE">TLE</option>
+                        </select>
+                        <select name="slots[1515_1615][{{ $i }}][faculty_id]" class="sf-teacher">
+                            <option value="">— Teacher —</option>
+                            @foreach($allTeachersForDropdown as $t)
+                            <option value="{{ $t['id'] }}">{{ $t['name'] }}</option>
+                            @endforeach
+                        </select>
+                    </td>
+                    @endfor
+                </tr>
+                {{-- Row 8: 4:15-5:15 --}}
+                <tr>
+                    <td class="time-col">4:15<br>5:15</td>
+                    @for($i=0;$i<5;$i++)
+                    <td class="sf-cell">
+                        <select name="slots[1615_1715][{{ $i }}][subject]" class="sf-subject">
+                            <option value="">— Subject —</option>
+                            <option value="MAPEH">MAPEH</option>
+                            <option value="AP">AP</option>
+                            <option value="COMP">COMP</option>
+                            <option value="ADV SCI">ADV SCI</option>
+                            <option value="CLVE">CLVE</option>
+                            <option value="MATHEMATICS">MATHEMATICS</option>
+                            <option value="ADV MATH">ADV MATH</option>
+                            <option value="FILIPINO">FILIPINO</option>
+                            <option value="ENGLISH">ENGLISH</option>
+                            <option value="SCIENCE">SCIENCE</option>
+                            <option value="TLE">TLE</option>
+                        </select>
+                        <select name="slots[1615_1715][{{ $i }}][faculty_id]" class="sf-teacher">
+                            <option value="">— Teacher —</option>
+                            @foreach($allTeachersForDropdown as $t)
+                            <option value="{{ $t['id'] }}">{{ $t['name'] }}</option>
+                            @endforeach
+                        </select>
+                    </td>
+                    @endfor
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Submit -->
+    <div style="display:flex;justify-content:flex-end;gap:1rem;">
+        <a href="{{ route('admin.class-schedule') }}" style="padding:.75rem 1.5rem;border:1px solid var(--border-color);border-radius:.5rem;background:var(--bg-secondary);color:var(--text-primary);text-decoration:none;font-weight:500;font-size:.9rem;">Cancel</a>
+        <button type="submit" class="sf-submit-btn" onclick="return sfValidate()">Save Schedule</button>
+    </div>
+</form>
+
+<script id="sf-jh-teacher-subjects" type="application/json">{!! json_encode($teacherSubjects ?? []) !!}</script>
+<script id="sf-jh-teachers-by-grade" type="application/json">{!! json_encode($teachersByGrade ?? []) !!}</script>
+<script id="sf-jh-teachers-by-grade-subject" type="application/json">{!! json_encode($teachersByGradeAndSubject ?? []) !!}</script>
+<script id="sf-jh-all-teachers" type="application/json">{!! json_encode($allTeachersForDropdown) !!}</script>
+<script id="sf-jh-teacher-conflicts" type="application/json">{!! json_encode($teacherConflicts ?? []) !!}</script>
+<script id="sf-jh-shared-teachers" type="application/json">{!! json_encode($sharedTeachers ?? []) !!}</script>
+<script id="sf-jh-teachers-by-subject" type="application/json">{!! json_encode($teachersBySubject ?? []) !!}</script>
+<script>
+const JH_SECTIONS = {
+    'Grade 7':  ['SERAPHIM','CHERUBIM','MICHAEL','RAPHAEL','GABRIEL'],
+    'Grade 8':  ['THERESE','ALOYSIUS','AGNES','JOHN','GORETTI'],
+    'Grade 9':  ['CHARTRES','PIAT','FATIMA','CARMEL','LOURDES'],
+    'Grade 10': ['PAUL','PLC','MBF','MICHEAU','MARIA'],
+};
+
+function sfUpdateSections() {
+    const grade = document.getElementById('sfGrade').value;
+    const secs  = JH_SECTIONS[grade] || ['SECTION 1','SECTION 2','SECTION 3','SECTION 4','SECTION 5'];
+    for (let i = 0; i < 5; i++) {
+        const badge = document.getElementById('sfBadge' + i);
+        const hdr   = document.getElementById('sfH' + i);
+        if (badge) badge.textContent = grade || '—';
+        if (hdr) {
+            hdr.innerHTML = '<span class="sf-grade-badge" id="sfBadge' + i + '">' + (grade || '—') + '</span><br>' + secs[i];
+        }
+        // Update hidden section data on cells (store via data-section on inputs)
+        document.querySelectorAll('[name^="slots["][name$="[' + i + '][subject]"]').forEach(inp => {
+            inp.dataset.section = secs[i];
+        });
+    }
+    sfFilterTeachersByGrade(grade);
+
+    // Toggle grid overlay and submit button based on grade selection
+    const overlay = document.getElementById('sfGridOverlay');
+    const submitBtn = document.querySelector('.sf-submit-btn');
+    if (overlay) overlay.style.display = grade ? 'none' : 'flex';
+    if (submitBtn) {
+        submitBtn.disabled = !grade;
+        submitBtn.style.opacity = grade ? '1' : '0.45';
+        submitBtn.style.cursor = grade ? 'pointer' : 'not-allowed';
+    }
+}
+
+// ── Grade → teacher filter ─────────────────────────────────────────────────
+var SF_JH_TEACHERS_BY_GRADE = JSON.parse(document.getElementById('sf-jh-teachers-by-grade')?.textContent || '{}');
+var SF_JH_TEACHERS_BY_GRADE_SUBJECT = JSON.parse(document.getElementById('sf-jh-teachers-by-grade-subject')?.textContent || '{}');
+var SF_JH_ALL_TEACHERS = JSON.parse(document.getElementById('sf-jh-all-teachers')?.textContent || '[]');
+var SF_JH_TEACHERS_BY_SUBJECT = JSON.parse(document.getElementById('sf-jh-teachers-by-subject')?.textContent || '{}');
+
+// Rebuild a single teacher <select> based on current grade + its paired subject <select>
+function sfRebuildTeacherSel(teacherSel) {
+    var grade = document.getElementById('sfGrade').value;
+    var row = teacherSel.closest('.sf-subject-row');
+    var subjectSel = row ? row.querySelector('.sf-subject') : null;
+    var subject = subjectSel ? subjectSel.value.trim().toUpperCase() : '';
+
+    var allowedIds = null;
+    var subjectSelected = subject !== '';
+    if (subject) {
+        // Primary filter: by subject from faculty loads (works even without grade selected)
+        var subjectIds = SF_JH_TEACHERS_BY_SUBJECT[subject] || null;
+        if (subjectIds && subjectIds.length > 0) {
+            allowedIds = subjectIds.map(String);
+            // Optionally intersect with grade filter when grade is also selected
+            if (grade) {
+                var gradeIds = (SF_JH_TEACHERS_BY_GRADE[grade] || []).map(String);
+                if (gradeIds.length > 0) {
+                    var intersection = allowedIds.filter(function(id) { return gradeIds.includes(id); });
+                    if (intersection.length > 0) allowedIds = intersection;
+                    // Keep subject-only list if intersection is empty (teacher not yet in grade filter)
+                }
+            }
+        } else {
+            allowedIds = [];
+        }
+    } else if (grade) {
+        allowedIds = (SF_JH_TEACHERS_BY_GRADE[grade] || []).map(String);
+    }
+
+    var currentVal = teacherSel.value || teacherSel.dataset.lastTeacher || '';
+    teacherSel.innerHTML = '<option value="">-- Teacher --</option>';
+    var added = {};
+    SF_JH_ALL_TEACHERS.forEach(function(t) {
+        if (!subjectSelected && !grade) return;
+        var id = String(t.id);
+        var include = false;
+        if (allowedIds === null) {
+            include = true;
+        } else if (allowedIds.length === 0) {
+            include = (id === String(currentVal));
+        } else {
+            include = allowedIds.includes(id);
+        }
+        if (include) {
+            var opt = document.createElement('option');
+            opt.value = t.id;
+            opt.textContent = t.name;
+            if (id === String(currentVal)) opt.selected = true;
+            teacherSel.appendChild(opt);
+            added[id] = true;
+        }
+    });
+    if (currentVal && !added[String(currentVal)]) {
+        var kept = SF_JH_ALL_TEACHERS.find(function(t) { return String(t.id) === String(currentVal); });
+        if (kept) {
+            var opt = document.createElement('option');
+            opt.value = kept.id;
+            opt.textContent = kept.name;
+            opt.selected = true;
+            teacherSel.appendChild(opt);
+        }
+    }
+    if (currentVal) teacherSel.value = String(currentVal);
+    if (teacherSel.value) teacherSel.dataset.lastTeacher = teacherSel.value;
+}
+
+function sfFilterTeachersByGrade(grade) {
+    document.querySelectorAll('.sf-teacher').forEach(function(sel) {
+        delete sel.dataset.lastTeacher;
+        sfRebuildTeacherSel(sel);
+    });
+}
+
+// When subject changes in any cell, refilter that cell's teacher dropdown
+document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('sf-subject')) {
+        var row = e.target.closest('.sf-subject-row');
+        var teacherSel = row ? row.querySelector('.sf-teacher') : null;
+        if (teacherSel) {
+            delete teacherSel.dataset.lastTeacher;
+            sfRebuildTeacherSel(teacherSel);
+        }
+        var cell = e.target.closest('.sf-cell');
+        if (cell) sfCheckCellDuplicates(cell);
+    }
+});
+
+function sfValidate() {
+    const grade = document.getElementById('sfGrade').value;
+    const day   = document.getElementById('sfDay').value;
+    if (!grade) { alert('Please select a Grade Level first.'); return false; }
+    if (!day)   { alert('Please select a Day of Week first.'); return false; }
+    // Block submission if any subject row has a subject selected but no teacher
+    const rows = document.querySelectorAll('.sf-subject-row');
+    for (const row of rows) {
+        const subj  = row.querySelector('.sf-subject');
+        const teach = row.querySelector('.sf-teacher');
+        if (subj && teach && subj.value && !teach.value) {
+            alert('Cannot save: every subject must have a teacher assigned. Please select a teacher or clear the subject field.');
+            return false;
+        }
+    }
+    if (typeof window.sfDuplicateSubjectTeacherInCell === 'function') {
+        let hasCellDup = false;
+        document.querySelectorAll('.sf-cell').forEach(function(cell) {
+            if (window.sfDuplicateSubjectTeacherInCell(cell)) hasCellDup = true;
+        });
+        if (hasCellDup) {
+            alert('Cannot save: the same subject and teacher cannot be assigned twice in one section slot.');
+            return false;
+        }
+    }
+    // Block submission if any conflict warning is visible
+    const warnEls = document.querySelectorAll('.sf-conflict-warn');
+    for (var w of warnEls) {
+        if (w.style.display !== 'none' && w.textContent.trim()) {
+            alert('Cannot save: schedule conflict detected.\n\n' + w.textContent.trim() + '\n\nPlease resolve all conflicts before saving.');
+            return false;
+        }
+    }
+    return true;
+}
+
+// Init
+sfUpdateSections();
+
+// ── Conflict detection + Shared Teachers panel ──────────────────────────
+(function () {
+    var SF_JH_TEACHER_CONFLICTS = JSON.parse(document.getElementById('sf-jh-teacher-conflicts')?.textContent || '{}');
+    var SF_JH_SHARED_TEACHERS   = JSON.parse(document.getElementById('sf-jh-shared-teachers')?.textContent || '[]');
+    var sharedIdSet = new Set(SF_JH_SHARED_TEACHERS.map(function(t){ return String(t.faculty_id || ''); }).filter(Boolean));
+
+    // slotKey "0745_0845" → "07:45"
+    function slotKeyToStart(key) {
+        var s = (key || '').split('_')[0];
+        return s.length === 4 ? s.slice(0,2) + ':' + s.slice(2,4) : '';
+    }
+
+    function sfGetCellAssignmentPairs(cell) {
+        var pairs = [];
+        var rows = cell.querySelectorAll('.sf-subject-row');
+        if (rows.length) {
+            rows.forEach(function(row) {
+                var sub = row.querySelector('.sf-subject');
+                var teach = row.querySelector('.sf-teacher');
+                pairs.push({
+                    subject: sub ? sub.value.trim() : '',
+                    facultyId: teach ? teach.value : ''
+                });
+            });
+        } else {
+            var subs = cell.querySelectorAll('.sf-subject');
+            var teaches = cell.querySelectorAll('.sf-teacher');
+            for (var i = 0; i < subs.length; i++) {
+                pairs.push({
+                    subject: (subs[i].value || '').trim(),
+                    facultyId: teaches[i] ? teaches[i].value : ''
+                });
+            }
+        }
+        return pairs;
+    }
+
+    function sfDuplicateSubjectTeacherInCell(cell) {
+        var seen = {};
+        var pairs = sfGetCellAssignmentPairs(cell);
+        for (var i = 0; i < pairs.length; i++) {
+            var p = pairs[i];
+            if (!p.subject || !p.facultyId) continue;
+            var key = p.subject.toLowerCase() + '|' + p.facultyId;
+            if (seen[key]) {
+                return 'Duplicate: same subject and teacher already assigned in this section slot.';
+            }
+            seen[key] = true;
+        }
+        return null;
+    }
+
+    function sfCheckCellDuplicates(cell) {
+        var dup = sfDuplicateSubjectTeacherInCell(cell);
+        cell.querySelectorAll('.sf-teacher').forEach(function(teach) {
+            var warnEl = teach.parentNode.querySelector('.sf-conflict-warn');
+            if (dup) {
+                teach.classList.add('sf-conflict');
+                if (warnEl) { warnEl.textContent = dup; warnEl.style.display = 'block'; }
+            } else if (!teach.classList.contains('sf-conflict') || (warnEl && warnEl.textContent.indexOf('Duplicate:') === 0)) {
+                if (warnEl && warnEl.textContent.indexOf('Duplicate:') === 0) {
+                    warnEl.textContent = '';
+                    warnEl.style.display = 'none';
+                }
+                if (teach.value) checkConflict(teach);
+                else {
+                    teach.classList.remove('sf-conflict');
+                    if (warnEl) { warnEl.textContent = ''; warnEl.style.display = 'none'; }
+                }
+            }
+        });
+        return dup;
+    }
+
+    function checkConflict(teacherSel) {
+        var teacherId = teacherSel.value;
+        var warnEl = teacherSel.parentNode.querySelector('.sf-conflict-warn');
+        if (!teacherId) {
+            teacherSel.classList.remove('sf-conflict');
+            if (warnEl) { warnEl.textContent = ''; warnEl.style.display = 'none'; }
+            return;
+        }
+        var subjectRow = teacherSel.closest('.sf-subject-row');
+        var subSel  = subjectRow ? subjectRow.querySelector('.sf-subject') : null;
+        var slotKey = subSel ? (subSel.name.match(/slots\[([^\]]+)\]/)?.[1] || '') : '';
+        var startTime = slotKeyToStart(slotKey);
+        var day = (document.getElementById('sfDay') || {}).value || '';
+
+        var conflictMsg = null;
+        var cell = teacherSel.closest('.sf-cell');
+
+        // ③ Same subject + teacher twice in one section/time cell
+        if (cell) {
+            conflictMsg = sfDuplicateSubjectTeacherInCell(cell);
+        }
+
+        // ① Same teacher in another section of the same time row
+        if (!conflictMsg) {
+            var tr = teacherSel.closest('tr');
+            if (tr) {
+                tr.querySelectorAll('.sf-teacher').forEach(function(other) {
+                    if (other === teacherSel) return;
+                    if (other.value && other.value === teacherId) {
+                        conflictMsg = '\u26a0 Already assigned to another section at this time';
+                    }
+                });
+            }
+        }
+
+        // ② Teacher already has an approved schedule for that day + time
+        if (!conflictMsg && day && startTime) {
+            var existing = SF_JH_TEACHER_CONFLICTS[String(teacherId)] || [];
+            for (var i = 0; i < existing.length; i++) {
+                var slot = existing[i];
+                if ((slot.day || '').toLowerCase() === day.toLowerCase() && slot.start === startTime) {
+                    conflictMsg = '\u26a0 Conflict: already scheduled at ' + startTime + ' ' + day + (slot.section ? ' (' + slot.section + ')' : '');
+                    break;
+                }
+            }
+        }
+
+        if (conflictMsg) {
+            teacherSel.classList.add('sf-conflict');
+            if (warnEl) { warnEl.textContent = conflictMsg; warnEl.style.display = 'block'; }
+        } else {
+            teacherSel.classList.remove('sf-conflict');
+            if (warnEl) { warnEl.textContent = ''; warnEl.style.display = 'none'; }
+        }
+    }
+
+    // Mark shared teachers in a select with "(Shared)"
+    function markSharedInSel(sel) {
+        Array.from(sel.options).forEach(function(opt) {
+            if (sharedIdSet.has(String(opt.value)) && opt.textContent.indexOf('(Shared)') < 0) {
+                opt.textContent += ' (Shared)';
+            }
+        });
+    }
+
+    // Patch sfRebuildTeacherSel to re-mark shared after rebuild
+    var _orig = window.sfRebuildTeacherSel;
+    if (_orig) {
+        window.sfRebuildTeacherSel = function(sel) {
+            _orig(sel);
+            markSharedInSel(sel);
+        };
+    }
+
+    // Initialize cells
+    document.querySelectorAll('.sf-cell').forEach(function(cell) {
+        var origSubSel = cell.querySelector('.sf-subject');
+        var origTeach  = cell.querySelector('.sf-teacher');
+        if (!origSubSel) return;
+
+        // Wrap original pair in sf-subject-row
+        var origWrap = document.createElement('div');
+        origWrap.className = 'sf-subject-row';
+        origWrap.style.cssText = 'margin-bottom:.3rem;';
+        cell.insertBefore(origWrap, origSubSel);
+        origWrap.appendChild(origSubSel);
+        if (origTeach) origWrap.appendChild(origTeach);
+
+        // Conflict warning
+        var warnDiv = document.createElement('div');
+        warnDiv.className = 'sf-conflict-warn';
+        origWrap.appendChild(warnDiv);
+
+        // Mark shared teachers in the dropdown
+        if (origTeach) markSharedInSel(origTeach);
+
+        // Shared teachers panel (only if any active shared teachers exist)
+        if (SF_JH_SHARED_TEACHERS.length > 0) {
+            var panel = document.createElement('div');
+            panel.className = 'sf-shared-panel';
+
+            var title = document.createElement('div');
+            title.className = 'sf-shared-panel-title';
+            title.textContent = 'Shared Teachers:';
+            panel.appendChild(title);
+
+            SF_JH_SHARED_TEACHERS.forEach(function(st) {
+                // Parse subjects stored as JSON string or array
+                var stSubjects = [];
+                if (st.subjects) {
+                    try { stSubjects = typeof st.subjects === 'string' ? JSON.parse(st.subjects) : st.subjects; } catch(e) {}
+                }
+                stSubjects = stSubjects.map(function(s){ return s.trim().toUpperCase(); });
+
+                var chip = document.createElement('span');
+                chip.className = 'sf-shared-item';
+                chip.textContent = st.teacher_name;
+                chip.title = (st.department || 'Shared') + ' — click to assign';
+                chip.dataset.stSubjects = JSON.stringify(stSubjects);
+                // Hidden by default; shown when subject matches
+                chip.style.display = 'none';
+                chip.addEventListener('click', function() {
+                    if (!origTeach) return;
+                    // Try to find matching option by faculty_id
+                    var opts = Array.from(origTeach.options);
+                    var match = opts.find(function(o){ return String(o.value) === String(st.faculty_id); });
+                    if (match) {
+                        origTeach.value = match.value;
+                    } else if (st.faculty_id) {
+                        var opt = document.createElement('option');
+                        opt.value = st.faculty_id;
+                        opt.textContent = st.teacher_name + ' (Shared)';
+                        origTeach.appendChild(opt);
+                        origTeach.value = String(st.faculty_id);
+                    }
+                    origTeach.dispatchEvent(new Event('change', {bubbles:true}));
+                });
+                panel.appendChild(chip);
+            });
+            cell.appendChild(panel);
+
+            // Function to refresh chip visibility based on selected subject
+            function refreshSharedChips() {
+                var selSubject = origSubSel ? origSubSel.value.trim().toUpperCase() : '';
+                var anyVisible = false;
+                panel.querySelectorAll('.sf-shared-item').forEach(function(chip) {
+                    var chipSubjects = [];
+                    try { chipSubjects = JSON.parse(chip.dataset.stSubjects || '[]'); } catch(e){}
+                    var match = selSubject && chipSubjects.length > 0 && chipSubjects.some(function(s){ return s === selSubject; });
+                    chip.style.display = match ? '' : 'none';
+                    if (match) anyVisible = true;
+                });
+                // Hide panel title when no chips are visible
+                title.style.display = anyVisible ? '' : 'none';
+            }
+            // Initial state
+            refreshSharedChips();
+            // Update on subject change
+            if (origSubSel) {
+                origSubSel.addEventListener('change', refreshSharedChips);
+            }
+        }
+
+        // Teacher change → conflict check
+        if (origTeach) {
+            origTeach.addEventListener('change', function() {
+                checkConflict(origTeach);
+                // Re-check siblings in same row
+                var tr = origTeach.closest('tr');
+                if (tr) tr.querySelectorAll('.sf-teacher').forEach(function(s){ if (s !== origTeach) checkConflict(s); });
+            });
+        }
+    });
+
+    // Re-check on day change
+    var dayEl = document.getElementById('sfDay');
+    if (dayEl) dayEl.addEventListener('change', function() {
+        document.querySelectorAll('.sf-teacher').forEach(function(s){ if (s.value) checkConflict(s); });
+    });
+
+    window.sfDuplicateSubjectTeacherInCell = sfDuplicateSubjectTeacherInCell;
+}());
+</script>
+@endsection

@@ -1,0 +1,267 @@
+/**
+ * SPUP — global responsive layout (all portals)
+ */
+html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+}
+
+img,
+video,
+svg {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Scrollable tables on small screens */
+.table-card,
+.table-scroll,
+.spup-table-scroll,
+[class*='table-wrap'],
+[class*='-table-wrap'],
+.st-schedule-table-wrap,
+.st-req-history-table-wrap,
+.timetable-wrap,
+.schedule-grid-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+}
+
+table {
+    min-width: 0;
+}
+
+/* Mobile menu */
+.spup-sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 999;
+}
+
+.spup-sidebar-overlay.active {
+    display: block;
+}
+
+.spup-menu-btn,
+.hamburger-btn {
+    display: none;
+    position: fixed;
+    top: 0.85rem;
+    left: 0.85rem;
+    z-index: 1101;
+    width: 42px;
+    height: 42px;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    border-radius: 0.5rem;
+    background: #2d7a50;
+    color: #fff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+    flex-shrink: 0;
+}
+
+.spup-menu-btn svg,
+.hamburger-btn svg {
+    pointer-events: none;
+}
+
+/* Form grids used across portals */
+.req-form-grid,
+.req-form-grid-3,
+.req-form-grid-4,
+.form-row-2,
+.st-dash-stats,
+.stats-row {
+    max-width: 100%;
+}
+
+/* Modals */
+.modal,
+[class*='modal-overlay'],
+[class*='Modal'] {
+    max-width: calc(100vw - 1.5rem);
+}
+
+@media (max-width: 1024px) {
+    .main-content {
+        padding: 1.5rem !important;
+    }
+
+    .page-title {
+        font-size: 1.5rem !important;
+    }
+
+    .content-grid {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .spup-menu-btn,
+    .hamburger-btn {
+        display: flex;
+    }
+
+    .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.28s ease;
+        width: min(280px, 88vw) !important;
+        z-index: 1000;
+    }
+
+    .sidebar.open,
+    .sidebar.spup-open {
+        transform: translateX(0);
+    }
+
+    .main-content {
+        margin-left: 0 !important;
+        padding: 1rem !important;
+        padding-top: 4.25rem !important;
+        width: 100%;
+        max-width: 100vw;
+        overflow-x: hidden;
+    }
+
+    .header {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 0.75rem !important;
+        padding: 1rem !important;
+    }
+
+    .header-left,
+    .header-right {
+        width: 100%;
+    }
+
+    .header-right {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .stats-grid,
+    .st-dash-stats,
+    .stats-row {
+        grid-template-columns: 1fr !important;
+        gap: 1rem !important;
+    }
+
+    .tab-btns {
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+
+    .tab-btn {
+        font-size: 0.75rem;
+        padding: 0.5rem 0.85rem;
+    }
+
+    .req-form-grid,
+    .req-form-grid-3,
+    .req-form-grid-4,
+    .form-row-2 {
+        grid-template-columns: 1fr !important;
+    }
+
+    .st-req-hero,
+    .st-dash-hero {
+        flex-direction: column;
+        padding: 1.25rem !important;
+    }
+
+    .st-req-hero h1,
+    .st-dash-hero h1 {
+        font-size: 1.4rem !important;
+    }
+
+    .action-buttons,
+    .action-btn {
+        flex-wrap: wrap;
+    }
+
+    th,
+    td {
+        padding: 0.6rem 0.5rem !important;
+        font-size: 0.8rem !important;
+    }
+
+    .stat-value {
+        font-size: 1.5rem !important;
+    }
+
+    .page-title {
+        font-size: 1.35rem !important;
+        word-break: break-word;
+    }
+}
+
+@media (max-width: 480px) {
+    .main-content {
+        padding: 0.75rem !important;
+        padding-top: 3.75rem !important;
+    }
+
+    .header {
+        padding: 0.75rem !important;
+    }
+
+    .page-title {
+        font-size: 1.15rem !important;
+    }
+
+    .stat-card,
+    .st-stat-card {
+        padding: 1rem !important;
+    }
+
+    .btn-primary,
+    .btn-outline,
+    .st-req-submit-btn,
+    .header-btn {
+        width: 100%;
+        justify-content: center;
+        text-align: center;
+    }
+
+    .req-submit-row {
+        flex-direction: column;
+        align-items: stretch !important;
+    }
+
+    .st-req-back-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+/* Timetable / schedule grids */
+@media (max-width: 768px) {
+    .timetable-grid,
+    #jhTimetableBody table,
+    #gsTimetableBody table,
+    .weekly-timetable table {
+        font-size: 0.72rem;
+    }
+}
+
+/* Auth login (inline pages) */
+@media (max-width: 480px) {
+    .login-right {
+        padding: 1.5rem 1rem !important;
+    }
+
+    .login-box {
+        max-width: 100%;
+    }
+
+    .seal-img {
+        width: 200px !important;
+        height: 200px !important;
+    }
+}

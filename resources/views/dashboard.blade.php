@@ -531,11 +531,11 @@
         }
 
         function showSuccess(message) {
-            alert('✓ ' + message);
+            alert(' ' + message);
         }
 
         function showError(message) {
-            alert('✗ ' + message);
+            alert(' ' + message);
         }
 
         // Load all schedules

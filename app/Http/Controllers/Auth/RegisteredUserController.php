@@ -20,7 +20,14 @@ class RegisteredUserController extends Controller
      */
     public function create(): View
     {
-        $roles = Role::all();
+        // Fetch all department-specific roles
+        $roles = Role::whereIn('name', [
+            'teacher_grade_school',
+            'teacher_junior_high',
+            'admin_grade_school',
+            'admin_junior_high'
+        ])->get();
+        
         return view('auth.register', compact('roles'));
     }
 
@@ -37,9 +44,20 @@ class RegisteredUserController extends Controller
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'role_id' => ['required', 'exists:roles,id'],
             'position' => ['nullable', 'string', 'max:255'],
-            'school_level' => ['nullable', 'string', 'in:junior_high,grade_school'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
+
+        // Get the role and extract department from role name
+        $role = Role::find($request->role_id);
+        $schoolLevel = 'grade_school'; // default
+        
+        if ($role) {
+            if (strpos($role->name, 'junior_high') !== false) {
+                $schoolLevel = 'junior_high';
+            } elseif (strpos($role->name, 'grade_school') !== false) {
+                $schoolLevel = 'grade_school';
+            }
+        }
 
         $user = User::create([
             'name' => $request->first_name . ' ' . $request->last_name,
@@ -48,7 +66,7 @@ class RegisteredUserController extends Controller
             'email' => $request->email,
             'role_id' => $request->role_id,
             'position' => $request->position,
-            'school_level' => $request->school_level,
+            'school_level' => $schoolLevel,
             'password' => Hash::make($request->password),
             'is_active' => true,
         ]);

@@ -27,6 +27,7 @@ class User extends Authenticatable
         'position',
         'school_level',
         'is_active',
+        'profile_photo_path',
     ];
 
     /**
@@ -37,6 +38,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'password_encrypted',
     ];
 
     /**
@@ -56,6 +58,46 @@ class User extends Authenticatable
     public function role()
     {
         return $this->belongsTo(Role::class);
+    }
+
+    protected static function booted(): void
+    {
+        // Keep the principal all_users snapshot in sync whenever a user is saved or deleted.
+        static::saved(function (User $user) {
+            try {
+                $roleName = \App\Models\Role::find($user->role_id)?->name ?? '';
+                if ($roleName === 'super_admin') {
+                    $roleName = 'principal';
+                }
+                \Illuminate\Support\Facades\DB::connection('mysql_principal')
+                    ->table('all_users')
+                    ->updateOrInsert(
+                        ['id' => $user->id],
+                        [
+                            'name'         => $user->name,
+                            'email'        => $user->email,
+                            'role'         => $roleName,
+                            'school_level' => $user->school_level ?? 'system',
+                            'is_active'    => (int) $user->is_active,
+                            'synced_at'    => now(),
+                            'updated_at'   => now(),
+                            'created_at'   => $user->created_at ?? now(),
+                        ]
+                    );
+            } catch (\Exception) {}
+        });
+
+        static::deleted(function (User $user) {
+            try {
+                \Illuminate\Support\Facades\DB::connection('mysql_principal')
+                    ->table('all_users')->where('id', $user->id)->delete();
+            } catch (\Exception) {}
+        });
+    }
+
+    public function loads()
+    {
+        return $this->hasMany(FacultyLoad::class, 'faculty_id');
     }
 
     public function loginHistories()
