@@ -336,10 +336,13 @@
         <h1>Schedule Requests</h1>
         <p>Submit a new request to your JH or GS admin, and track the status of previous requests.</p>
     </div>
-    <a href="{{ route('shared-teacher.dashboard') }}" class="st-req-back-btn">
-        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
-        Back to Dashboard
-    </a>
+    <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;flex-shrink:0;">
+        @include('partials.shared-teacher-header-actions')
+        <a href="{{ route('shared-teacher.dashboard') }}" class="st-req-back-btn">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+            Back to Dashboard
+        </a>
+    </div>
 </div>
 
 {{-- New Request Form --}}

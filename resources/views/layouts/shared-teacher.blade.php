@@ -65,13 +65,16 @@
         .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
         .header-left h1 { font-size: 1.6rem; font-weight: 700; color: var(--text-primary); }
         .header-right { display: flex; gap: 0.75rem; align-items: center; flex-shrink: 0; }
-        .st-portal-topbar {
+        .st-dash-hero-inner {
             display: flex;
-            justify-content: flex-end;
-            align-items: center;
-            margin-bottom: 1.25rem;
-            min-height: 44px;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1.25rem;
+            flex-wrap: wrap;
+            position: relative;
+            z-index: 1;
         }
+        .st-dash-hero-text { flex: 1; min-width: 0; }
         .st-portal-header-actions {
             display: inline-flex;
             align-items: center;
@@ -238,15 +241,6 @@
     </aside>
 
     <main class="main-content">
-        <div class="st-portal-topbar">
-            <div class="st-portal-header-actions">
-                @include('partials.teacher-theme-toggle', ['bannerMode' => false])
-                @include('partials.teacher-portal-notifications', [
-                    'notificationsApi' => '/api/shared-teacher/notifications',
-                    'markReadApi' => '/api/shared-teacher/notifications/read',
-                ])
-            </div>
-        </div>
         @yield('content')
     </main>
 

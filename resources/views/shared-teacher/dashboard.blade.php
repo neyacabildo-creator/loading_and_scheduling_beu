@@ -35,7 +35,7 @@
         margin-bottom: 1.75rem;
         box-shadow: var(--shadow-sm);
         position: relative;
-        overflow: hidden;
+        overflow: visible;
     }
     .st-dash-hero::after {
         content: '';
@@ -240,12 +240,17 @@
 
 @section('content')
 <div class="st-dash-hero">
-    <h1>My Schedule Dashboard</h1>
-    <p>Welcome back, <strong>{{ Auth::user()->first_name }}</strong>.</p>
-    <span class="st-hero-badge">
-        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-        Cross-division shared teacher
-    </span>
+    <div class="st-dash-hero-inner">
+        <div class="st-dash-hero-text">
+            <h1>My Schedule Dashboard</h1>
+            <p>Welcome back, <strong>{{ Auth::user()->first_name }}</strong>.</p>
+            <span class="st-hero-badge">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                Cross-division shared teacher
+            </span>
+        </div>
+        @include('partials.shared-teacher-header-actions')
+    </div>
 </div>
 
 <div class="stats-row st-dash-stats">
