@@ -451,6 +451,7 @@ class AdminController extends Controller {
             'password'   => 'nullable|string|min:8|confirmed',
         ]);
 
+        $data = \App\Support\AdminUserAccountsSupport::withNormalizedNames($data);
         $user->first_name = $data['first_name'];
         $user->last_name  = $data['last_name'];
         $user->name       = trim($data['first_name'] . ' ' . $data['last_name']);
@@ -709,6 +710,7 @@ class AdminController extends Controller {
 
         $role = \App\Support\AdminUserRoleSupport::validateRoleForPortal('junior_high', (int) $validated['role_id']);
         $schoolLevel = \App\Support\AdminUserRoleSupport::schoolLevelForNewUser($role, 'junior_high');
+        $validated = \App\Support\AdminUserAccountsSupport::withNormalizedNames($validated);
 
         $user = \App\Models\User::create([
             'first_name'   => $validated['first_name'],
@@ -898,6 +900,7 @@ class AdminController extends Controller {
                 'department' => 'nullable|string|max:100',
             ]);
 
+            $validated = \App\Support\AdminUserAccountsSupport::withNormalizedNames($validated);
             $user = \App\Support\AdminUserAccountsSupport::findUserAccount($schoolLevel, (int) $id);
             $user->update($validated);
             return response()->json(['success' => true, 'message' => 'Teacher updated successfully', 'data' => $user]);

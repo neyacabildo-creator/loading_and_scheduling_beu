@@ -10,6 +10,44 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class AdminUserAccountsSupport
 {
+    public static function normalizePersonName(?string $name): string
+    {
+        $name = trim((string) $name);
+        if ($name === '') {
+            return '';
+        }
+
+        $parts = preg_split('/\s+/u', $name, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        return collect($parts)
+            ->map(function (string $part) {
+                $first = mb_substr($part, 0, 1);
+                $rest = mb_substr($part, 1);
+
+                return mb_strtoupper($first) . mb_strtolower($rest);
+            })
+            ->implode(' ');
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public static function withNormalizedNames(array $data): array
+    {
+        if (array_key_exists('first_name', $data)) {
+            $data['first_name'] = self::normalizePersonName($data['first_name'] ?? null);
+        }
+        if (array_key_exists('last_name', $data)) {
+            $data['last_name'] = self::normalizePersonName($data['last_name'] ?? null);
+        }
+        if (isset($data['first_name'], $data['last_name'])) {
+            $data['name'] = trim($data['first_name'] . ' ' . $data['last_name']);
+        }
+
+        return $data;
+    }
+
     /** Roles shown on the User Accounts management page. */
     public const ACCOUNT_ROLE_NAMES = [
         'admin_grade_school',

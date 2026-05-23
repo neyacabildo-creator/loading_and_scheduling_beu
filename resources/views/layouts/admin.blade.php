@@ -469,7 +469,8 @@
         
         // Create theme toggle button
         function initThemeToggle() {
-            const headerRight = document.querySelector('.header-right');
+            if (document.getElementById('themeToggle')) return;
+            const headerRight = document.querySelector('.admin-header-actions') || document.querySelector('.header-right');
             if (headerRight) {
                 const themeBtn = document.createElement('button');
                 themeBtn.className = 'theme-toggle-btn';

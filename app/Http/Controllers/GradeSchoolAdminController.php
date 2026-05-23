@@ -620,6 +620,7 @@ class GradeSchoolAdminController extends Controller
                 'email' => 'nullable|email|max:100|unique:users,email,' . $id,
             ]);
 
+            $validated = \App\Support\AdminUserAccountsSupport::withNormalizedNames($validated);
             $user = \App\Support\AdminUserAccountsSupport::findUserAccount($schoolLevel, (int) $id);
             $user->update($validated);
             return response()->json(['success' => true, 'message' => 'Teacher updated', 'data' => $user]);
@@ -1181,6 +1182,7 @@ class GradeSchoolAdminController extends Controller
 
         $role = \App\Support\AdminUserRoleSupport::validateRoleForPortal('grade_school', (int) $validated['role_id']);
         $schoolLevel = \App\Support\AdminUserRoleSupport::schoolLevelForNewUser($role, 'grade_school');
+        $validated = \App\Support\AdminUserAccountsSupport::withNormalizedNames($validated);
 
         $user = User::create([
             'first_name'   => $validated['first_name'],

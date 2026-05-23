@@ -5,6 +5,7 @@
 
 @section('content')
     @include('partials.admin-all-requests-page', [
+        'adminPortal' => 'grade_school',
         'requests' => $requests,
         'reviewers' => $reviewers,
         'teacherScheduleRequests' => $teacherScheduleRequests,

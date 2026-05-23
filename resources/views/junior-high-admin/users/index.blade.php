@@ -91,6 +91,7 @@
             <h1 class="page-title">User Accounts Management</h1>
         </div>
         <div class="header-right">
+            @include('partials.admin-header-actions', ['portal' => 'junior_high'])
             <button onclick="openAddUserModal()" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #2d7a50 0%, #1a5336 100%); color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 0.875rem;">
                 <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
                 Add User
@@ -135,23 +136,25 @@
                 <span class="modal-head-title">Add New User</span>
                 <button class="modal-close-btn" onclick="closeAddUserModal()">✕</button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" autocomplete="off">
+                <input type="text" name="jh_fake_user" tabindex="-1" autocomplete="username" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;">
+                <input type="password" name="jh_fake_pass" tabindex="-1" autocomplete="current-password" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;">
                 <div id="modalErrBanner" class="modal-err-banner"></div>
                 <div class="form-row">
                     <div class="form-field">
                         <label class="form-label">First Name <span style="color:#c83232">*</span></label>
-                        <input type="text" id="m_first_name" class="form-input" placeholder="First name">
+                        <input type="text" id="m_first_name" name="jh_new_user_first" class="form-input" placeholder="First name" autocomplete="off" autocapitalize="words">
                         <span class="field-error" id="err_first_name"></span>
                     </div>
                     <div class="form-field">
                         <label class="form-label">Last Name <span style="color:#c83232">*</span></label>
-                        <input type="text" id="m_last_name" class="form-input" placeholder="Last name">
+                        <input type="text" id="m_last_name" name="jh_new_user_last" class="form-input" placeholder="Last name" autocomplete="off" autocapitalize="words">
                         <span class="field-error" id="err_last_name"></span>
                     </div>
                 </div>
                 <div class="form-field">
                     <label class="form-label">Email Address <span style="color:#c83232">*</span></label>
-                    <input type="email" id="m_email" class="form-input" placeholder="email@example.com">
+                    <input type="email" id="m_email" name="jh_new_user_email" class="form-input" placeholder="email@example.com" autocomplete="off">
                     <span class="field-error" id="err_email"></span>
                 </div>
                 <div class="form-field">
@@ -186,7 +189,7 @@
                 <div class="form-field">
                     <label class="form-label">Password <span style="color:#c83232">*</span></label>
                     <div style="position:relative;">
-                        <input type="password" id="m_password" class="form-input" placeholder="Minimum 8 characters" style="padding-right:2.5rem;">
+                        <input type="password" id="m_password" name="jh_new_user_password" class="form-input" placeholder="Minimum 8 characters" autocomplete="new-password" readonly style="padding-right:2.5rem;">
                         <button type="button" onclick="togglePwd('m_password',this)" tabindex="-1"
                             style="position:absolute;right:.6rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#7a7a6e;padding:0;line-height:1;">
                             <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -197,7 +200,7 @@
                 <div class="form-field" style="margin-bottom: 0;">
                     <label class="form-label">Confirm Password <span style="color:#c83232">*</span></label>
                     <div style="position:relative;">
-                        <input type="password" id="m_password_confirmation" class="form-input" placeholder="Repeat password" style="padding-right:2.5rem;">
+                        <input type="password" id="m_password_confirmation" name="jh_new_user_password_confirm" class="form-input" placeholder="Repeat password" autocomplete="new-password" readonly style="padding-right:2.5rem;">
                         <button type="button" onclick="togglePwd('m_password_confirmation',this)" tabindex="-1"
                             style="position:absolute;right:.6rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#7a7a6e;padding:0;line-height:1;">
                             <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -213,9 +216,17 @@
         </div>
     </div>
 
+    @include('partials.admin-user-form-helpers')
+
     <script>
         let allTeachers = [];
         let jhSubjects = [];
+        const JH_PASSWORD_IDS = ['m_password', 'm_password_confirmation'];
+        bindAdminNameCapitalize('m_first_name');
+        bindAdminNameCapitalize('m_last_name');
+        bindAdminNameCapitalize('edit_first_name');
+        bindAdminNameCapitalize('edit_last_name');
+        markAdminPasswordTyped(JH_PASSWORD_IDS);
 
         function resetUserSearchInput() {
             const el = document.getElementById('searchInput');
@@ -386,6 +397,8 @@
 
         function openAddUserModal() {
             clearModalForm();
+            clearAdminPasswordTypedFlags(JH_PASSWORD_IDS);
+            resetAdminPasswordAutofill(JH_PASSWORD_IDS);
             document.getElementById('addUserModal').classList.add('open');
             setTimeout(() => document.getElementById('m_first_name').focus(), 50);
         }
@@ -435,8 +448,8 @@
 
             const roleId = document.getElementById('m_role_id').value;
             const payload = {
-                first_name:            document.getElementById('m_first_name').value.trim(),
-                last_name:             document.getElementById('m_last_name').value.trim(),
+                first_name:            capitalizePersonName(document.getElementById('m_first_name').value),
+                last_name:             capitalizePersonName(document.getElementById('m_last_name').value),
                 email:                 document.getElementById('m_email').value.trim(),
                 role_id:               roleId,
                 password:              document.getElementById('m_password').value,
@@ -581,8 +594,8 @@
             btn.textContent = 'Saving...';
             clearEditErrors();
             const payload = {
-                first_name: document.getElementById('edit_first_name').value.trim(),
-                last_name:  document.getElementById('edit_last_name').value.trim(),
+                first_name: capitalizePersonName(document.getElementById('edit_first_name').value),
+                last_name:  capitalizePersonName(document.getElementById('edit_last_name').value),
                 email:      document.getElementById('edit_email').value.trim(),
             };
             fetch('/api/teachers/' + id, {

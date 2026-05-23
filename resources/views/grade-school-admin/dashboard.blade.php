@@ -37,12 +37,7 @@
             </div>
         </div>
         <div class="header-right">
-            <button type="button" class="header-btn">EN</button>
-            @include('partials.admin-portal-notifications', [
-                'notificationsApi' => url('/api/grade-school-admin/notifications'),
-                'allRequestsUrl' => route('grade-school-admin.shared-teacher-requests'),
-                'permissionRequestsUrl' => route('grade-school-admin.permission-requests'),
-            ])
+            @include('partials.admin-header-actions', ['portal' => 'grade_school'])
         </div>
     </div>
 

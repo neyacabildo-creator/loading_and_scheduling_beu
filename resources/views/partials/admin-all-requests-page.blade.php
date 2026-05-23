@@ -18,6 +18,7 @@
         @if($pendingCount > 0)
             <span class="str-pending-pill">{{ $pendingCount }} pending</span>
         @endif
+        @include('partials.admin-header-actions', ['portal' => $adminPortal ?? 'junior_high'])
     </div>
 </div>
 

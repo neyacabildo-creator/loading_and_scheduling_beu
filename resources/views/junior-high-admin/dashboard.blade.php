@@ -12,12 +12,7 @@
             </div>
         </div>
         <div class="header-right">
-            <button type="button" class="header-btn">EN</button>
-            @include('partials.admin-portal-notifications', [
-                'notificationsApi' => url('/api/admin/notifications'),
-                'allRequestsUrl' => route('admin.shared-teacher-requests'),
-                'permissionRequestsUrl' => route('admin.permission-requests'),
-            ])
+            @include('partials.admin-header-actions', ['portal' => 'junior_high'])
         </div>
     </div>
 
