@@ -74,63 +74,242 @@ class TeacherPortalSupport
     }
 
     /**
+     * Class schedules shown on teacher workload (faculty load + history).
+     */
+    public static function classSchedulesForTeacherWorkload(int $facultyId, ?string $connection = null): Collection
+    {
+        if (! self::hasClassSchedulesTable($connection)) {
+            return collect();
+        }
+
+        return ClassSchedule::on($connection ?? config('database.school_connection', 'mysql_jh'))
+            ->where('faculty_id', $facultyId)
+            ->whereNotIn('status', ['rejected', 'deleted'])
+            ->with(['room'])
+            ->orderBy('day_of_week')
+            ->orderBy('start_time')
+            ->get();
+    }
+
+    /**
      * @param  \Illuminate\Support\Collection|\Illuminate\Database\Eloquent\Collection  $classSchedules
      * @param  \Illuminate\Support\Collection|\Illuminate\Database\Eloquent\Collection  $facultyLoads
      */
     public static function buildWorkloadSchedules($classSchedules, $facultyLoads): array
     {
         $loads = collect($facultyLoads);
-        $schedules = [];
+        $allSchedules = collect($classSchedules);
+        $rows = [];
 
         foreach ($classSchedules as $s) {
             $hours = self::scheduleDurationHours($s->start_time, $s->end_time);
-            $load = $loads->first(fn ($l) => self::subjectsMatch($l->subject ?? '', $s->subject ?? ''));
+            $load = $loads->first(fn ($l) => self::scheduleMatchesFacultyLoad($s, $l));
+            $grade = ScheduleDisplaySupport::resolveGradeAndSection($s);
 
-            $schedules[] = [
+            $rows[] = [
                 'id'               => $s->id,
                 'source'           => 'class_schedule',
-                'subject'          => $s->subject,
-                'subject_name'     => $s->subject,
+                'subject'          => trim((string) ($s->subject ?? '')) ?: trim((string) ($load?->subject ?? '')),
+                'subject_name'     => trim((string) ($s->subject ?? '')) ?: trim((string) ($load?->subject ?? '')),
                 'load_hours'       => $hours > 0 ? $hours : (float) ($load?->load_hours ?? 0),
-                'classes_assigned' => $load?->classes_assigned ?? 1,
-                'units'            => $load?->classes_assigned ?? 1,
+                'classes_assigned' => (int) ($load?->classes_assigned ?? 0),
+                'units'            => max(1, (int) ($load?->classes_assigned ?? 1)),
                 'status'           => $s->admin_approved ? 'approved' : ($s->status ?? 'active'),
                 'day_of_week'      => $s->day_of_week,
                 'start_time'       => $s->start_time,
                 'end_time'         => $s->end_time,
-                'grade_level'      => $s->grade_level,
-                'section_name'     => $s->section_name,
-                'grade_section'    => trim(($s->grade_level ?? '') . ($s->section_name ? ' – ' . $s->section_name : '')),
-                'room'             => self::roomLabel($s),
+                'grade_level'      => $grade['grade_level'] ?: ($s->grade_level ?? null),
+                'section_name'     => $grade['section_name'] ?: ($s->section_name ?? null),
             ];
         }
 
         foreach ($loads as $load) {
-            $hasSchedule = collect($schedules)->contains(fn ($row) => self::subjectsMatch($row['subject'] ?? '', $load->subject ?? ''));
-            if ($hasSchedule) {
+            if (collect($rows)->contains(fn ($row) => self::rowMatchesFacultyLoad($row, $load))) {
                 continue;
             }
 
-            $schedules[] = [
+            $comp = self::complementaryScheduleForLoad($load, $allSchedules);
+            [$parsedGrade, $parsedSection] = ScheduleDisplaySupport::parseGradeSection($load->grade_level);
+            $gradeLevel = $parsedGrade !== '' ? $parsedGrade : trim((string) ($load->grade_level ?? ''));
+            $sectionName = $parsedSection !== '' ? $parsedSection : ($comp?->section_name ?? null);
+            if ($gradeLevel === '' && $comp) {
+                $fromSchedule = ScheduleDisplaySupport::resolveGradeAndSection($comp);
+                $gradeLevel = $fromSchedule['grade_level'] ?: $gradeLevel;
+                $sectionName = $sectionName ?: $fromSchedule['section_name'];
+            }
+
+            $hours = (float) ($load->load_hours ?? 0);
+            if ($hours <= 0 && $comp) {
+                $hours = self::scheduleDurationHours($comp->start_time, $comp->end_time);
+            }
+
+            $units = (int) ($load->classes_assigned ?? 0);
+            if ($units <= 0) {
+                $units = 1;
+            }
+
+            $rows[] = [
                 'id'               => $load->id,
                 'source'           => 'faculty_load',
-                'subject'          => $load->subject,
-                'subject_name'     => $load->subject,
-                'load_hours'       => (float) ($load->load_hours ?? 0),
-                'classes_assigned' => $load->classes_assigned,
-                'units'            => $load->classes_assigned ?? 1,
+                'subject'          => trim((string) ($load->subject ?? '')),
+                'subject_name'     => trim((string) ($load->subject ?? '')),
+                'load_hours'       => $hours,
+                'classes_assigned' => $units,
+                'units'            => $units,
                 'status'           => $load->status ?? 'available',
-                'day_of_week'      => null,
-                'start_time'       => null,
-                'end_time'         => null,
-                'grade_level'      => $load->grade_level ?? null,
-                'section_name'     => null,
-                'grade_section'    => self::gradeSectionLabel($load->grade_level ?? null) ?: '—',
-                'room'             => self::gradeSectionLabel($load->grade_level ?? null) ?: '—',
+                'day_of_week'      => $comp?->day_of_week,
+                'start_time'       => $comp?->start_time,
+                'end_time'         => $comp?->end_time,
+                'grade_level'      => $gradeLevel !== '' ? $gradeLevel : null,
+                'section_name'     => $sectionName,
             ];
         }
 
-        return $schedules;
+        return array_values(array_map(fn (array $row) => self::normalizeWorkloadRow($row), $rows));
+    }
+
+    /**
+     * @param  object  $schedule
+     * @param  object  $load
+     */
+    public static function scheduleMatchesFacultyLoad($schedule, $load): bool
+    {
+        if (self::subjectsMatch($schedule->subject ?? '', $load->subject ?? '')) {
+            return true;
+        }
+
+        $scheduleGrade = trim((string) ($schedule->grade_level ?? ''));
+        $loadGrade = trim((string) ($load->grade_level ?? ''));
+
+        if ($scheduleGrade === '' || $loadGrade === '') {
+            return false;
+        }
+
+        if (strcasecmp($scheduleGrade, $loadGrade) === 0) {
+            return true;
+        }
+
+        [$parsedGrade] = ScheduleDisplaySupport::parseGradeSection($loadGrade);
+
+        return $parsedGrade !== '' && strcasecmp($scheduleGrade, $parsedGrade) === 0;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @param  object  $load
+     */
+    public static function rowMatchesFacultyLoad(array $row, $load): bool
+    {
+        if (self::subjectsMatch($row['subject'] ?? '', $load->subject ?? '')) {
+            return true;
+        }
+
+        $rowGrade = trim((string) ($row['grade_level'] ?? ''));
+        $loadGrade = trim((string) ($load->grade_level ?? ''));
+
+        if ($rowGrade === '' || $loadGrade === '') {
+            return false;
+        }
+
+        if (strcasecmp($rowGrade, $loadGrade) === 0) {
+            return true;
+        }
+
+        [$parsedGrade] = ScheduleDisplaySupport::parseGradeSection($loadGrade);
+
+        return $parsedGrade !== '' && strcasecmp($rowGrade, $parsedGrade) === 0;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection  $classSchedules
+     */
+    public static function complementaryScheduleForLoad($load, $classSchedules): ?object
+    {
+        return collect($classSchedules)->first(function ($schedule) use ($load) {
+            return self::scheduleMatchesFacultyLoad($schedule, $load);
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    public static function normalizeWorkloadRow(array $row): array
+    {
+        $gradeLevel = trim((string) ($row['grade_level'] ?? ''));
+        $sectionName = trim((string) ($row['section_name'] ?? $row['section'] ?? ''));
+
+        if ($gradeLevel === '' && $sectionName === '') {
+            [$parsedGrade, $parsedSection] = ScheduleDisplaySupport::parseGradeSection($row['grade_section'] ?? null);
+            $gradeLevel = $parsedGrade;
+            $sectionName = $parsedSection;
+        }
+
+        $gradeSection = self::gradeSectionLabel($gradeLevel, $sectionName);
+        $subject = trim((string) ($row['subject'] ?? $row['subject_name'] ?? ''));
+        if ($subject === '' && $gradeSection !== '') {
+            $subject = $gradeSection;
+        }
+
+        $units = (int) ($row['units'] ?? $row['classes_assigned'] ?? 0);
+        if ($units <= 0) {
+            $units = $subject !== '' || $gradeSection !== '' ? 1 : 0;
+        }
+
+        $loadHours = (float) ($row['load_hours'] ?? 0);
+        if ($loadHours <= 0 && ! empty($row['start_time']) && ! empty($row['end_time'])) {
+            $loadHours = self::scheduleDurationHours($row['start_time'], $row['end_time']);
+        }
+        if ($loadHours <= 0 && $units > 0) {
+            $loadHours = (float) $units;
+        }
+
+        $day = trim((string) ($row['day_of_week'] ?? ''));
+
+        return [
+            'id'               => $row['id'] ?? null,
+            'source'           => $row['source'] ?? null,
+            'subject'          => $subject !== '' ? $subject : '—',
+            'subject_name'     => $subject !== '' ? $subject : '—',
+            'grade_level'      => $gradeLevel !== '' ? $gradeLevel : null,
+            'section_name'     => $sectionName !== '' ? $sectionName : null,
+            'grade_section'    => $gradeSection !== '' ? $gradeSection : '—',
+            'room'             => $gradeSection !== '' ? $gradeSection : '—',
+            'day_of_week'      => $day !== '' ? $day : null,
+            'start_time'       => $row['start_time'] ?? null,
+            'end_time'         => $row['end_time'] ?? null,
+            'units'            => $units,
+            'classes_assigned' => $units,
+            'load_hours'       => round($loadHours, 2),
+            'status'           => $row['status'] ?? 'active',
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    public static function workloadHistoryEntry(array $row, ?string $schoolYear = null): array
+    {
+        $normalized = self::normalizeWorkloadRow($row);
+        $schoolYear = $schoolYear ?? (date('Y') . '-' . (date('Y') + 1));
+
+        return [
+            'id'            => $normalized['id'],
+            'subject'       => $normalized['subject'],
+            'grade_level'   => $normalized['grade_level'],
+            'section'       => $normalized['section_name'],
+            'section_name'  => $normalized['section_name'],
+            'grade_section' => $normalized['grade_section'],
+            'room'          => $normalized['room'],
+            'day_of_week'   => $normalized['day_of_week'] ?? '—',
+            'start_time'    => $normalized['start_time'],
+            'end_time'      => $normalized['end_time'],
+            'units'         => (int) $normalized['units'],
+            'load_hours'    => (float) $normalized['load_hours'],
+            'school_year'   => $schoolYear,
+            'status'        => $normalized['status'],
+        ];
     }
 
     public static function subjectsMatch(string $a, string $b): bool

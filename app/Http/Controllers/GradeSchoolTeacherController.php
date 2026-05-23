@@ -153,17 +153,10 @@ class GradeSchoolTeacherController extends Controller
 
         // Get all admin-assigned faculty loads for this teacher (mysql_gs via UseSchoolConnection)
         $facultyLoads = FacultyLoad::where('faculty_id', $teacherId)->get();
-
-        $classSchedules = ClassSchedule::where('faculty_id', $teacherId)
-            ->where('admin_approved', true)
-            ->whereNotIn('status', ['pending', 'rejected', 'deleted'])
-            ->with(['room'])
-            ->orderBy('day_of_week')
-            ->orderBy('start_time')
-            ->get();
+        $classSchedules = TeacherPortalSupport::classSchedulesForTeacherWorkload($teacherId);
 
         $schedules = TeacherPortalSupport::buildWorkloadSchedules($classSchedules, $facultyLoads);
-        $totalUnits = collect($schedules)->sum(fn ($s) => (int) ($s['units'] ?? 1));
+        $totalUnits = collect($schedules)->sum(fn ($s) => (int) ($s['units'] ?? 0));
 
         return response()->json([
             'success'     => true,
@@ -448,31 +441,12 @@ class GradeSchoolTeacherController extends Controller
         $schoolYear = date('Y') . '-' . (date('Y') + 1);
 
         $facultyLoads = FacultyLoad::where('faculty_id', $teacherId)->get();
-        $classSchedules = ClassSchedule::where('faculty_id', $teacherId)
-            ->whereNotIn('status', ['rejected', 'deleted'])
-            ->where(function ($q) {
-                $q->where('admin_approved', true)
-                    ->orWhereIn('status', ['active', 'approved']);
-            })
-            ->with(['room'])
-            ->orderBy('day_of_week')
-            ->orderBy('start_time')
-            ->get();
+        $classSchedules = TeacherPortalSupport::classSchedulesForTeacherWorkload($teacherId);
 
         $schedules = TeacherPortalSupport::buildWorkloadSchedules($classSchedules, $facultyLoads);
-        $histories = collect($schedules)->map(fn ($s) => [
-            'id'          => $s['id'] ?? null,
-            'subject'     => $s['subject'] ?? $s['subject_name'] ?? '—',
-            'grade_level' => $s['grade_level'] ?? null,
-            'section'     => $s['section_name'] ?? null,
-            'day_of_week' => $s['day_of_week'] ?? '—',
-            'start_time'  => $s['start_time'] ?? null,
-            'end_time'    => $s['end_time'] ?? null,
-            'units'       => (int) ($s['units'] ?? 1),
-            'load_hours'  => (float) ($s['load_hours'] ?? 0),
-            'school_year' => $schoolYear,
-            'status'      => $s['status'] ?? 'active',
-        ])->values();
+        $histories = collect($schedules)
+            ->map(fn ($s) => TeacherPortalSupport::workloadHistoryEntry($s, $schoolYear))
+            ->values();
 
         return response()->json(['success' => true, 'data' => $histories]);
     }

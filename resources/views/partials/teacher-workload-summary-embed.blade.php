@@ -239,24 +239,25 @@
             // ── Subject Cards ──
             const colorMap = {};
             let ci = 0;
+            function gradeSectionLabel(s) {
+                if (s.grade_section && s.grade_section !== '—') return s.grade_section;
+                const parts = [s.grade_level, s.section_name || s.section].filter(Boolean);
+                return parts.length ? parts.join(' – ') : '—';
+            }
+
             schedules.forEach(s => {
-                const key = s.subject || s.subject_name || 'Unknown';
+                const key = s.subject || s.subject_name || gradeSectionLabel(s);
                 if (!colorMap[key]) colorMap[key] = COLORS[ci++ % COLORS.length];
             });
 
-            function roomLabel(s) {
-                const raw = (typeof s.room === 'object' && s.room) ? (s.room.room_name || s.room.room_number || '') : (s.room || '');
-                if (raw && !/^tba$/i.test(raw) && !/^room\s*#\d+$/i.test(String(raw).trim())) return raw;
-                const gs = s.grade_section || [s.grade_level, s.section].filter(Boolean).join(' – ');
-                return gs || '—';
-            }
-
             document.getElementById('fl-subjects').innerHTML = schedules.map(s => {
-                const subj  = s.subject || s.subject_name || 'Unknown Subject';
-                const color = colorMap[subj];
+                const subj  = s.subject || s.subject_name || '—';
+                const color = colorMap[subj] || colorMap[gradeSectionLabel(s)] || COLORS[0];
+                const gs    = gradeSectionLabel(s);
                 const timeStr = s.start_time && s.end_time
                     ? `${fmt(s.start_time)} – ${fmt(s.end_time)}`
-                    : (s.time_start && s.time_end ? `${fmt(s.time_start)} – ${fmt(s.time_end)}` : 'Time TBA');
+                    : (s.time_start && s.time_end ? `${fmt(s.time_start)} – ${fmt(s.time_end)}` : '—');
+                const loadHrs = parseFloat(s.load_hours);
                 return `
                 <div class="fl-subj-card">
                     <div class="fl-subj-top">
@@ -270,15 +271,15 @@
                     <div class="fl-subj-body">
                         <div>
                             <p class="fl-subj-meta-lbl">Grade &amp; Section</p>
-                            <p class="fl-subj-meta-val">${s.grade_section || s.grade_level || '—'}${s.section ? ' – '+s.section : ''}</p>
+                            <p class="fl-subj-meta-val">${gs}</p>
                         </div>
                         <div>
                             <p class="fl-subj-meta-lbl">Room</p>
-                            <p class="fl-subj-meta-val">${roomLabel(s)}</p>
+                            <p class="fl-subj-meta-val">${gs}</p>
                         </div>
                         <div>
                             <p class="fl-subj-meta-lbl">Day</p>
-                            <p class="fl-subj-meta-val">${s.day_of_week || 'TBA'}</p>
+                            <p class="fl-subj-meta-val">${s.day_of_week || '—'}</p>
                         </div>
                         <div>
                             <p class="fl-subj-meta-lbl">Time</p>
@@ -286,11 +287,11 @@
                         </div>
                         <div>
                             <p class="fl-subj-meta-lbl">Units</p>
-                            <p class="fl-subj-meta-val">${s.units || '—'}</p>
+                            <p class="fl-subj-meta-val">${s.units != null && s.units !== '' ? s.units : '—'}</p>
                         </div>
                         <div>
                             <p class="fl-subj-meta-lbl">Load Hours</p>
-                            <p class="fl-subj-meta-val" style="color:${color};">${(s.load_hours != null && s.load_hours !== '') ? parseFloat(s.load_hours).toFixed(2) + ' hrs' : '—'}</p>
+                            <p class="fl-subj-meta-val" style="color:${color};">${!isNaN(loadHrs) ? loadHrs.toFixed(2) + ' hrs' : '—'}</p>
                         </div>
                     </div>
                 </div>`;

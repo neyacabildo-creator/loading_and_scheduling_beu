@@ -88,16 +88,25 @@ function fmtTime(t) {
     } catch (e) { return t; }
 }
 
+function gradeSectionLabel(s) {
+    if (s.grade_section && s.grade_section !== '—') return s.grade_section;
+    const parts = [s.grade_level, s.section_name || s.section].filter(Boolean);
+    return parts.length ? parts.join(' – ') : '—';
+}
+
 function mapFacultyLoadRows(schedules) {
     return (schedules || []).map((s, idx) => ({
         id: s.id ?? idx,
         subject: s.subject || s.subject_name || '—',
-        grade_level: s.grade_level || s.grade_section || '—',
+        grade_level: s.grade_level || null,
+        section: s.section_name || s.section || null,
+        grade_section: gradeSectionLabel(s),
+        room: s.room || gradeSectionLabel(s),
         day_of_week: s.day_of_week || '—',
         start_time: s.start_time,
         end_time: s.end_time,
-        units: parseInt(s.units, 10) || 1,
-        load_hours: parseFloat(s.load_hours) || parseInt(s.units, 10) || 0,
+        units: parseInt(s.units, 10) || parseInt(s.classes_assigned, 10) || 0,
+        load_hours: parseFloat(s.load_hours) || 0,
         school_year: s.school_year || s.academic_year || '',
         status: s.status || 'active',
     }));
@@ -136,12 +145,12 @@ async function loadHistory() {
 
 function updateStats(data) {
     document.getElementById('total-records').textContent = data.length;
-    const subjects = [...new Set(data.map(d => (d.subject || '').toLowerCase()).filter(Boolean))];
+    const subjects = [...new Set(data.map(d => (d.subject || '').toLowerCase()).filter(s => s && s !== '—'))];
     document.getElementById('total-subjects').textContent = subjects.length;
-    const units = data.map(d => parseFloat(d.load_hours) || parseInt(d.units, 10) || 0);
-    const total = units.reduce((a, b) => a + b, 0);
-    document.getElementById('avg-units').textContent = data.length ? (total / data.length).toFixed(1) : 0;
-    document.getElementById('max-units').textContent = units.length ? Math.max(...units).toFixed(1) : 0;
+    const unitVals = data.map(d => parseInt(d.units, 10) || 0);
+    const totalUnits = unitVals.reduce((a, b) => a + b, 0);
+    document.getElementById('avg-units').textContent = data.length ? (totalUnits / data.length).toFixed(1) : 0;
+    document.getElementById('max-units').textContent = unitVals.length ? Math.max(...unitVals).toFixed(1) : 0;
 }
 
 function applyFilters() {
@@ -152,7 +161,8 @@ function applyFilters() {
         data = data.filter(d =>
             (d.subject ?? '').toLowerCase().includes(search) ||
             (d.day_of_week ?? '').toLowerCase().includes(search) ||
-            (d.grade_level ?? '').toLowerCase().includes(search)
+            (d.grade_level ?? '').toLowerCase().includes(search) ||
+            (d.grade_section ?? gradeSectionLabel(d)).toLowerCase().includes(search)
         );
     }
     if (status) data = data.filter(d => String(d.status ?? 'active').toLowerCase() === status);
@@ -164,29 +174,30 @@ function renderTable(data) {
         document.getElementById('hist-tbody').innerHTML = '<tr><td colspan="8" class="empty-state">No workload records yet.</td></tr>';
         return;
     }
-    const maxLoad = Math.max(...data.map(d => parseFloat(d.load_hours) || parseInt(d.units, 10) || 0), 1);
+    const maxLoad = Math.max(...data.map(d => parseFloat(d.load_hours) || 0), 1);
     document.getElementById('hist-tbody').innerHTML = data.map((d, i) => {
         const day = d.day_of_week && d.day_of_week !== '—'
             ? d.day_of_week + (d.start_time ? '<br><small style="color:var(--text-secondary)">' + fmtTime(d.start_time) + (d.end_time ? ' – ' + fmtTime(d.end_time) : '') + '</small>' : '')
             : '—';
-        const units = parseFloat(d.load_hours) || parseInt(d.units, 10) || 0;
-        const pct = Math.min(100, Math.round((units / maxLoad) * 100));
+        const unitCount = parseInt(d.units, 10) || 0;
+        const loadHrs = parseFloat(d.load_hours) || 0;
+        const pct = Math.min(100, Math.round((loadHrs / maxLoad) * 100));
         const st = String(d.status ?? 'active').toLowerCase();
-        const badgeClass = ['active', 'approved'].includes(st) ? 'active' : (st === 'inactive' ? 'inactive' : 'active');
-        const color = units > 6 ? '#d32f2f' : units > 4 ? '#f57f17' : 'var(--green-primary)';
-        const grade = d.grade_level || '—';
-        const section = d.section ? ' – ' + d.section : '';
+        const badgeClass = ['active', 'approved', 'available'].includes(st) ? 'active' : (st === 'inactive' ? 'inactive' : 'active');
+        const color = loadHrs > 6 ? '#d32f2f' : loadHrs > 4 ? '#f57f17' : 'var(--green-primary)';
+        const gradeSection = d.grade_section || gradeSectionLabel(d);
         return `
             <tr>
                 <td>${i + 1}</td>
                 <td>${day}</td>
-                <td>${d.subject ?? '–'}</td>
-                <td>${grade}${section}</td>
-                <td><strong>${units.toFixed(1)}</strong></td>
+                <td>${d.subject ?? '—'}</td>
+                <td>${gradeSection}</td>
+                <td><strong>${unitCount}</strong></td>
                 <td>
                     <div class="load-bar-wrap">
                         <div class="load-bar" style="width:${pct}%;background:${color}"></div>
                     </div>
+                    <small style="color:var(--text-secondary)">${loadHrs.toFixed(1)} hrs</small>
                 </td>
                 <td>${d.school_year || d.academic_year || '—'}</td>
                 <td><span class="badge badge-${badgeClass}">${st}</span></td>
