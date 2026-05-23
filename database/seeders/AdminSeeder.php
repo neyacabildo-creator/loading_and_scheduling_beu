@@ -2,17 +2,17 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use App\Models\Role;
 use App\Models\Room;
-use App\Models\FacultyLoad;
-use App\Models\ClassSchedule;
+use App\Models\User;
 use App\Support\UserPassword;
+use Database\Seeders\Concerns\SeedsSchoolOperationalData;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
 class AdminSeeder extends Seeder
 {
+    use SeedsSchoolOperationalData;
     /**
      * Run the database seeds.
      */
@@ -159,110 +159,52 @@ class AdminSeeder extends Seeder
             );
         }
 
-        // Shared teacher collections (main DB — users table only)
         $gradeSchoolTeacherUsers = User::where('role_id', $teacherGradeSchoolRole->id)->get();
         $juniorHighTeacherUsers  = User::where('role_id', $teacherJuniorHighRole->id)->get();
-        $daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
-        // ---------------------------------------------------------------
-        // Grade School DB (mysql_gs) — rooms, faculty loads, schedules
-        // These tables live in loading_scheduling_gs; no school_level col
-        // ---------------------------------------------------------------
-        config(['database.school_connection' => 'mysql_gs']);
+        $this->withSchoolConnection('mysql_gs', function () use ($gradeSchoolTeacherUsers) {
+            $this->seedRooms([
+                ['room_number' => 'GS-101', 'building' => 'Grade School - Science Wing',   'capacity' => 40, 'has_laboratory' => true,  'has_projector' => true, 'has_ac' => true, 'status' => 'available'],
+                ['room_number' => 'GS-102', 'building' => 'Grade School - Science Wing',   'capacity' => 40, 'has_laboratory' => true,  'has_projector' => true, 'has_ac' => true, 'status' => 'available'],
+                ['room_number' => 'GS-201', 'building' => 'Grade School - Academic Block', 'capacity' => 35, 'has_laboratory' => false, 'has_projector' => true, 'has_ac' => true, 'status' => 'available'],
+                ['room_number' => 'GS-202', 'building' => 'Grade School - Academic Block', 'capacity' => 35, 'has_laboratory' => false, 'has_projector' => true, 'has_ac' => true, 'status' => 'available'],
+            ]);
 
-        $gsRoomsData = [
-            ['room_number' => 'GS-101', 'building' => 'Grade School - Science Wing',   'capacity' => 40, 'has_laboratory' => true,  'has_projector' => true, 'has_ac' => true, 'status' => 'available'],
-            ['room_number' => 'GS-102', 'building' => 'Grade School - Science Wing',   'capacity' => 40, 'has_laboratory' => true,  'has_projector' => true, 'has_ac' => true, 'status' => 'available'],
-            ['room_number' => 'GS-201', 'building' => 'Grade School - Academic Block', 'capacity' => 35, 'has_laboratory' => false, 'has_projector' => true, 'has_ac' => true, 'status' => 'available'],
-            ['room_number' => 'GS-202', 'building' => 'Grade School - Academic Block', 'capacity' => 35, 'has_laboratory' => false, 'has_projector' => true, 'has_ac' => true, 'status' => 'available'],
-        ];
-        foreach ($gsRoomsData as $room) {
-            Room::firstOrCreate(['room_number' => $room['room_number']], $room);
-        }
-        $gsRoomIds = Room::pluck('id')->toArray();
+            $this->seedFacultyLoads($gradeSchoolTeacherUsers, 'Grade School faculty load');
 
-        foreach ($gradeSchoolTeacherUsers as $teacher) {
-            FacultyLoad::firstOrCreate(
-                ['faculty_id' => $teacher->id],
-                [
-                    'faculty_id'       => $teacher->id,
-                    'teacher_name'     => $teacher->name,
-                    'classes_assigned' => rand(3, 5),
-                    'load_hours'       => number_format(rand(200, 500) / 100, 2),
-                    'status'           => rand(0, 10) > 7 ? 'overloaded' : (rand(0, 10) > 5 ? 'part-time' : 'active'),
-                    'notes'            => 'Grade School faculty load',
-                ]
+            $this->seedSampleSchedules(
+                $gradeSchoolTeacherUsers,
+                Room::pluck('id')->all(),
+                ['Mathematics', 'English', 'Science', 'Social Studies', 'Filipino', 'Character Education'],
+                'Grade ',
+                1,
+                6,
+                '08:00:00',
+                '09:00:00',
             );
-        }
+        });
 
-        $gsSubjects = ['Mathematics', 'English', 'Science', 'Social Studies', 'Filipino', 'Character Education'];
-        foreach ($gradeSchoolTeacherUsers as $teacher) {
-            for ($i = 0; $i < 3; $i++) {
-                ClassSchedule::create([
-                    'faculty_id'     => $teacher->id,
-                    'subject'        => $gsSubjects[array_rand($gsSubjects)],
-                    'grade_level'    => 'Grade '.rand(1, 6),
-                    'section_name'   => chr(65 + $i),
-                    'room_id'        => $gsRoomIds ? $gsRoomIds[array_rand($gsRoomIds)] : null,
-                    'day_of_week'    => $daysOfWeek[array_rand($daysOfWeek)],
-                    'start_time'     => '08:00',
-                    'end_time'       => '09:00',
-                    'status'         => 'pending',
-                    'admin_approved' => false,
-                ]);
-            }
-        }
+        $this->withSchoolConnection('mysql_jh', function () use ($juniorHighTeacherUsers) {
+            $this->seedRooms([
+                ['room_number' => 'JHS-101', 'building' => 'Junior High - Science Lab',   'capacity' => 50, 'has_laboratory' => true,  'has_projector' => true, 'has_ac' => true, 'status' => 'available'],
+                ['room_number' => 'JHS-102', 'building' => 'Junior High - Science Lab',   'capacity' => 50, 'has_laboratory' => true,  'has_projector' => true, 'has_ac' => true, 'status' => 'available'],
+                ['room_number' => 'JHS-201', 'building' => 'Junior High - Main Building', 'capacity' => 45, 'has_laboratory' => false, 'has_projector' => true, 'has_ac' => true, 'status' => 'available'],
+                ['room_number' => 'JHS-202', 'building' => 'Junior High - Main Building', 'capacity' => 45, 'has_laboratory' => false, 'has_projector' => true, 'has_ac' => true, 'status' => 'available'],
+            ]);
 
-        // ---------------------------------------------------------------
-        // Junior High DB (mysql_jh) — rooms, faculty loads, schedules
-        // ---------------------------------------------------------------
-        config(['database.school_connection' => 'mysql_jh']);
+            $this->seedFacultyLoads($juniorHighTeacherUsers, 'Junior High School faculty load');
 
-        $jhsRoomsData = [
-            ['room_number' => 'JHS-101', 'building' => 'Junior High - Science Lab',   'capacity' => 50, 'has_laboratory' => true,  'has_projector' => true, 'has_ac' => true, 'status' => 'available'],
-            ['room_number' => 'JHS-102', 'building' => 'Junior High - Science Lab',   'capacity' => 50, 'has_laboratory' => true,  'has_projector' => true, 'has_ac' => true, 'status' => 'available'],
-            ['room_number' => 'JHS-201', 'building' => 'Junior High - Main Building', 'capacity' => 45, 'has_laboratory' => false, 'has_projector' => true, 'has_ac' => true, 'status' => 'available'],
-            ['room_number' => 'JHS-202', 'building' => 'Junior High - Main Building', 'capacity' => 45, 'has_laboratory' => false, 'has_projector' => true, 'has_ac' => true, 'status' => 'available'],
-        ];
-        foreach ($jhsRoomsData as $room) {
-            Room::firstOrCreate(['room_number' => $room['room_number']], $room);
-        }
-        $jhsRoomIds = Room::pluck('id')->toArray();
-
-        foreach ($juniorHighTeacherUsers as $teacher) {
-            FacultyLoad::firstOrCreate(
-                ['faculty_id' => $teacher->id],
-                [
-                    'faculty_id'       => $teacher->id,
-                    'teacher_name'     => $teacher->name,
-                    'classes_assigned' => rand(4, 6),
-                    'load_hours'       => number_format(rand(300, 700) / 100, 2),
-                    'status'           => rand(0, 10) > 7 ? 'overloaded' : (rand(0, 10) > 5 ? 'part-time' : 'active'),
-                    'notes'            => 'Junior High School faculty load',
-                ]
+            $this->seedSampleSchedules(
+                $juniorHighTeacherUsers,
+                Room::pluck('id')->all(),
+                ['Algebra', 'English', 'Biology', 'History', 'Filipino', 'Physical Education', 'Computer Science'],
+                'Grade ',
+                7,
+                10,
+                '09:30:00',
+                '10:30:00',
             );
-        }
-
-        $jhsSubjects = ['Algebra', 'English', 'Biology', 'History', 'Filipino', 'Physical Education', 'Computer Science'];
-        foreach ($juniorHighTeacherUsers as $teacher) {
-            for ($i = 0; $i < 3; $i++) {
-                ClassSchedule::create([
-                    'faculty_id'     => $teacher->id,
-                    'subject'        => $jhsSubjects[array_rand($jhsSubjects)],
-                    'grade_level'    => 'Grade '.rand(7, 10),
-                    'section_name'   => chr(65 + $i),
-                    'room_id'        => $jhsRoomIds ? $jhsRoomIds[array_rand($jhsRoomIds)] : null,
-                    'day_of_week'    => $daysOfWeek[array_rand($daysOfWeek)],
-                    'start_time'     => '09:30',
-                    'end_time'       => '10:30',
-                    'status'         => 'pending',
-                    'admin_approved' => false,
-                ]);
-            }
-        }
-
-        // Reset to default connection
-        config(['database.school_connection' => null]);
+        });
 
         $this->command->info('Admin seeder completed successfully!');
         $this->command->info('✓ Principal: principal@spup.edu.ph / principal@spup2024');

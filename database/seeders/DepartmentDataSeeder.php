@@ -4,14 +4,14 @@ namespace Database\Seeders;
 
 use App\Models\Role;
 use App\Models\User;
-use App\Models\Room;
-use App\Models\FacultyLoad;
+use Database\Seeders\Concerns\SeedsSchoolOperationalData;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 
 class DepartmentDataSeeder extends Seeder
 {
+    use SeedsSchoolOperationalData;
     /**
      * Fix existing users and ensure proper department accounts exist.
      * - Fixes wrong school_level values
@@ -180,50 +180,18 @@ class DepartmentDataSeeder extends Seeder
             ['room_number' => 'JHS-301', 'building' => 'Junior High - Computer Lab',   'capacity' => 40, 'has_laboratory' => true,  'has_projector' => true,  'has_ac' => true,  'status' => 'available'],
         ];
 
-        config(['database.school_connection' => 'mysql_gs']);
-        foreach ($gradeSchoolRooms as $room) {
-            Room::firstOrCreate(['room_number' => $room['room_number']], $room);
-        }
-
-        config(['database.school_connection' => 'mysql_jh']);
-        foreach ($juniorHighRooms as $room) {
-            Room::firstOrCreate(['room_number' => $room['room_number']], $room);
-        }
-
-        // ----------------------------------------------------------------
-        // 7. Ensure faculty loads exist for all teachers
-        // ----------------------------------------------------------------
         $gsTeacherUsers = User::where('role_id', $gsTeachRole->id)->get();
-        config(['database.school_connection' => 'mysql_gs']);
-        foreach ($gsTeacherUsers as $teacher) {
-            FacultyLoad::firstOrCreate(
-                ['faculty_id' => $teacher->id],
-                [
-                    'teacher_name'     => $teacher->name,
-                    'classes_assigned' => 4,
-                    'load_hours'       => 4.00,
-                    'status'           => 'active',
-                    'notes'            => 'Grade School faculty load',
-                ]
-            );
-        }
-
         $jhTeacherUsers = User::where('role_id', $jhTeachRole->id)->get();
-        config(['database.school_connection' => 'mysql_jh']);
-        foreach ($jhTeacherUsers as $teacher) {
-            FacultyLoad::firstOrCreate(
-                ['faculty_id' => $teacher->id],
-                [
-                    'teacher_name'     => $teacher->name,
-                    'classes_assigned' => 5,
-                    'load_hours'       => 5.00,
-                    'status'           => 'active',
-                    'notes'            => 'Junior High School faculty load',
-                ]
-            );
-        }
 
-        config(['database.school_connection' => null]);
+        $this->withSchoolConnection('mysql_gs', function () use ($gradeSchoolRooms, $gsTeacherUsers) {
+            $this->seedRooms($gradeSchoolRooms);
+            $this->seedFacultyLoads($gsTeacherUsers, 'Grade School faculty load');
+        });
+
+        $this->withSchoolConnection('mysql_jh', function () use ($juniorHighRooms, $jhTeacherUsers) {
+            $this->seedRooms($juniorHighRooms);
+            $this->seedFacultyLoads($jhTeacherUsers, 'Junior High School faculty load');
+        });
 
         $this->command->info('');
         $this->command->info('=== Department Data Seeded Successfully ===');
