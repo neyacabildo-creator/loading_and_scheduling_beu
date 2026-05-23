@@ -187,20 +187,7 @@
         </div>
     </div>
 
-    <!-- DSS Auto-Alerts Panel -->
-    <div id="gsDssPanel" style="margin-bottom:1.5rem;">
-        <div style="color:var(--text-secondary);font-size:.8rem;padding:.4rem 0;">&#9679; Analyzing schedule…</div>
-    </div>
-
     <!-- Weekly Timetable -->
-    <style>
-    .dss-alert{display:flex;align-items:flex-start;gap:.65rem;padding:.65rem .9rem;border-radius:.45rem;margin-bottom:.45rem;font-size:.81rem;line-height:1.45;}
-    .dss-alert .dss-icon{flex-shrink:0;font-size:1rem;margin-top:.05rem;}
-    .dss-alert-high{background:rgba(200,50,50,.07);border:1px solid rgba(200,50,50,.28);color:#b91c1c;}
-    .dss-alert-medium{background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.28);color:#b45309;}
-    .dss-alert-low{background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.28);color:#1d4ed8;}
-    .dss-alert-clear{background:rgba(45,122,80,.07);border:1px solid rgba(45,122,80,.28);color:var(--green-primary);}
-    </style>
     @include('partials.admin-weekly-timetable', [
         'prefix' => 'gs',
         'apiUrl' => url('/api/grade-school-admin/combined-schedules'),
@@ -857,55 +844,11 @@
         });
 
         // ─── Initialise ────────────────────────────────────────────────────────────
-        // ─── DSS Auto-Alerts ───────────────────────────────────────────────────────
-        function gsRenderDssAlerts(res) {
-            const el = document.getElementById('gsDssPanel');
-            if (!el) return;
-            const notifs = (res.notifications || []).slice(0, 3);
-            const recs   = (res.recommendations || []).slice(0, 5);
-            const stats  = res.stats || {};
-            if (!notifs.length && !recs.length) {
-                el.innerHTML = '<div class="dss-alert dss-alert-clear"><span class="dss-icon">&#10003;</span><span><strong>Schedule is clear.</strong> No conflicts or issues detected by system analysis.</span></div>';
-                return;
-            }
-            const clsMap = {high:'dss-alert-high', medium:'dss-alert-medium', low:'dss-alert-low'};
-            const icoMap = {high:'&#9888;', medium:'&#9432;', low:'&#9432;'};
-            let html = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;">
-                <span style="font-size:.82rem;font-weight:700;color:var(--text-primary);">&#9889; System Alerts &amp; Recommendations</span>
-                <span style="font-size:.74rem;color:var(--text-secondary);">${stats.high||0} critical &bull; ${stats.medium||0} warnings &bull; ${stats.low||0} info</span>
-            </div>`;
-            notifs.forEach(n => {
-                const msg = typeof n === 'string' ? n : (n.message || JSON.stringify(n));
-                html += `<div class="dss-alert dss-alert-high"><span class="dss-icon">&#9888;</span><span>${msg}</span></div>`;
-            });
-            recs.forEach(r => {
-                const cls = clsMap[r.priority] || 'dss-alert-low';
-                const ico = icoMap[r.priority] || '&#9432;';
-                const desc = r.description ? `<span style="font-weight:400;opacity:.88;"> — ${r.description}</span>` : '';
-                html += `<div class="dss-alert ${cls}"><span class="dss-icon">${ico}</span><div><strong>${r.title||r.type||'Issue detected'}</strong>${desc}</div></div>`;
-            });
-            const total = (res.recommendations||[]).length;
-            if (total > 5) html += `<div style="text-align:right;margin-top:.3rem;"><a href="{{ route('grade-school-admin.dss-recommendations') }}" style="font-size:.77rem;color:var(--green-primary);text-decoration:none;font-weight:600;">View all ${total} recommendations &#8594;</a></div>`;
-            el.innerHTML = html;
-        }
-
-        function loadGsDssAlerts() {
-            const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
-            fetch('{{ url("api/grade-school-admin/dss/analyze") }}', {
-                method: 'POST',
-                headers: {'Accept':'application/json','Content-Type':'application/json','X-CSRF-TOKEN':token}
-            })
-            .then(r => r.ok ? r.json() : Promise.reject(r.status))
-            .then(res => gsRenderDssAlerts(res))
-            .catch(() => { const el=document.getElementById('gsDssPanel'); if(el) el.innerHTML=''; });
-        }
-
         document.addEventListener('DOMContentLoaded', function () {
             window.loadSchedules?.();
             loadFacultyLoads();
             loadRooms();
             loadTeachers();
-            loadGsDssAlerts();
             setInterval(() => {
                 window.loadSchedules?.();
                 loadFacultyLoads();

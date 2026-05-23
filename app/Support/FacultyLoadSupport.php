@@ -282,6 +282,67 @@ class FacultyLoadSupport
     }
 
     /**
+     * Faculty load assignment rules: regular teachers get one load row; shared teachers may span grades.
+     *
+     * @return string|null Error message when the assignment conflicts
+     */
+    public static function facultyLoadConflictMessage(
+        ?int $facultyId,
+        ?string $teacherName,
+        ?string $gradeLevel,
+        ?string $subject,
+        ?int $excludeLoadId = null
+    ): ?string {
+        if (! $facultyId || $facultyId <= 0) {
+            return null;
+        }
+
+        if (! self::isSharedTeacher($facultyId)) {
+            $existing = FacultyLoad::query()
+                ->where('faculty_id', $facultyId);
+            if ($excludeLoadId) {
+                $existing->where('id', '!=', $excludeLoadId);
+            }
+
+            if ($existing->exists()) {
+                return 'This teacher already has a faculty load assignment. Remove the existing load first, or register them as a shared teacher to assign multiple grade levels.';
+            }
+        } else {
+            $newGrade = trim((string) $gradeLevel);
+            if ($newGrade !== '') {
+                $others = FacultyLoad::query()
+                    ->where('faculty_id', $facultyId);
+                if ($excludeLoadId) {
+                    $others->where('id', '!=', $excludeLoadId);
+                }
+                foreach ($others->get() as $load) {
+                    $existingGrade = trim((string) ($load->grade_level ?? ''));
+                    if ($existingGrade !== '' && strcasecmp($existingGrade, $newGrade) === 0) {
+                        $dup = DuplicateSubmissionSupport::facultyLoadDuplicateMessage(
+                            $facultyId,
+                            $teacherName,
+                            $gradeLevel,
+                            $subject,
+                            $excludeLoadId
+                        );
+                        if ($dup !== null) {
+                            return $dup;
+                        }
+                    }
+                }
+            }
+        }
+
+        return DuplicateSubmissionSupport::facultyLoadDuplicateMessage(
+            $facultyId,
+            $teacherName,
+            $gradeLevel,
+            $subject,
+            $excludeLoadId
+        );
+    }
+
+    /**
      * Whether a class schedule belongs to this faculty load row (grade + subject scope).
      */
     public static function scheduleBelongsToFacultyLoad(ClassSchedule $schedule, FacultyLoad $load): bool

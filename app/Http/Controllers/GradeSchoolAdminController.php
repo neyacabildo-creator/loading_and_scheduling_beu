@@ -15,6 +15,7 @@ use App\Models\FacultyLoad;
 use App\Models\ExportLog;
 use App\Models\GeneratedReport;
 use App\Support\FacultyLoadSupport;
+use App\Support\SharedTeacherSupport;
 use App\Support\ScheduleAudit;
 use App\Support\ScheduleUpdateHelper;
 use Illuminate\Support\Facades\Auth;
@@ -621,7 +622,9 @@ class GradeSchoolAdminController extends Controller
         try {
             $schoolLevel = $this->getAdminSchoolLevel();
             $user = User::where('school_level', $schoolLevel)->findOrFail($id);
+            \App\Support\UserSchoolDataPurge::purge($user);
             $user->delete();
+
             return response()->json(['success' => true, 'message' => 'Teacher deleted']);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Error deleting teacher'], 400);
@@ -893,7 +896,7 @@ class GradeSchoolAdminController extends Controller
             $teacher = User::find($validated['faculty_id']);
             $validated['teacher_name'] = $teacher ? (trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name) : null;
 
-            $dupMsg = \App\Support\DuplicateSubmissionSupport::facultyLoadDuplicateMessage(
+            $dupMsg = FacultyLoadSupport::facultyLoadConflictMessage(
                 (int) $validated['faculty_id'],
                 $validated['teacher_name'] ?? null,
                 $validated['grade_level'] ?? null,
@@ -974,7 +977,7 @@ class GradeSchoolAdminController extends Controller
                 $validated['teacher_name'] = $teacher ? trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name : null;
             }
 
-            $dupMsg = \App\Support\DuplicateSubmissionSupport::facultyLoadDuplicateMessage(
+            $dupMsg = FacultyLoadSupport::facultyLoadConflictMessage(
                 (int) ($validated['faculty_id'] ?? $load->faculty_id),
                 $validated['teacher_name'] ?? $load->teacher_name,
                 $validated['grade_level'] ?? $load->grade_level,
@@ -1618,15 +1621,13 @@ class GradeSchoolAdminController extends Controller
             ])->values())
             ->toArray();
         // Also include cross-school (JH) conflicts for shared teachers
-        $gsSharedIds = (new \App\Models\SharedTeacher)->setConnection('mysql_gs')->newQuery()
-            ->where('is_active', true)->pluck('faculty_id')->toArray();
-        if (!empty($gsSharedIds)) {
-            $jhConflictRows = DB::connection('mysql_jh')
-                ->table('class_schedules')
-                ->whereIn('faculty_id', $gsSharedIds)
-                ->where('admin_approved', true)
-                ->whereNotNull('day_of_week')->whereNotNull('start_time')
-                ->get(['faculty_id','day_of_week','start_time','end_time','section_name','grade_level']);
+        $gsSharedIds = SharedTeacherSupport::activeFacultyIds('mysql_gs');
+        $jhConflictRows = SharedTeacherSupport::crossSchoolConflicts(
+            'mysql_jh',
+            $gsSharedIds,
+            ['faculty_id', 'day_of_week', 'start_time', 'end_time', 'section_name', 'grade_level']
+        );
+        if ($jhConflictRows->isNotEmpty()) {
             foreach ($jhConflictRows as $r) {
                 $fid = (string) $r->faculty_id;
                 if (!isset($teacherConflicts[$fid])) $teacherConflicts[$fid] = [];
@@ -1639,10 +1640,9 @@ class GradeSchoolAdminController extends Controller
             }
         }
         // Active shared teachers for this school level
-        $sharedTeachers = (new \App\Models\SharedTeacher)->setConnection('mysql_gs')->newQuery()
-            ->where('is_active', true)->orderBy('teacher_name')
-            ->get(['id','faculty_id','teacher_name','subjects'])
-            ->toArray();
+        $sharedTeachers = SharedTeacherSupport::activeList('mysql_gs', [
+            'id', 'faculty_id', 'teacher_name', 'subjects',
+        ]);
         // Build subject→teacher_ids from faculty loads (GS full-name subjects)
         $gsSubjectNorm = [
             'ARALING PANLIPUNAN'                        => ['ARALING PANLIPUNAN'],
@@ -1733,13 +1733,6 @@ class GradeSchoolAdminController extends Controller
             'teachersByGradeAndSubject', 'teacherConflicts', 'sharedTeachers',
             'teachersBySubject', 'allTeachersForDropdown'
         ));
-    }
-
-    /**
-     * Show DSS Recommendations page
-     */
-    public function dssRecommendations() {
-        return view('grade-school-admin.dss-recommendations');
     }
 
     /**

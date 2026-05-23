@@ -420,7 +420,8 @@ class SharedTeacherPortalController extends Controller
             $scheduleId = $this->rowGet($r, 'schedule_id');
             $schedule = $scheduleId ? $schedules->get($scheduleId) : null;
             $reviewer = $users->get($this->rowGet($r, 'reviewed_by'));
-            $display = $this->resolveAdjustmentRequestDisplay($r, $schedule);
+            $display = \App\Support\TeacherAdjustmentRequestSupport::displayFieldsForRow($adminConn, $r);
+            $display['request_type_label'] = $this->adjustmentTypeLabel($this->rowGet($r, 'request_type'));
 
             $teacherName = $user
                 ? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: ($user->name ?? null)

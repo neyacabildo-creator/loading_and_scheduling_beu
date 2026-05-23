@@ -89,7 +89,7 @@ let allSchedules = [];
 
 async function loadSchedules() {
     try {
-        const res = await fetch('/api/stl/schedules-for-review');
+        const res = await fetch('/api/teacher/schedules-for-review');
         const json = await res.json();
         // Handle both array and object response formats
         allSchedules = Array.isArray(json) ? json : (json.data ?? json.schedules ?? []);

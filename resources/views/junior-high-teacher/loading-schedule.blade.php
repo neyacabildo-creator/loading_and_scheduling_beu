@@ -386,7 +386,7 @@
         btn.disabled = true;
         btn.textContent = 'Submitting...';
         try {
-            const res = await fetch('/api/stl/request-adjustment', {
+            const res = await fetch('/api/teacher/adjustment-requests', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

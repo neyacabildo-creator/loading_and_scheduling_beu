@@ -238,11 +238,6 @@ class TeacherAdjustmentRequestSupport
     {
         self::ensureTable($connection);
 
-        $requestType = $request->input('request_type');
-        if ($requestType === 'time_change') {
-            $request->merge(['request_type' => 'schedule_change']);
-        }
-
         $validated = $request->validate([
             'schedule_id'             => 'nullable|integer',
             'request_type'            => 'required|in:schedule_change,time_change,room_change,teacher_reassignment,section_change,other',
@@ -258,11 +253,11 @@ class TeacherAdjustmentRequestSupport
             'substitute_teacher_name' => 'nullable|string|max:200',
         ]);
 
-        $validated['request_type'] = $validated['request_type'] === 'time_change'
-            ? 'schedule_change'
-            : $validated['request_type'];
+        if ($validated['request_type'] === 'schedule_change') {
+            $validated['request_type'] = 'time_change';
+        }
 
-        if (in_array($validated['request_type'], ['schedule_change', 'room_change', 'teacher_reassignment'], true)) {
+        if (in_array($validated['request_type'], ['time_change', 'room_change', 'teacher_reassignment'], true)) {
             $request->validate([
                 'subject'     => 'required|string|max:120',
                 'grade_level' => 'required|string|max:80',
@@ -307,6 +302,23 @@ class TeacherAdjustmentRequestSupport
         $scheduleId = $validated['schedule_id'] ?? null;
         if ($scheduleId === '' || $scheduleId === 0) {
             $scheduleId = null;
+        }
+
+        $scheduleSnapshot = self::snapshotFromSchedule($connection, $scheduleId ? (int) $scheduleId : null);
+        if ($scheduleSnapshot !== []) {
+            foreach (['subject', 'grade_level', 'section_name', 'day_of_week', 'preferred_start_time', 'preferred_end_time'] as $field) {
+                if (empty($validated[$field]) && ! empty($scheduleSnapshot[$field])) {
+                    $validated[$field] = $scheduleSnapshot[$field];
+                }
+            }
+            if ($proposed === null) {
+                $proposed = [];
+            }
+            foreach ($scheduleSnapshot as $key => $value) {
+                if ($value !== null && $value !== '' && empty($proposed[$key])) {
+                    $proposed[$key] = $value;
+                }
+            }
         }
 
         $user = Auth::user();
@@ -400,7 +412,7 @@ class TeacherAdjustmentRequestSupport
     {
         $parsed = self::parseProposed($row->proposed_changes ?? null);
 
-        return array_merge($parsed, array_filter([
+        $merged = array_merge($parsed, array_filter([
             'subject'              => $row->subject ?? null,
             'grade_level'          => $row->grade_level ?? null,
             'section_name'         => $row->section_name ?? null,
@@ -408,6 +420,99 @@ class TeacherAdjustmentRequestSupport
             'preferred_start_time' => $row->preferred_start_time ?? null,
             'preferred_end_time'   => $row->preferred_end_time ?? null,
         ], fn ($v) => $v !== null && $v !== ''));
+
+        if (empty($merged['day_of_week']) && ! empty($parsed['preferred_day'])) {
+            $merged['day_of_week'] = $parsed['preferred_day'];
+        }
+        if (empty($merged['preferred_start_time']) && ! empty($parsed['preferred_time'])) {
+            $merged['preferred_start_time'] = $parsed['preferred_time'];
+        }
+        if (empty($merged['preferred_start_time']) && ! empty($parsed['start_time'])) {
+            $merged['preferred_start_time'] = $parsed['start_time'];
+        }
+        if (empty($merged['preferred_end_time']) && ! empty($parsed['end_time'])) {
+            $merged['preferred_end_time'] = $parsed['end_time'];
+        }
+
+        return $merged;
+    }
+
+    /**
+     * Fill missing display columns from linked class schedule or proposed JSON (admin list / All Requests).
+     *
+     * @return array<string, mixed>
+     */
+    public static function displayFieldsForRow(string $connection, object $row): array
+    {
+        $payload = self::payloadFromRequestRow($row);
+
+        if (
+            empty($payload['grade_level'])
+            && empty($payload['section_name'])
+            && ! empty($row->schedule_id)
+            && Schema::connection($connection)->hasTable('class_schedules')
+        ) {
+            $schedule = DB::connection($connection)
+                ->table('class_schedules')
+                ->where('id', (int) $row->schedule_id)
+                ->first();
+            if ($schedule) {
+                foreach (
+                    [
+                        'subject'              => 'subject',
+                        'grade_level'          => 'grade_level',
+                        'section_name'         => 'section_name',
+                        'day_of_week'          => 'day_of_week',
+                        'preferred_start_time' => 'start_time',
+                        'preferred_end_time'   => 'end_time',
+                    ] as $payloadKey => $scheduleCol
+                ) {
+                    if (empty($payload[$payloadKey]) && ! empty($schedule->{$scheduleCol})) {
+                        $payload[$payloadKey] = $payloadKey === 'preferred_start_time' || $payloadKey === 'preferred_end_time'
+                            ? self::formatTimeForInput((string) $schedule->{$scheduleCol})
+                            : $schedule->{$scheduleCol};
+                    }
+                }
+            }
+        }
+
+        $gradeLevel = trim((string) ($payload['grade_level'] ?? ''));
+        $sectionName = trim((string) ($payload['section_name'] ?? ''));
+        $gradeSection = trim($gradeLevel . ($sectionName !== '' ? ' – ' . $sectionName : ''));
+
+        return [
+            'subject'              => $payload['subject'] ?? null,
+            'grade_level'          => $gradeLevel !== '' ? $gradeLevel : null,
+            'section_name'         => $sectionName !== '' ? $sectionName : null,
+            'grade_section'        => $gradeSection !== '' ? $gradeSection : null,
+            'day_of_week'          => $payload['day_of_week'] ?? null,
+            'preferred_start_time' => $payload['preferred_start_time'] ?? null,
+            'preferred_end_time'   => $payload['preferred_end_time'] ?? null,
+        ];
+    }
+
+    /**
+     * @return array<string, string|null>
+     */
+    public static function snapshotFromSchedule(string $connection, ?int $scheduleId): array
+    {
+        if (! $scheduleId || ! Schema::connection($connection)->hasTable('class_schedules')) {
+            return [];
+        }
+
+        $schedule = DB::connection($connection)->table('class_schedules')->where('id', $scheduleId)->first();
+        if (! $schedule) {
+            return [];
+        }
+
+        return array_filter([
+            'subject'              => $schedule->subject ?? null,
+            'grade_level'          => $schedule->grade_level ?? null,
+            'section_name'         => $schedule->section_name ?? null,
+            'day_of_week'          => $schedule->day_of_week ?? null,
+            'preferred_start_time' => self::formatTimeForInput($schedule->start_time ?? null),
+            'preferred_end_time'   => self::formatTimeForInput($schedule->end_time ?? null),
+        ], fn ($v) => $v !== null && $v !== '');
     }
 
     /**

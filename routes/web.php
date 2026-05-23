@@ -9,7 +9,6 @@ use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\FacultyLoadController;
 use App\Http\Controllers\TeacherController;
-use App\Http\Controllers\STLController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 
@@ -134,7 +133,10 @@ Route::middleware('auth')->group(function () {
         Route::get('teacher/export/schedule', [\App\Http\Controllers\TeacherController::class, 'exportSchedule'])->name('teacher.export.schedule');
 
         Route::get('teacher/request-adjustments', [\App\Http\Controllers\TeacherController::class, 'requestAdjustments'])->name('teacher.request-adjustments');
-        Route::redirect('teacher/request-adjustments-stl', '/teacher/request-adjustments');
+
+        Route::get('teacher/review-schedule', function () {
+            return view('junior-high-teacher.review-schedule');
+        })->name('teacher.review-schedule');
 
         Route::get('teacher/feedback', [\App\Http\Controllers\TeacherController::class, 'showFeedback'])->name('teacher.feedback');
         Route::post('teacher/feedback', [\App\Http\Controllers\TeacherController::class, 'submitFeedback'])->name('teacher.feedback.submit');
@@ -192,124 +194,9 @@ Route::middleware('auth')->group(function () {
         Route::post('api/teacher/leave-requests', [\App\Http\Controllers\TeacherController::class, 'storeLeaveRequest']);
         Route::get('api/teacher/notifications', [\App\Http\Controllers\TeacherNotificationController::class, 'index']);
         Route::post('api/teacher/notifications/read', [\App\Http\Controllers\TeacherNotificationController::class, 'markRead']);
+        Route::get('api/teacher/schedules-for-review', [\App\Http\Controllers\TeacherController::class, 'getSchedulesForReview']);
     });
 
-    // Subject Team Leader (STL) routes - Enhanced teacher with extended permissions (Junior High)
-    Route::middleware(['teacher', 'school.db:mysql_jh'])->group(function () {
-        // STL Core Features
-        Route::get('teacher/manage-faculty-loading-stl', [STLController::class, 'manageFacultyLoading'])->name('teacher.manage-faculty-loading-stl');
-        Route::get('teacher/assign-subjects-stl', [STLController::class, 'assignSubjects'])->name('teacher.assign-subjects-stl');
-        Route::post('teacher/assign-subjects-stl', [STLController::class, 'storeSubjectAssignment'])->name('teacher.store-subject-assignment');
-        
-        Route::get('teacher/dss-recommendations-stl', [STLController::class, 'viewDSSRecommendations'])->name('teacher.dss-recommendations-stl');
-        Route::get('teacher/request-adjustments-stl', function () {
-            return redirect()->route('teacher.request-adjustments');
-        })->name('teacher.request-adjustments-stl');
-        
-        Route::get('teacher/workload-history-stl', [STLController::class, 'viewWorkloadHistory'])->name('teacher.workload-history-stl');
-        Route::get('teacher/generate-reports-stl', [STLController::class, 'generateReports'])->name('teacher.generate-reports-stl');
-        Route::get('teacher/review-schedule', function () {
-            return view('junior-high-teacher.review-schedule');
-        })->name('teacher.review-schedule');
-
-        // STL API Endpoints
-        Route::prefix('api/stl')->group(function () {
-            // Dashboard metrics
-            Route::get('faculty-count', [\App\Http\Controllers\STLController::class, 'getFacultyCount']);
-            Route::get('loading-count', [\App\Http\Controllers\STLController::class, 'getLoadingCount']);
-            Route::get('schedule-count', [\App\Http\Controllers\STLController::class, 'getScheduleCount']);
-            Route::get('pending-count', [\App\Http\Controllers\STLController::class, 'getPendingCount']);
-            Route::get('recent-activities', [\App\Http\Controllers\STLController::class, 'getRecentActivities']);
-            Route::get('schedules-for-review', [\App\Http\Controllers\STLController::class, 'getSchedulesForReview']);
-            
-            // Faculty and assignment management
-            Route::get('assignments', function () {
-                return response()->json(['success' => true, 'data' => \App\Models\FacultyLoad::with('faculty')->get()->map(fn($l) => [
-                    'id'           => $l->id,
-                    'faculty_id'   => $l->faculty_id,
-                    'faculty_name' => $l->faculty ? trim($l->faculty->first_name . ' ' . $l->faculty->last_name) : ($l->teacher_name ?? 'Unknown'),
-                    'subject'      => $l->subject,
-                    'load_hours'   => $l->load_hours,
-                ])]);
-            });
-            Route::delete('assignments/{id}', function ($id) {
-                \App\Models\FacultyLoad::destroy($id);
-                return response()->json(['success' => true, 'message' => 'Assignment deleted']);
-            });
-            
-            // Subject statistics
-            Route::get('subject-stats', function () {
-                $stats = \App\Models\FacultyLoad::selectRaw('subject, COUNT(*) as faculty_count, SUM(load_hours) as total_hours')
-                    ->groupBy('subject')->get();
-                return response()->json(['success' => true, 'stats' => $stats]);
-            });
-            
-            // DSS Recommendations — use real DSSEngine
-            Route::get('dss-recommendations', function () {
-                try {
-                    $engine = new \App\Services\DSSEngine();
-                    $results = $engine->analyze();
-                    $recs = collect($results['recommendations'] ?? [])->map(fn($r, $i) => [
-                        'id'          => $r['id'] ?? ($i + 1),
-                        'title'       => $r['title'] ?? $r['type'] ?? 'Recommendation',
-                        'description' => $r['description'] ?? $r['message'] ?? '',
-                        'priority'    => $r['priority'] ?? 'Medium',
-                        'action'      => $r['action'] ?? $r['suggestion'] ?? '',
-                        'impact'      => $r['impact'] ?? '',
-                        'completed'   => false,
-                    ])->values();
-                    return response()->json(['success' => true, 'recommendations' => $recs]);
-                } catch (\Exception $e) {
-                    return response()->json(['success' => true, 'recommendations' => []]);
-                }
-            });
-            Route::post('accept-recommendation/{id}', function ($id) {
-                return response()->json(['success' => true, 'message' => 'Recommendation noted']);
-            });
-            
-            // Workload History — per-faculty load summary from faculty_loads
-            Route::get('workload-history', function () {
-                $loads = \App\Models\FacultyLoad::all();
-                $byFaculty = $loads->groupBy('faculty_id');
-                $data = $byFaculty->map(function ($group, $facultyId) {
-                    $user = \App\Models\User::find($facultyId);
-                    $total = $group->sum('load_hours');
-                    return [
-                        'id'           => $facultyId,
-                        'name'         => $user ? trim($user->first_name . ' ' . $user->last_name) ?: $user->name : ($group->first()->teacher_name ?? 'Unknown'),
-                        'total_load'   => $total,
-                        'assignments'  => $group->count(),
-                        'average_load' => $group->count() > 0 ? round($total / $group->count(), 1) : 0,
-                        'trend'        => 'stable',
-                    ];
-                })->values();
-                return response()->json(['success' => true, 'faculties' => $data]);
-            });
-            
-            // Schedule Adjustment Requests
-            Route::post('request-adjustment', [\App\Http\Controllers\STLController::class, 'requestAdjustment']);
-            Route::get('my-adjustment-requests', function () {
-                $requests = \App\Support\TeacherAdjustmentRequestSupport::listForTeacher(
-                    \App\Support\TeacherAdjustmentRequestSupport::adminConnectionForSchool('junior_high'),
-                    (int) \Illuminate\Support\Facades\Auth::id()
-                );
-                return response()->json(['success' => true, 'requests' => $requests]);
-            });
-            
-            // Report Generation
-            Route::post('generate-report/{type}', [\App\Http\Controllers\STLController::class, 'generateReports']);
-        });
-
-        // Teacher-level API endpoints (shared with STL)
-        Route::prefix('api/teacher')->group(function () {
-            Route::get('faculty-count', [\App\Http\Controllers\STLController::class, 'getFacultyCount']);
-            Route::get('loading-count', [\App\Http\Controllers\STLController::class, 'getLoadingCount']);
-            Route::get('schedule-count', [\App\Http\Controllers\STLController::class, 'getScheduleCount']);
-            Route::get('pending-count', [\App\Http\Controllers\STLController::class, 'getPendingCount']);
-            Route::get('recent-activities', [\App\Http\Controllers\STLController::class, 'getRecentActivities']);
-        });
-    });
-    
     // Admin-only dashboard (Junior High) — uses loading_scheduling_jh
     Route::middleware(['admin', 'school.db:mysql_jh'])->group(function () {
         Route::get('admin/dashboard', [\App\Http\Controllers\Admin\DashboardController::class, 'index'])->name('admin.dashboard');
@@ -325,9 +212,6 @@ Route::middleware('auth')->group(function () {
         Route::get('admin/faculty-loading/{id}/edit', [\App\Http\Controllers\Admin\FacultyLoadingController::class, 'edit'])->name('admin.faculty-loading.edit');
         Route::put('admin/faculty-loading/{id}', [\App\Http\Controllers\Admin\FacultyLoadingController::class, 'update'])->name('admin.faculty-loading.update');
 
-        // Faculty Load Balance Optimizer — JH Admin
-        Route::get('admin/load-balance', [\App\Http\Controllers\Admin\LoadBalanceController::class, 'indexJH'])->name('admin.load-balance');
-
         // Master Weekly Schedule — JH Admin
         Route::get('admin/master-schedule/{teacherId}', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'manageJH'])->name('admin.master-schedule.manage');
         Route::get('admin/master-schedule/{teacherId}/card', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'cardViewJH'])->name('admin.master-schedule.card');
@@ -335,21 +219,6 @@ Route::middleware('auth')->group(function () {
         Route::post('admin/master-schedule/{teacherId}', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'save'])->name('admin.master-schedule.save');
         Route::delete('admin/master-schedule/{teacherId}', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'clear'])->name('admin.master-schedule.clear');
         
-        Route::get('admin/dss-recommendations', function () {
-            return view('junior-high-admin.dss-recommendations');
-        })->name('admin.dss-recommendations');
-
-        // DSS Engine API — Junior High Admin
-        Route::prefix('api/admin/dss')->group(function () {
-            Route::post('analyze',       [\App\Http\Controllers\Admin\DSSController::class, 'analyze']);
-            Route::get('workload',       [\App\Http\Controllers\Admin\DSSController::class, 'workload']);
-            Route::get('rooms',          [\App\Http\Controllers\Admin\DSSController::class, 'rooms']);
-            Route::get('notifications',  [\App\Http\Controllers\Admin\DSSController::class, 'notifications']);
-        });
-
-        // Load Balance API — JH Admin
-        Route::get('api/admin/load-balance/data', [\App\Http\Controllers\Admin\LoadBalanceController::class, 'data']);
-
         Route::get('admin/print-export', [\App\Http\Controllers\AdminController::class, 'printExportSchedule'])->name('admin.print-export');
 
         Route::redirect('admin/reports', '/admin/print-export', 301)->name('admin.reports');
@@ -587,14 +456,13 @@ Route::middleware('auth')->group(function () {
                 ])->values())
                 ->toArray();
             // Also include cross-school (GS) conflicts for shared teachers
-            $jhSharedIds = \App\Models\SharedTeacher::where('is_active', true)->pluck('faculty_id')->toArray();
-            if (!empty($jhSharedIds)) {
-                $gsConflictRows = \Illuminate\Support\Facades\DB::connection('mysql_gs')
-                    ->table('class_schedules')
-                    ->whereIn('faculty_id', $jhSharedIds)
-                    ->where('admin_approved', true)
-                    ->whereNotNull('day_of_week')->whereNotNull('start_time')
-                    ->get(['faculty_id','day_of_week','start_time','end_time','section_name','grade_level']);
+            $jhSharedIds = \App\Support\SharedTeacherSupport::activeFacultyIds('mysql_jh');
+            $gsConflictRows = \App\Support\SharedTeacherSupport::crossSchoolConflicts(
+                'mysql_gs',
+                $jhSharedIds,
+                ['faculty_id', 'day_of_week', 'start_time', 'end_time', 'section_name', 'grade_level']
+            );
+            if ($gsConflictRows->isNotEmpty()) {
                 foreach ($gsConflictRows as $r) {
                     $fid = (string) $r->faculty_id;
                     if (!isset($teacherConflicts[$fid])) $teacherConflicts[$fid] = [];
@@ -607,10 +475,9 @@ Route::middleware('auth')->group(function () {
                 }
             }
             // Active shared teachers for this school level
-            $sharedTeachers = \App\Models\SharedTeacher::where('is_active', true)
-                ->orderBy('teacher_name')
-                ->get(['id','faculty_id','teacher_name','school_level','subjects'])
-                ->toArray();
+            $sharedTeachers = \App\Support\SharedTeacherSupport::activeList('mysql_jh', [
+                'id', 'faculty_id', 'teacher_name', 'school_level', 'subjects',
+            ]);
             // Build subject→teacher_ids from faculty loads (JH abbreviation normalization)
             $jhSubjectNorm = [
                 'ARALING PANLIPUNAN'                        => ['AP'],
@@ -805,9 +672,6 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolAdmin::class, 'scho
         \App\Http\Controllers\GradeSchoolAdminController::class, 'facultyLoading'
     ])->name('grade-school-admin.faculty-loading');
 
-    // Faculty Load Balance Optimizer — GS Admin
-    Route::get('grade-school-admin/load-balance', [\App\Http\Controllers\Admin\LoadBalanceController::class, 'indexGS'])->name('grade-school-admin.load-balance');
-
     // Master Weekly Schedule — GS Admin
     Route::get('grade-school-admin/master-schedule/{teacherId}', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'manageGS'])->name('grade-school-admin.master-schedule.manage');
     Route::get('grade-school-admin/master-schedule/{teacherId}/card', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'cardViewGS'])->name('grade-school-admin.master-schedule.card');
@@ -922,19 +786,6 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolAdmin::class, 'scho
     Route::get('grade-school-admin/schedule/generate',          [\App\Http\Controllers\ScheduleGeneratorController::class, 'show'])->name('grade-school-admin.schedule.generate');
     Route::post('grade-school-admin/schedule/generate/preview', [\App\Http\Controllers\ScheduleGeneratorController::class, 'preview'])->name('grade-school-admin.schedule.generate.preview');
     Route::post('grade-school-admin/schedule/generate/confirm', [\App\Http\Controllers\ScheduleGeneratorController::class, 'confirm'])->name('grade-school-admin.schedule.generate.confirm');
-
-    // Grade School Admin DSS Recommendations
-    Route::get('grade-school-admin/dss-recommendations', [
-        \App\Http\Controllers\GradeSchoolAdminController::class, 'dssRecommendations'
-    ])->name('grade-school-admin.dss-recommendations');
-
-    // DSS Engine API — Grade School Admin
-    Route::middleware(['school.db:mysql_gs'])->prefix('api/grade-school-admin/dss')->group(function () {
-        Route::post('analyze',       [\App\Http\Controllers\Admin\DSSController::class, 'analyze']);
-        Route::get('workload',       [\App\Http\Controllers\Admin\DSSController::class, 'workload']);
-        Route::get('rooms',          [\App\Http\Controllers\Admin\DSSController::class, 'rooms']);
-        Route::get('notifications',  [\App\Http\Controllers\Admin\DSSController::class, 'notifications']);
-    });
 
     // Grade School Admin Print / Export
     Route::get('grade-school-admin/print-export', [
@@ -1104,8 +955,6 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolAdmin::class, 'scho
         // Faculty load availability status
         Route::get('/faculty-load-status', [ScheduleController::class, 'getFacultyLoadStatus'])->name('grade-school-admin.faculty-load-status');
 
-        // Load Balance API — GS Admin
-        Route::get('/load-balance/data', [\App\Http\Controllers\Admin\LoadBalanceController::class, 'data']);
     });
 });
 
@@ -1157,9 +1006,7 @@ Route::middleware(['auth'])->get('/api/shared-teachers-panel', function () {
         ->pluck('id')->toArray();
 
     // Also include teachers explicitly added to shared_teachers table in JH DB
-    $jhSharedTableIds = \Illuminate\Support\Facades\DB::connection('mysql_jh')
-        ->table('shared_teachers')->where('is_active', true)
-        ->distinct()->pluck('faculty_id')->filter()->values()->toArray();
+    $jhSharedTableIds = \App\Support\SharedTeacherSupport::activeFacultyIds('mysql_jh');
 
     // Only role-based OR explicitly added to shared_teachers table
     $sharedIds = array_values(array_unique(array_merge($roleSharedIds, $jhSharedTableIds)));
@@ -1401,34 +1248,13 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolTeacher::class, 'sc
         return redirect()->route('grade-school-teacher.settings')->with('success', 'Profile updated successfully.');
     })->name('grade-school-teacher.profile.update');
 
-    // ---- New STL / Use-Case Routes (GS Teacher) ----
-    Route::get('grade-school-teacher/manage-faculty-loading', [
-        \App\Http\Controllers\GradeSchoolTeacherController::class, 'manageFacultyLoading'
-    ])->name('grade-school-teacher.manage-faculty-loading');
-
-    Route::get('grade-school-teacher/dss-recommendations', [
-        \App\Http\Controllers\GradeSchoolTeacherController::class, 'dssRecommendations'
-    ])->name('grade-school-teacher.dss-recommendations');
-
     Route::get('grade-school-teacher/review-schedule', [
         \App\Http\Controllers\GradeSchoolTeacherController::class, 'reviewSchedule'
     ])->name('grade-school-teacher.review-schedule');
 
-    Route::get('grade-school-teacher/generate-reports', [
-        \App\Http\Controllers\GradeSchoolTeacherController::class, 'generateReports'
-    ])->name('grade-school-teacher.generate-reports');
-
-    Route::get('grade-school-teacher/assign-subjects', [
-        \App\Http\Controllers\GradeSchoolTeacherController::class, 'assignSubjects'
-    ])->name('grade-school-teacher.assign-subjects');
-
     Route::get('grade-school-teacher/request-adjustments', [
         \App\Http\Controllers\GradeSchoolTeacherController::class, 'requestAdjustments'
     ])->name('grade-school-teacher.request-adjustments');
-
-    Route::get('grade-school-teacher/workload-history', [
-        \App\Http\Controllers\GradeSchoolTeacherController::class, 'workloadHistory'
-    ])->name('grade-school-teacher.workload-history');
 
     // Grade School Teacher API Routes
     Route::prefix('api/grade-school-teacher')->group(function () {
@@ -1460,36 +1286,13 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolTeacher::class, 'sc
             \App\Http\Controllers\GradeSchoolTeacherController::class, 'submitGrades'
         ]);
 
-        // Manage Faculty Loading
-        Route::get('/manage-faculty-load', [
-            \App\Http\Controllers\GradeSchoolTeacherController::class, 'getTeamFacultyLoads'
-        ]);
-        Route::post('/manage-faculty-load', [
-            \App\Http\Controllers\GradeSchoolTeacherController::class, 'storeTeamFacultyLoad'
-        ]);
-        Route::delete('/manage-faculty-load/{id}', [
-            \App\Http\Controllers\GradeSchoolTeacherController::class, 'deleteTeamFacultyLoad'
-        ]);
-
-        // DSS Recommendations
-        Route::get('/dss-recommendations', [
-            \App\Http\Controllers\GradeSchoolTeacherController::class, 'getDSSRecommendationsAPI'
-        ]);
-
         // Review Schedule
         Route::get('/schedules', [
             \App\Http\Controllers\GradeSchoolTeacherController::class, 'getSchedulesForReview'
         ]);
 
-        // Subject Assignments
-        Route::get('/subject-assignments', [
-            \App\Http\Controllers\GradeSchoolTeacherController::class, 'getSubjectAssignments'
-        ]);
-        Route::post('/subject-assignments', [
-            \App\Http\Controllers\GradeSchoolTeacherController::class, 'storeSubjectAssignment'
-        ]);
-        Route::delete('/subject-assignments/{id}', [
-            \App\Http\Controllers\GradeSchoolTeacherController::class, 'deleteSubjectAssignment'
+        Route::get('/workload-history', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'getWorkloadHistory'
         ]);
 
         // Adjustment Requests
@@ -1514,15 +1317,6 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolTeacher::class, 'sc
         Route::get('/notifications', [\App\Http\Controllers\TeacherNotificationController::class, 'index']);
         Route::post('/notifications/read', [\App\Http\Controllers\TeacherNotificationController::class, 'markRead']);
 
-        // Workload History
-        Route::get('/workload-history', [
-            \App\Http\Controllers\GradeSchoolTeacherController::class, 'getWorkloadHistory'
-        ]);
-
-        // Generate Reports
-        Route::post('/generate-report', [
-            \App\Http\Controllers\GradeSchoolTeacherController::class, 'generateReportData'
-        ]);
     });
 });
 

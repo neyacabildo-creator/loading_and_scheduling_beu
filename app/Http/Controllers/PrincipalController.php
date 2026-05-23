@@ -415,6 +415,7 @@ class PrincipalController extends Controller
         }
 
         $name = $user->name;
+        \App\Support\UserSchoolDataPurge::purge($user);
         $user->delete();
 
         return back()->with('success', "Account for {$name} has been permanently deleted.");

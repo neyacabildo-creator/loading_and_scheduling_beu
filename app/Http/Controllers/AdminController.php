@@ -471,8 +471,16 @@ class AdminController extends Controller {
         if (($user->role?->name ?? '') === 'principal') {
             return back()->with('error', 'Principal accounts cannot be deleted here.');
         }
+
+        $schoolLevel = $this->getAdminSchoolLevel();
+        if (($user->school_level ?? '') !== $schoolLevel && ($user->role?->name ?? '') !== 'shared_teacher') {
+            return back()->with('error', 'You can only delete user accounts for your school level.');
+        }
+
         $name = $user->name;
+        \App\Support\UserSchoolDataPurge::purge($user);
         $user->delete();
+
         return back()->with('success', "User {$name} deleted.");
     }
 
@@ -915,7 +923,9 @@ class AdminController extends Controller {
         try {
             $schoolLevel = $this->getAdminSchoolLevel();
             $user = User::where('school_level', $schoolLevel)->findOrFail($id);
+            \App\Support\UserSchoolDataPurge::purge($user);
             $user->delete();
+
             return response()->json(['success' => true, 'message' => 'Teacher deleted successfully']);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json(['success' => false, 'message' => 'Teacher not found'], 404);

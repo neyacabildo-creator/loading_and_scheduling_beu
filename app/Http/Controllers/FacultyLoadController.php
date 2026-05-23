@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\DSSRecommendation;
 use App\Models\FacultyDesignation;
 use App\Models\FacultyLoad;
 use App\Models\LoadConflictLog;
@@ -148,7 +147,7 @@ class FacultyLoadController extends Controller
 
         $teacher = User::find($validated['faculty_id']);
         $teacherName = $teacher ? trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name : null;
-        $dupMsg = \App\Support\DuplicateSubmissionSupport::facultyLoadDuplicateMessage(
+        $dupMsg = \App\Support\FacultyLoadSupport::facultyLoadConflictMessage(
             (int) $validated['faculty_id'],
             $teacherName,
             $validated['grade_level'] ?? null,
@@ -412,7 +411,7 @@ class FacultyLoadController extends Controller
 
     /**
      * Check whether the newly added load pushes the faculty member over their
-     * designation limit, and write conflict + DSS records if so.
+     * designation limit, and write conflict log if exceeded.
      */
     private function checkDesignationLimit(
         int $facultyId,
@@ -456,15 +455,6 @@ class FacultyLoadController extends Controller
                 'related_load_id'  => $loadId,
                 'detected_at'      => now(),
                 'status'           => 'open',
-            ]);
-
-            DSSRecommendation::create([
-                'type'              => 'load_limit',
-                'priority'          => $severity === 'critical' ? 'high' : 'medium',
-                'issue'             => $description,
-                'solution'          => 'Review and redistribute subjects for this teacher based on their ' . $designation->designation_type . ' designation.',
-                'status'            => 'pending',
-                'related_faculty_id' => $facultyId,
             ]);
         } catch (\Exception $e) {
             // Non-blocking: log the error but do not interrupt the load creation

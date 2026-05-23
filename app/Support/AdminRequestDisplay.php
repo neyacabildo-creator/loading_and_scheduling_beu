@@ -30,8 +30,8 @@ class AdminRequestDisplay
         }
 
         return match ($type) {
-            'schedule_change',
-            'time_change'            => 'Schedule Change',
+            'schedule_change'        => 'Schedule Change',
+            'time_change'            => 'Time Change',
             'room_change'            => 'Room Change',
             'teacher_reassignment'   => 'Teacher Reassignment',
             'section_change'         => 'Section Change',
@@ -82,13 +82,18 @@ class AdminRequestDisplay
         $gradeLevel = trim((string) ($row->grade_level ?? $parsed['grade_level'] ?? ''));
         $sectionName = trim((string) ($row->section_name ?? $parsed['section_name'] ?? ''));
         $gradeSection = self::gradeSectionLabel($row->grade_section ?? null, $gradeLevel ?: null, $sectionName ?: null);
+        if ($gradeSection === '' && ! empty($row->grade_section)) {
+            $gradeSection = trim((string) $row->grade_section);
+        }
 
         $subject = trim((string) ($row->subject ?? $parsed['subject'] ?? ''));
-        $typeLabel = self::requestTypeLabel($row->request_type ?? null);
+        $typeLabel = ! empty($row->request_type_label)
+            ? (string) $row->request_type_label
+            : self::requestTypeLabel($row->request_type ?? null);
 
         $day = trim((string) ($row->day_of_week ?? $parsed['day_of_week'] ?? $parsed['preferred_day'] ?? ''));
-        $start = $row->preferred_start_time ?? $parsed['preferred_start_time'] ?? $parsed['preferred_time'] ?? null;
-        $end = $row->preferred_end_time ?? $parsed['preferred_end_time'] ?? null;
+        $start = $row->preferred_start_time ?? $parsed['preferred_start_time'] ?? $parsed['preferred_time'] ?? $parsed['start_time'] ?? null;
+        $end = $row->preferred_end_time ?? $parsed['preferred_end_time'] ?? $parsed['end_time'] ?? null;
         $timeRange = self::formatTimeRange(
             $start !== null && $start !== '' ? (string) $start : null,
             $end !== null && $end !== '' ? (string) $end : null

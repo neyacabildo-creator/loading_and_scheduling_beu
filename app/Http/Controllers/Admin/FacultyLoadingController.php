@@ -129,7 +129,7 @@ class FacultyLoadingController extends Controller
         $teacher = User::find($validated['faculty_id']);
         $validated['teacher_name'] = $teacher ? trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name : null;
 
-        $dupMsg = \App\Support\DuplicateSubmissionSupport::facultyLoadDuplicateMessage(
+        $dupMsg = FacultyLoadSupport::facultyLoadConflictMessage(
             (int) $validated['faculty_id'],
             $validated['teacher_name'] ?? null,
             $validated['grade_level'] ?? null,
@@ -219,7 +219,7 @@ class FacultyLoadingController extends Controller
         $teacher = User::find($validated['faculty_id']);
         $validated['teacher_name'] = $teacher ? trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name : null;
 
-        $dupMsg = \App\Support\DuplicateSubmissionSupport::facultyLoadDuplicateMessage(
+        $dupMsg = FacultyLoadSupport::facultyLoadConflictMessage(
             (int) $validated['faculty_id'],
             $validated['teacher_name'] ?? null,
             $validated['grade_level'] ?? null,

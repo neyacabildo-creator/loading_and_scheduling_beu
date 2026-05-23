@@ -68,7 +68,6 @@
             <div class="settings-nav-item" onclick="switchTab('general')"> General</div>
             <div class="settings-nav-item" onclick="switchTab('loading')"> Loading Rules</div>
             <div class="settings-nav-item" onclick="switchTab('scheduling')"> Scheduling</div>
-            <div class="settings-nav-item" onclick="switchTab('dss')"> DSS Algorithm</div>
             <div class="settings-nav-item" onclick="switchTab('notifications')"> Notifications</div>
             <div class="settings-nav-item" onclick="switchTab('backup')"> Backup & Recovery</div>
         </nav>
@@ -226,51 +225,6 @@
                                 <div class="switch-thumb"></div>
                             </div>
                             <span>Currently Disabled</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- DSS Algorithm -->
-            <div id="dss" class="tab-content" style="display: none;">
-                <div class="setting-section">
-                    <h2 class="section-title">Algorithm Preferences</h2>
-                    <div class="setting-group">
-                        <label class="setting-label">Optimization Priority</label>
-                        <select class="setting-input">
-                            <option selected>Balanced</option>
-                            <option>Faculty Preference</option>
-                            <option>Room Efficiency</option>
-                            <option>Conflict Minimization</option>
-                        </select>
-                    </div>
-                    <div class="setting-group">
-                        <label class="setting-label">Conflict Resolution Strategy</label>
-                        <select class="setting-input">
-                            <option selected>Automatic (DSS-driven)</option>
-                            <option>Semi-automatic (with approval)</option>
-                            <option>Manual (admin-only)</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="setting-section">
-                    <h2 class="section-title">Weighting Factors</h2>
-                    <div class="setting-input-group">
-                        <div class="setting-group">
-                            <label class="setting-label">Load Balance Weight</label>
-                            <input type="range" class="setting-input" min="0" max="100" value="30" style="height: 30px;">
-                            <div style="font-size: 0.8rem; color: #7a7a6e; margin-top: 0.25rem;">30%</div>
-                        </div>
-                        <div class="setting-group">
-                            <label class="setting-label">Conflict Resolution Weight</label>
-                            <input type="range" class="setting-input" min="0" max="100" value="40" style="height: 30px;">
-                            <div style="font-size: 0.8rem; color: #7a7a6e; margin-top: 0.25rem;">40%</div>
-                        </div>
-                        <div class="setting-group">
-                            <label class="setting-label">Preference Weight</label>
-                            <input type="range" class="setting-input" min="0" max="100" value="30" style="height: 30px;">
-                            <div style="font-size: 0.8rem; color: #7a7a6e; margin-top: 0.25rem;">30%</div>
                         </div>
                     </div>
                 </div>

@@ -98,137 +98,37 @@ class TeacherController extends Controller
      * ===============================
      * TEACHER DASHBOARD
      * ===============================
-     * Unified dashboard for all teachers (including STLs)
-     * Displays teacher-specific functions and, if qualified, STL functions
+     * Teacher dashboard.
      */
     public function dashboard(Request $request)
     {
         try {
             $user = Auth::user();
             $schoolLevel = $this->getTeacherSchoolLevel();
-            
-            // Get dashboard data for all teachers - scoped by DB connection
+
             $mySchedules = ClassSchedule::where('faculty_id', $user->id)
-                ->where(function($q) {
+                ->where(function ($q) {
                     $q->where('admin_approved', true)->orWhere('status', 'active');
                 })
                 ->orderBy('created_at', 'desc')
                 ->get();
-            
+
             $myClasses = $mySchedules->count();
-            $totalStudents = $mySchedules->sum(function($schedule) {
-                return $schedule->student_count ?? 0;
-            });
-            $teachingLoad = $mySchedules->sum(function($schedule) {
-                return $schedule->units ?? 0;
-            });
+            $totalStudents = $mySchedules->sum(fn ($schedule) => $schedule->student_count ?? 0);
+            $teachingLoad = $mySchedules->sum(fn ($schedule) => $schedule->units ?? 0);
             $pendingTasks = $mySchedules->where('status', 'pending')->count();
-            
-            // STL-specific data (if user qualifies as STL)
-            $isSTL = $this->checkIfSTL($user);
-            $stlData = [];
-            
-            if ($isSTL) {
-                $stlData = [
-                    'isSTL' => true,
-                    'facultyCount' => $this->getFacultyCountForTeam($user),
-                    'loadCount' => $this->getLoadCountForTeam($user),
-                    'scheduleCount' => $this->getScheduleCountForTeam($user),
-                    'pendingReviews' => $this->getPendingReviewsForTeam($user),
-                    'dssRecommendations' => $this->getDSSRecommendations($user),
-                    'teamMembers' => $this->getTeamMembers($user),
-                ];
-            }
-            
+
             return view($schoolLevel === 'junior_high' ? 'junior-high-teacher.dashboard' : 'grade-school-teacher.dashboard', [
-                'mySchedules' => $mySchedules,
-                'myClasses' => $myClasses,
-                'totalStudents' => $totalStudents,
-                'teachingLoad' => $teachingLoad,
-                'pendingTasks' => $pendingTasks,
-                'isSTL' => $isSTL,
-                'stlData' => $stlData,
-                'school_level' => $schoolLevel,
+                'mySchedules'    => $mySchedules,
+                'myClasses'      => $myClasses,
+                'totalStudents'  => $totalStudents,
+                'teachingLoad'   => $teachingLoad,
+                'pendingTasks'   => $pendingTasks,
+                'school_level'   => $schoolLevel,
             ]);
-            
         } catch (\Exception $e) {
             return back()->withError('Error loading dashboard: ' . $e->getMessage());
         }
-    }
-
-    /**
-     * Check if user qualifies as Subject Team Leader
-     */
-    private function checkIfSTL($user)
-    {
-        // STL is determined by role or department responsibility
-        // Typically, senior teachers with management role are STLs
-        return $user->role_id === 3 || $user->has_stl_permissions === true;
-    }
-
-    /**
-     * Get faculty count for team (filtered by school_level)
-     */
-    private function getFacultyCountForTeam($user)
-    {
-        $schoolLevel = $this->getTeacherSchoolLevel();
-        return User::where('school_level', $schoolLevel)
-            ->where('role_id', 3)
-            ->where('id', '!=', $user->id)
-            ->count();
-    }
-
-    /**
-     * Get load count for team (filtered by school_level)
-     */
-    private function getLoadCountForTeam($user)
-    {
-        $schoolLevel = $this->getTeacherSchoolLevel();
-        return \App\Models\FacultyLoad::whereHas('faculty', function($query) use ($schoolLevel) {
-                $query->where('school_level', $schoolLevel);
-            })->count();
-    }
-
-    /**
-     * Get schedule count for team (filtered by school_level)
-     */
-    private function getScheduleCountForTeam($user)
-    {
-        return ClassSchedule::count();
-    }
-
-    /**
-     * Get pending reviews for team (filtered by school_level)
-     */
-    private function getPendingReviewsForTeam($user)
-    {
-        return ClassSchedule::where('status', 'pending')->count();
-    }
-
-    /**
-     * Get DSS recommendations for team
-     */
-    private function getDSSRecommendations($user)
-    {
-        // Placeholder for DSS recommendations
-        return [
-            ['type' => 'balance', 'message' => 'Balance faculty loads across 3 team members'],
-            ['type' => 'schedule', 'message' => 'Review time-slot conflicts in Mathematics section'],
-            ['type' => 'expertise', 'message' => 'Align 2 faculty with subject expertise'],
-        ];
-    }
-
-    /**
-     * Get team members for STL (filtered by school_level)
-     */
-    private function getTeamMembers($user)
-    {
-        $schoolLevel = $this->getTeacherSchoolLevel();
-        return User::where('school_level', $schoolLevel)
-            ->where('role_id', 3)
-            ->where('id', '!=', $user->id)
-            ->select('id', 'first_name', 'last_name', 'email')
-            ->get();
     }
 
     /**
@@ -402,6 +302,23 @@ class TeacherController extends Controller
         ])->values();
 
         return response()->json(['success' => true, 'data' => $histories]);
+    }
+
+    /**
+     * API: Schedules for the review-schedule page (Junior High).
+     */
+    public function getSchedulesForReview(Request $request)
+    {
+        $query = ClassSchedule::query();
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $rows = $query->orderBy('created_at', 'desc')->get()->map(fn ($s) => $s->toArray())->all();
+        $data = TeacherPortalSupport::enrichSchedulesForReview($rows, 'mysql_jh');
+
+        return response()->json(['success' => true, 'data' => $data]);
     }
 
     /**

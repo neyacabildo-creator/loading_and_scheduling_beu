@@ -46,108 +46,19 @@ class GradeSchoolTeacherController extends Controller
                 return $schedule->units ?? 0;
             });
             $pendingTasks = $mySchedules->where('status', 'pending')->count();
-            
-            $isSTL = $this->checkIfSTL($user);
-            $stlData = [];
-            
-            if ($isSTL) {
-                $stlData = [
-                    'isSTL' => true,
-                    'facultyCount' => $this->getFacultyCountForTeam($user),
-                    'loadCount' => $this->getLoadCountForTeam($user),
-                    'scheduleCount' => $this->getScheduleCountForTeam($user),
-                    'pendingReviews' => $this->getPendingReviewsForTeam($user),
-                    'dssRecommendations' => $this->getDSSRecommendations($user),
-                    'teamMembers' => $this->getTeamMembers($user),
-                ];
-            }
-            
+
             return view('grade-school-teacher.dashboard', [
-                'mySchedules' => $mySchedules,
-                'myClasses' => $myClasses,
-                'totalStudents' => $totalStudents,
-                'teachingLoad' => $teachingLoad,
-                'pendingTasks' => $pendingTasks,
-                'isSTL' => $isSTL,
-                'stlData' => $stlData,
-                'school_level' => $schoolLevel,
+                'mySchedules'    => $mySchedules,
+                'myClasses'      => $myClasses,
+                'totalStudents'  => $totalStudents,
+                'teachingLoad'   => $teachingLoad,
+                'pendingTasks'   => $pendingTasks,
+                'school_level'   => $schoolLevel,
             ]);
             
         } catch (\Exception $e) {
             return back()->withError('Error loading dashboard: ' . $e->getMessage());
         }
-    }
-
-    /**
-     * Check if user is STL
-     */
-    private function checkIfSTL($user)
-    {
-        return $user->role_id === 3 || $user->has_stl_permissions === true;
-    }
-
-    /**
-     * Get faculty count for team (Grade School only)
-     */
-    private function getFacultyCountForTeam($user)
-    {
-        $schoolLevel = $this->getTeacherSchoolLevel();
-        return User::where('school_level', $schoolLevel)
-            ->where('role_id', 3)
-            ->where('id', '!=', $user->id)
-            ->count();
-    }
-
-    /**
-     * Get load count for team (Grade School only)
-     */
-    private function getLoadCountForTeam($user)
-    {
-        $schoolLevel = $this->getTeacherSchoolLevel();
-        return FacultyLoad::whereHas('faculty', function($query) use ($schoolLevel) {
-                $query->where('school_level', $schoolLevel);
-            })->count();
-    }
-
-    /**
-     * Get schedule count for team (Grade School only)
-     */
-    private function getScheduleCountForTeam($user)
-    {
-        return ClassSchedule::count();
-    }
-
-    /**
-     * Get pending reviews for team (Grade School only)
-     */
-    private function getPendingReviewsForTeam($user)
-    {
-        return ClassSchedule::where('status', 'pending')->count();
-    }
-
-    /**
-     * Get DSS recommendations
-     */
-    private function getDSSRecommendations($user)
-    {
-        return [
-            ['type' => 'balance', 'message' => 'Balance faculty loads across team members'],
-            ['type' => 'schedule', 'message' => 'Review time-slot conflicts'],
-            ['type' => 'expertise', 'message' => 'Align faculty with subject expertise'],
-        ];
-    }
-
-    /**
-     * Get team members for STL (Grade School only)
-     */
-    private function getTeamMembers($user)
-    {
-        $schoolLevel = $this->getTeacherSchoolLevel();
-        return User::where('school_level', $schoolLevel)
-            ->where('role_id', 3)
-            ->where('id', '!=', $user->id)
-            ->select('id', 'first_name', 'last_name', 'email')
-            ->get();
     }
 
     /**
@@ -413,142 +324,24 @@ class GradeSchoolTeacherController extends Controller
     }
 
     /**
-     * Show manage faculty loading page (STL feature)
-     */
-    public function manageFacultyLoading() {
-        $user = Auth::user();
-        $teamMembers = $this->getTeamMembers($user);
-        return view('grade-school-teacher.manage-faculty-loading', compact('teamMembers'));
-    }
-
-    /**
-     * Show DSS recommendations page
-     */
-    public function dssRecommendations() {
-        return view('grade-school-teacher.dss-recommendations');
-    }
-
-    /**
      * Show review schedule page
      */
-    public function reviewSchedule() {
+    public function reviewSchedule()
+    {
         return view('grade-school-teacher.review-schedule');
-    }
-
-    /**
-     * Show generate reports page
-     */
-    public function generateReports() {
-        return view('grade-school-teacher.generate-reports');
-    }
-
-    /**
-     * Show assign subjects page
-     */
-    public function assignSubjects() {
-        $user = Auth::user();
-        $teamMembers = $this->getTeamMembers($user);
-        return view('grade-school-teacher.assign-subjects', compact('teamMembers'));
     }
 
     /**
      * Show request adjustments page
      */
-    public function requestAdjustments() {
+    public function requestAdjustments()
+    {
         return view('grade-school-teacher.request-adjustments');
     }
 
-    /**
-     * Show workload history page
-     */
-    public function workloadHistory() {
-        return view('grade-school-teacher.workload-history');
-    }
-
     // -------------------------------------------------------------------------
-    // API ENDPOINTS FOR NEW FEATURES
+    // API ENDPOINTS
     // -------------------------------------------------------------------------
-
-    /**
-     * API: Get faculty loads for team (GS manage-faculty-loading)
-     */
-    public function getTeamFacultyLoads(Request $request)
-    {
-        $user = Auth::user();
-        $schoolLevel = $this->getTeacherSchoolLevel();
-        $loads = FacultyLoad::with('faculty')
-            ->whereHas('faculty', function ($q) use ($schoolLevel) {
-                $q->where('school_level', $schoolLevel);
-            })
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        return response()->json(['success' => true, 'data' => $loads]);
-    }
-
-    /**
-     * API: Store a faculty load entry
-     */
-    public function storeTeamFacultyLoad(Request $request)
-    {
-        try {
-            $validated = $request->validate([
-                'faculty_id'  => 'required|integer',
-                'subject'     => 'required|string|max:255',
-                'grade_level' => 'nullable|string|max:50',
-                'section'     => 'nullable|string|max:50',
-                'units'       => 'nullable|integer|min:0',
-                'room'        => 'nullable|string|max:100',
-                'day_of_week' => 'nullable|string|max:20',
-                'start_time'  => 'nullable|string',
-                'end_time'    => 'nullable|string',
-            ]);
-
-            $load = FacultyLoad::create(array_merge($validated, [
-                'academic_year' => date('Y') . '-' . (date('Y') + 1),
-                'semester'      => '1st',
-                'status'        => 'active',
-            ]));
-
-            return response()->json(['success' => true, 'data' => $load, 'message' => 'Faculty load added.']);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
-        }
-    }
-
-    /**
-     * API: Delete a faculty load entry
-     */
-    public function deleteTeamFacultyLoad(Request $request, $id)
-    {
-        FacultyLoad::findOrFail($id)->delete();
-        return response()->json(['success' => true, 'message' => 'Faculty load removed.']);
-    }
-
-    /**
-     * API: Get DSS recommendations (GS)
-     */
-    public function getDSSRecommendationsAPI(Request $request)
-    {
-        $user = Auth::user();
-        $db = DB::connection(config('database.school_connection', config('database.default')));
-
-        $recs = $db->table('dss_recommendations')
-            ->where('status', 'active')
-            ->orderByRaw("FIELD(priority,'high','medium','low')")
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        if ($recs->isEmpty()) {
-            $recs = collect([
-                (object)['id' => 1, 'type' => 'balance',    'priority' => 'high',   'message' => 'Balance faculty loads across team members', 'status' => 'active', 'created_at' => now()],
-                (object)['id' => 2, 'type' => 'schedule',   'priority' => 'medium', 'message' => 'Review time-slot conflicts in current schedule', 'status' => 'active', 'created_at' => now()],
-                (object)['id' => 3, 'type' => 'expertise',  'priority' => 'low',    'message' => 'Align faculty with subject expertise', 'status' => 'active', 'created_at' => now()],
-            ]);
-        }
-
-        return response()->json(['success' => true, 'data' => $recs]);
-    }
 
     /**
      * API: Get schedules for review (GS)
@@ -566,58 +359,6 @@ class GradeSchoolTeacherController extends Controller
         $data = TeacherPortalSupport::enrichSchedulesForReview($rows, 'mysql_gs');
 
         return response()->json(['success' => true, 'data' => $data]);
-    }
-
-    /**
-     * API: Get subject assignments (GS)
-     * Uses mysql_gs admin DB (same data as grade-school admin).
-     */
-    public function getSubjectAssignments(Request $request)
-    {
-        $db = DB::connection(\App\Support\TeacherDatabaseSupport::connectionForSchool('grade_school'));
-        $assignments = $db->table('subject_assignments')
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        return response()->json(['success' => true, 'data' => $assignments]);
-    }
-
-    /**
-     * API: Store a subject assignment (GS)
-     */
-    public function storeSubjectAssignment(Request $request)
-    {
-        try {
-            $validated = $request->validate([
-                'faculty_id'  => 'required|integer',
-                'subject'     => 'required|string|max:255',
-                'grade_level' => 'nullable|string|max:50',
-                'units'       => 'nullable|integer|min:0',
-                'notes'       => 'nullable|string|max:500',
-            ]);
-
-            $validated['assigned_by'] = Auth::id();
-            $validated['status'] = 'assigned';
-
-            $db = DB::connection(\App\Support\TeacherDatabaseSupport::connectionForSchool('grade_school'));
-            $id = $db->table('subject_assignments')->insertGetId(array_merge($validated, [
-                'created_at' => now(), 'updated_at' => now(),
-            ]));
-
-            return response()->json(['success' => true, 'id' => $id, 'message' => 'Subject assigned.']);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
-        }
-    }
-
-    /**
-     * API: Delete a subject assignment (GS)
-     */
-    public function deleteSubjectAssignment(Request $request, $id)
-    {
-        $db = DB::connection(\App\Support\TeacherDatabaseSupport::connectionForSchool('grade_school'));
-        $db->table('subject_assignments')->where('id', $id)->delete();
-        return response()->json(['success' => true, 'message' => 'Assignment removed.']);
     }
 
     /**
@@ -759,32 +500,6 @@ class GradeSchoolTeacherController extends Controller
         ])->values();
 
         return response()->json(['success' => true, 'data' => $histories]);
-    }
-
-    /**
-     * API: Generate report data (GS)
-     */
-    public function generateReportData(Request $request)
-    {
-        try {
-            $type = $request->input('type', 'faculty_loading');
-            $user = Auth::user();
-            $adminDb = DB::connection(\App\Support\TeacherDatabaseSupport::connectionForSchool('grade_school'));
-
-            $data = match ($type) {
-                'faculty_loading' => FacultyLoad::with('faculty')
-                    ->whereHas('faculty', fn($q) => $q->where('school_level', $this->getTeacherSchoolLevel()))
-                    ->get(),
-                'schedule_listing' => ClassSchedule::with(['faculty', 'room'])
-                    ->get(),
-                'subject_assignments' => $adminDb->table('subject_assignments')->orderBy('created_at', 'desc')->get(),
-                default => collect([]),
-            };
-
-            return response()->json(['success' => true, 'data' => $data, 'type' => $type]);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
-        }
     }
 
     // =========================================================================
