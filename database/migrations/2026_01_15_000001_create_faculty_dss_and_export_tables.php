@@ -48,7 +48,19 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // Class Schedules Table
+        // Rooms must exist before class_schedules (FK references rooms.id).
+        Schema::create('rooms', function (Blueprint $table) {
+            $table->id();
+            $table->string('room_number', 50)->unique();
+            $table->string('building')->nullable();
+            $table->integer('capacity')->default(30);
+            $table->boolean('has_laboratory')->default(false);
+            $table->boolean('has_projector')->default(true);
+            $table->boolean('has_ac')->default(true);
+            $table->enum('status', ['available', 'in-use', 'maintenance'])->default('available');
+            $table->timestamps();
+        });
+
         Schema::create('class_schedules', function (Blueprint $table) {
             $table->id();
             $table->foreignId('faculty_id')->constrained('users')->onDelete('cascade');
@@ -60,19 +72,6 @@ return new class extends Migration
             $table->time('end_time');
             $table->integer('student_count')->default(0);
             $table->enum('status', ['pending', 'active', 'completed'])->default('active');
-            $table->timestamps();
-        });
-
-        // Rooms Table
-        Schema::create('rooms', function (Blueprint $table) {
-            $table->id();
-            $table->string('room_number', 50)->unique();
-            $table->string('building')->nullable();
-            $table->integer('capacity')->default(30);
-            $table->boolean('has_laboratory')->default(false);
-            $table->boolean('has_projector')->default(true);
-            $table->boolean('has_ac')->default(true);
-            $table->enum('status', ['available', 'in-use', 'maintenance'])->default('available');
             $table->timestamps();
         });
     }
