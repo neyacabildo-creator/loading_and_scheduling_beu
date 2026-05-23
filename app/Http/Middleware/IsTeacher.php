@@ -16,12 +16,13 @@ class IsTeacher
             return redirect()->route('login');
         }
 
-        $user = Auth::user()->loadMissing('role');
+        $user = Auth::user();
+        AuthRedirectSupport::normalizeTeacherSchoolLevel($user);
 
         if (AuthRedirectSupport::isJuniorHighTeacher($user)) {
             return $next($request);
         }
 
-        return redirect()->route(AuthRedirectSupport::homeRouteName($user));
+        return AuthRedirectSupport::redirectAwayFromPortal($user, $request);
     }
 }

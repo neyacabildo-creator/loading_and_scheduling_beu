@@ -36,19 +36,7 @@ Route::middleware(['auth', 'principal.admin'])->get('/api/verify-setup', functio
 
 Route::get('/', function () {
     if (Auth::check()) {
-        $user = Auth::user()->load('role');
-        $role = $user->role?->name;
-
-        return match ($role) {
-            'principal'            => redirect()->route('principal.dashboard'),
-            'super_admin'          => redirect()->route('principal.dashboard'),
-            'admin_grade_school'   => redirect()->route('grade-school-admin.dashboard'),
-            'admin_junior_high', 'admin' => redirect()->route('admin.dashboard'),
-            'teacher_grade_school' => redirect()->route('grade-school-teacher.dashboard'),
-            'teacher_junior_high', 'teacher' => redirect()->route('teacher.dashboard'),
-            'shared_teacher'       => redirect()->route('shared-teacher.dashboard'),
-            default                => redirect()->route('dashboard'),
-        };
+        return redirect()->route(\App\Support\AuthRedirectSupport::homeRouteName());
     }
 
     return redirect()->route('login');
