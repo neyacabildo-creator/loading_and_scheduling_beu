@@ -15,7 +15,10 @@ return new class extends Migration
     public function up(): void
     {
         foreach (['mysql_jh', 'mysql_gs'] as $connection) {
-            if (!Schema::connection($connection)->hasColumn('faculty_loads', 'teacher_name')) {
+            if (
+                Schema::connection($connection)->hasTable('faculty_loads')
+                && ! Schema::connection($connection)->hasColumn('faculty_loads', 'teacher_name')
+            ) {
                 Schema::connection($connection)->table('faculty_loads', function (Blueprint $table) {
                     $table->string('teacher_name')->nullable()->after('faculty_id');
                 });
