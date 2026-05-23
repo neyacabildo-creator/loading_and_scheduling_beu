@@ -64,7 +64,80 @@
         .main-content { margin-left: 250px; padding: 2rem; min-height: 100vh; }
         .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
         .header-left h1 { font-size: 1.6rem; font-weight: 700; color: var(--text-primary); }
-        .header-right { display: flex; gap: 0.75rem; align-items: center; }
+        .header-right { display: flex; gap: 0.75rem; align-items: center; flex-shrink: 0; }
+        .st-portal-topbar {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-bottom: 1.25rem;
+            min-height: 44px;
+        }
+        .st-portal-header-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-shrink: 0;
+        }
+        .theme-toggle-btn {
+            padding: 0.5rem;
+            background: var(--bg-secondary);
+            border: 2px solid var(--green-primary);
+            color: var(--text-primary);
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            flex-shrink: 0;
+        }
+        .theme-toggle-btn:hover {
+            color: white;
+            background: var(--green-primary);
+            transform: scale(1.05);
+        }
+        .theme-toggle-btn .teacher-theme-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 0;
+        }
+        .theme-toggle-btn svg { width: 22px; height: 22px; }
+        html[data-theme="dark"] .theme-toggle-btn {
+            background: var(--bg-tertiary);
+            border-color: #4a9d6f;
+        }
+        html[data-theme="dark"] .theme-toggle-btn:hover { background: #4a9d6f; }
+        .st-portal-header-actions .tp-notif-wrap { vertical-align: middle; }
+        .st-portal-header-actions .tp-notif-btn {
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            padding: 0;
+            background: var(--bg-secondary);
+            border: 2px solid var(--border-color);
+            border-radius: 0.5rem;
+        }
+        .st-portal-header-actions .tp-notif-btn:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--green-primary);
+            color: var(--green-primary);
+        }
+        html[data-theme="dark"] .st-portal-header-actions .tp-notif-btn {
+            background: var(--bg-tertiary);
+            border-color: var(--border-color);
+        }
+        html[data-theme="dark"] .card,
+        html[data-theme="dark"] .stat-card,
+        html[data-theme="dark"] .st-schedule-panel,
+        html[data-theme="dark"] .st-dash-hero,
+        html[data-theme="dark"] .st-req-hero { background: var(--bg-secondary) !important; border-color: var(--border-color) !important; color: var(--text-primary) !important; }
+        html[data-theme="dark"] th { background: var(--bg-tertiary) !important; color: var(--text-primary) !important; border-color: var(--border-color) !important; }
+        html[data-theme="dark"] td { color: var(--text-primary) !important; border-color: var(--border-color) !important; }
+        html[data-theme="dark"] tr:hover td { background: var(--bg-tertiary) !important; }
         /* Cards */
         .card { background: var(--bg-secondary); border-radius: 0.75rem; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm); overflow: hidden; }
         .card-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
@@ -165,16 +238,52 @@
     </aside>
 
     <main class="main-content">
-        <div style="position:fixed;top:1rem;right:1.25rem;z-index:1100;">
-            @include('partials.teacher-portal-notifications', ['notificationsApi' => '/api/shared-teacher/notifications'])
+        <div class="st-portal-topbar">
+            <div class="st-portal-header-actions">
+                @include('partials.teacher-theme-toggle', ['bannerMode' => false])
+                @include('partials.teacher-portal-notifications', [
+                    'notificationsApi' => '/api/shared-teacher/notifications',
+                    'markReadApi' => '/api/shared-teacher/notifications/read',
+                ])
+            </div>
         </div>
         @yield('content')
     </main>
 
     <script>
-        // Simple dark mode sync with localStorage
+        const html = document.documentElement;
         const savedTheme = localStorage.getItem('theme') || 'light';
-        document.documentElement.setAttribute('data-theme', savedTheme);
+        html.setAttribute('data-theme', savedTheme);
+
+        const moonSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+        const sunSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
+        const sunSvgFilled = `<svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1m-16 0H1m15.364 1.364l.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707m12.02-2.02a7 7 0 11-9.9 9.9 7 7 0 019.9-9.9z"></path></svg>`;
+        const moonSvgFilled = `<svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`;
+
+        function updateThemeButton() {
+            const isDark = html.getAttribute('data-theme') === 'dark';
+            document.querySelectorAll('[data-theme-toggle]').forEach(function(btn) {
+                btn.title = isDark ? 'Light mode' : 'Dark mode';
+                btn.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+            });
+            const toolbarIcon = document.getElementById('toolbarThemeIcon');
+            if (toolbarIcon) toolbarIcon.innerHTML = isDark ? sunSvgFilled : moonSvgFilled;
+            const bannerIcon = document.getElementById('bannerThemeIcon');
+            if (bannerIcon) bannerIcon.innerHTML = isDark ? sunSvg : moonSvg;
+        }
+
+        function toggleTheme() {
+            const newTheme = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeButton();
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', updateThemeButton);
+        } else {
+            updateThemeButton();
+        }
     </script>
     @include('partials.spup-toast')
     @include('partials.spup-responsive-script')
