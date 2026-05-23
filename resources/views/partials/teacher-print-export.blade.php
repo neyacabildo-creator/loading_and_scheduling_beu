@@ -3,7 +3,6 @@
     $user = Auth::user();
     $displayName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: ($user->name ?? 'Teacher');
     $exportCsvUrl = $exportCsvUrl ?? '#';
-    $exportExcelUrl = $exportExcelUrl ?? ($exportCsvUrl !== '#' ? preg_replace('/format=[^&]+/', 'format=excel', $exportCsvUrl) : '#');
     $exportPrintUrl = $exportPrintUrl ?? '#';
     $divisionLabel = $divisionLabel ?? 'Teacher Portal';
 @endphp
@@ -13,8 +12,7 @@
     .pe-actions{display:flex;flex-wrap:wrap;gap:.75rem;margin-bottom:1.25rem}
     .pe-btn{display:inline-flex;align-items:center;gap:.4rem;padding:.65rem 1.1rem;border-radius:.5rem;font-weight:600;font-size:.875rem;text-decoration:none;border:none;cursor:pointer}
     .pe-btn-print{background:var(--green-primary,#2d7a50);color:#fff}
-    .pe-btn-csv{background:#0d9488;color:#fff}
-    .pe-btn-excel{background:#10b981;color:#fff}
+    .pe-btn-download{background:#0d9488;color:#fff}
     .pe-table{width:100%;border-collapse:collapse;font-size:.85rem}
     .pe-table th,.pe-table td{padding:.6rem .75rem;border:1px solid var(--border-color);text-align:left}
     .pe-table th{background:var(--bg-tertiary);font-weight:600}
@@ -25,20 +23,22 @@
     }
 </style>
 
-<div style="background:linear-gradient(135deg,#1a5336 0%,#2d7a50 60%,#3d9970 100%);border-radius:.75rem;padding:2rem;margin-bottom:2rem;" class="no-print">
-    <p style="color:rgba(255,255,255,.7);font-size:.82rem;margin:0 0 .3rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">{{ $divisionLabel }}</p>
-    <h1 style="color:white;font-size:1.75rem;font-weight:800;margin:0 0 .3rem;">Print &amp; Export Schedule</h1>
-    <p style="color:rgba(255,255,255,.75);font-size:.875rem;margin:0;">Download or print your approved class schedule</p>
-</div>
+@include('partials.teacher-page-banner', [
+    'eyebrow' => $divisionLabel,
+    'pageTitle' => 'Print & Export Schedule',
+    'pageSubtitle' => 'Download or print your approved class schedule',
+    'bannerClass' => 'no-print',
+    'notificationsApi' => str_contains($exportCsvUrl ?? '', 'grade-school-teacher')
+        ? '/api/grade-school-teacher/notifications'
+        : '/api/teacher/notifications',
+])
 
 <div class="pe-card">
     <h2 style="margin:0 0 1rem;font-size:1.1rem;color:var(--text-primary);">My Class Schedule — {{ $displayName }}</h2>
 
     <div class="pe-actions no-print">
         <a href="{{ $exportPrintUrl }}" target="_blank" class="pe-btn pe-btn-print">Open Print View</a>
-        <a href="{{ $exportCsvUrl }}" class="pe-btn pe-btn-csv">Download CSV</a>
-        <a href="{{ $exportExcelUrl }}" class="pe-btn pe-btn-excel">Download Excel</a>
-        <button type="button" class="pe-btn pe-btn-print" onclick="window.print()">Print This Page</button>
+        <a href="{{ $exportCsvUrl }}" class="pe-btn pe-btn-download">Download Schedule</a>
     </div>
 
     @if($schedules->isEmpty())

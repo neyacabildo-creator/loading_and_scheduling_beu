@@ -160,11 +160,14 @@
     }
 </style>
 
-<div class="profile-hero">
-    <p class="eyebrow">{{ $divisionLabel }}</p>
-    <h1>My Profile</h1>
-    <p>Manage your profile photo and account password.</p>
-</div>
+@include('partials.teacher-page-banner', [
+    'eyebrow' => $divisionLabel,
+    'pageTitle' => 'My Profile',
+    'pageSubtitle' => 'Manage your profile photo and account password.',
+    'notificationsApi' => str_contains($photoRoute ?? '', 'grade-school-teacher')
+        ? '/api/grade-school-teacher/notifications'
+        : '/api/teacher/notifications',
+])
 
 <div class="profile-grid">
     <div class="profile-card">

@@ -43,11 +43,14 @@
     .empty-state{text-align:center;padding:2.5rem;color:var(--text-secondary)}
 </style>
 
-<div style="background:linear-gradient(135deg,#1a5336 0%,#2d7a50 60%,#3d9970 100%);border-radius:.75rem;padding:2rem;margin-bottom:2rem;">
-    <p style="color:rgba(255,255,255,.7);font-size:.82rem;margin:0 0 .3rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">{{ $divisionLabel }}</p>
-    <h1 style="color:white;font-size:1.75rem;font-weight:800;margin:0 0 .3rem;">Request Schedule Adjustments</h1>
-    <p style="color:rgba(255,255,255,.75);font-size:.875rem;margin:0;">Submit schedule change requests to the administration</p>
-</div>
+@include('partials.teacher-page-banner', [
+    'eyebrow' => $divisionLabel,
+    'pageTitle' => 'Request Schedule Adjustments',
+    'pageSubtitle' => 'Submit schedule change requests to the administration',
+    'notificationsApi' => str_contains($apiBase, 'grade-school-teacher')
+        ? '/api/grade-school-teacher/notifications'
+        : '/api/teacher/notifications',
+])
 
 <div class="tabs">
     <div class="tab active" data-tab="new" onclick="switchTab('new')">Schedule Adjustment</div>

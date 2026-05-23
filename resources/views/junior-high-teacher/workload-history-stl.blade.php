@@ -33,10 +33,10 @@
         .summary-label { font-size: 0.875rem; color: var(--text-secondary); }
     </style>
 
-    <div style="background:linear-gradient(135deg,#1a5336 0%,#2d7a50 60%,#3d9970 100%);border-radius:.75rem;padding:2rem;margin-bottom:2rem;">
-        <h1 style="color:white;font-size:1.75rem;font-weight:800;margin:0 0 .3rem;">Workload History</h1>
-        <p style="color:rgba(255,255,255,.75);font-size:.875rem;margin:0;">Historical analysis and trends for subject team faculty</p>
-    </div>
+    @include('partials.teacher-page-banner', [
+        'pageTitle' => 'Workload History',
+        'pageSubtitle' => 'Historical analysis and trends for subject team faculty',
+    ])
 
     <!-- Filter Bar -->
     <div class="filter-bar">

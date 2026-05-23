@@ -650,7 +650,6 @@ class TeacherController extends Controller
         return view('junior-high-teacher.print-export', [
             'schedules'       => $schedules,
             'exportCsvUrl'    => route('teacher.export.schedule', ['format' => 'csv']),
-            'exportExcelUrl'  => route('teacher.export.schedule', ['format' => 'excel']),
             'exportPrintUrl'  => route('teacher.export.schedule', ['format' => 'print']),
             'divisionLabel'   => 'Junior High Division',
         ]);

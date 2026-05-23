@@ -35,10 +35,10 @@
         .tab.active { color: var(--green-primary); border-bottom-color: var(--green-primary); }
     </style>
 
-    <div style="background:linear-gradient(135deg,#1a5336 0%,#2d7a50 60%,#3d9970 100%);border-radius:.75rem;padding:2rem;margin-bottom:2rem;">
-        <h1 style="color:white;font-size:1.75rem;font-weight:800;margin:0 0 .3rem;">Request Schedule Adjustments</h1>
-        <p style="color:rgba(255,255,255,.75);font-size:.875rem;margin:0;">Submit schedule change requests for team review and approval</p>
-    </div>
+    @include('partials.teacher-page-banner', [
+        'pageTitle' => 'Request Schedule Adjustments',
+        'pageSubtitle' => 'Submit schedule change requests for team review and approval',
+    ])
 
     <div id="success-message" class="success-message"></div>
 

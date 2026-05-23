@@ -46,11 +46,11 @@
     .week-empty-slot { color: var(--text-secondary); font-size: 0.7rem; text-align: center; padding: 0.5rem 0; opacity: 0.6; }
 </style>
 
-<div style="background:linear-gradient(135deg,#1a5336 0%,#2d7a50 60%,#3d9970 100%);border-radius:.75rem;padding:2rem;margin-bottom:2rem;">
-    <p style="color:rgba(255,255,255,.7);font-size:.82rem;margin:0 0 .3rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Grade School Division</p>
-    <h1 style="color:white;font-size:1.75rem;font-weight:800;margin:0 0 .3rem;">My Class Schedule</h1>
-    <p style="color:rgba(255,255,255,.75);font-size:.875rem;margin:0;">Your admin-approved assigned classes for the current semester</p>
-</div>
+@include('partials.teacher-page-banner', [
+    'eyebrow' => 'Grade School Division',
+    'pageTitle' => 'My Class Schedule',
+    'pageSubtitle' => 'Your admin-approved assigned classes for the current semester',
+])
 
 <!-- Info banner -->
 <div style="background:rgba(45,122,80,0.07);border:1px solid rgba(45,122,80,0.25);border-radius:0.625rem;padding:0.875rem 1.25rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:0.75rem;">

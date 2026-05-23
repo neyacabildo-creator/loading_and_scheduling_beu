@@ -371,7 +371,6 @@ class GradeSchoolTeacherController extends Controller
         return view('grade-school-teacher.print-export', [
             'schedules'       => $schedules,
             'exportCsvUrl'    => route('grade-school-teacher.export.schedule', ['format' => 'csv']),
-            'exportExcelUrl'  => route('grade-school-teacher.export.schedule', ['format' => 'excel']),
             'exportPrintUrl'  => route('grade-school-teacher.export.schedule', ['format' => 'print']),
             'divisionLabel'   => 'Grade School Division',
         ]);

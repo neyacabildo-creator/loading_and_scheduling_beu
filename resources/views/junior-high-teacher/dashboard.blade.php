@@ -35,19 +35,6 @@
         </div>
     </div>
 
-    {{-- ── Workload Summary & History ─────────────────────────────── --}}
-    <div id="workload-summary" style="background:var(--bg-secondary);border-radius:.75rem;padding:1.25rem 1.5rem;border:1px solid var(--border-color);margin-bottom:1.5rem;">
-        <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin:0 0 1rem;">Workload Summary</h3>
-        @include('partials.teacher-workload-summary-embed', ['facultyLoadApi' => '/api/teacher/faculty-load'])
-    </div>
-    <div id="workload-history" style="background:var(--bg-secondary);border-radius:.75rem;padding:1.25rem 1.5rem;border:1px solid var(--border-color);margin-bottom:1.5rem;">
-        <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin:0 0 1rem;">Workload History</h3>
-        @include('partials.teacher-workload-history-embed', [
-            'historyApi' => '/api/teacher/workload-history',
-            'facultyLoadFallback' => '/api/teacher/faculty-load',
-        ])
-    </div>
-
     {{-- ── Today's Schedule + Teaching Load ───────────────────────── --}}
     @php
         $todayName      = now()->format('l');
@@ -112,7 +99,10 @@
         {{-- Teaching Load + Notices --}}
         <div style="display:flex;flex-direction:column;gap:1rem;">
             <div style="background:var(--bg-secondary);border-radius:.75rem;padding:1.25rem;border:1px solid var(--border-color);">
-                <h3 style="font-size:.9rem;font-weight:700;color:var(--text-primary);margin:0 0 .875rem;">Teaching Load</h3>
+                <div style="display:flex;align-items:center;gap:.65rem;margin-bottom:.875rem;padding-bottom:.75rem;border-bottom:1px solid var(--border-color);">
+                    <img src="{{ asset('images/spup-seal.png') }}" alt="SPUP" style="width:40px;height:40px;object-fit:contain;flex-shrink:0;">
+                    <h3 style="font-size:.9rem;font-weight:700;color:var(--text-primary);margin:0;">Teaching Load</h3>
+                </div>
                 <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.5rem;">
                     <span style="font-size:1.9rem;font-weight:800;color:{{ $loadColor }};">{{ $teachingLoad ?? 0 }}</span>
                     <span style="font-size:.78rem;color:var(--text-secondary);">/ {{ $maxLoad }} units</span>
@@ -177,6 +167,19 @@
             </div>
             @endforeach
         </div>
+    </div>
+
+    {{-- ── Workload Summary & History ─────────────────────────────── --}}
+    <div id="workload-summary" style="background:var(--bg-secondary);border-radius:.75rem;padding:1.25rem 1.5rem;border:1px solid var(--border-color);margin-bottom:1.5rem;">
+        <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin:0 0 1rem;">Workload Summary</h3>
+        @include('partials.teacher-workload-summary-embed', ['facultyLoadApi' => '/api/teacher/faculty-load'])
+    </div>
+    <div id="workload-history" style="background:var(--bg-secondary);border-radius:.75rem;padding:1.25rem 1.5rem;border:1px solid var(--border-color);margin-bottom:1.5rem;">
+        <h3 style="font-size:1rem;font-weight:700;color:var(--text-primary);margin:0 0 1rem;">Workload History</h3>
+        @include('partials.teacher-workload-history-embed', [
+            'historyApi' => '/api/teacher/workload-history',
+            'facultyLoadFallback' => '/api/teacher/faculty-load',
+        ])
     </div>
 
     {{-- ── My Assigned Schedules ────────────────────────────────────── --}}

@@ -35,11 +35,11 @@
     .category-label{background:rgba(45,122,80,.1);color:var(--green-primary);padding:.15rem .5rem;border-radius:.25rem;font-size:.75rem;font-weight:600}
 </style>
 
-<div style="background:linear-gradient(135deg,#1a5336 0%,#2d7a50 60%,#3d9970 100%);border-radius:.75rem;padding:2rem;margin-bottom:2rem;">
-    <p style="color:rgba(255,255,255,.7);font-size:.82rem;margin:0 0 .3rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Grade School Division</p>
-    <h1 style="color:white;font-size:1.75rem;font-weight:800;margin:0 0 .3rem;">Provide Feedback</h1>
-    <p style="color:rgba(255,255,255,.75);font-size:.875rem;margin:0;">Share your feedback on schedule clarity, workload fairness, and system usability</p>
-</div>
+@include('partials.teacher-page-banner', [
+    'eyebrow' => 'Grade School Division',
+    'pageTitle' => 'Provide Feedback',
+    'pageSubtitle' => 'Share your feedback on schedule clarity, workload fairness, and system usability',
+])
 
 <div class="two-col">
     <!-- Feedback Form -->

@@ -37,11 +37,11 @@
 
 
 
-<div style="background:linear-gradient(135deg,#1a5336 0%,#2d7a50 60%,#3d9970 100%);border-radius:.75rem;padding:2rem;margin-bottom:2rem;">
-    <p style="color:rgba(255,255,255,.7);font-size:.82rem;margin:0 0 .3rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Grade School Division</p>
-    <h1 style="color:white;font-size:1.75rem;font-weight:800;margin:0 0 .3rem;">Review Schedule</h1>
-    <p style="color:rgba(255,255,255,.75);font-size:.875rem;margin:0;">View and review class schedules for your team</p>
-</div>
+@include('partials.teacher-page-banner', [
+    'eyebrow' => 'Grade School Division',
+    'pageTitle' => 'Review Schedule',
+    'pageSubtitle' => 'View and review class schedules for your team',
+])
 
 <!-- Stats -->
 <div class="stats-row">

@@ -84,28 +84,6 @@
         .header-left { display: flex; align-items: center; gap: 1rem; }
         .page-title { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); }
         .header-right { display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0; }
-        .teacher-toolbar {
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            gap: 0.75rem;
-            margin-bottom: 1.25rem;
-            padding: 0.65rem 1rem;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 0.75rem;
-        }
-        .teacher-toolbar .header-btn {
-            padding: 0.45rem 0.75rem;
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--text-secondary);
-            background: var(--bg-primary);
-            border: 1px solid var(--border-color);
-            border-radius: 0.375rem;
-            cursor: pointer;
-        }
-        .teacher-toolbar .header-btn:hover { color: var(--text-primary); border-color: var(--green-primary); }
         .search-btn { padding: 0.5rem; background: transparent; border: none; cursor: pointer; color: var(--text-secondary); border-radius: 0.5rem; transition: all 0.2s; }
         .search-btn:hover { background: var(--bg-primary); color: var(--text-primary); }
         .header-btn { padding: 0.5rem; background: transparent; border: none; cursor: pointer; color: #6b7280; border-radius: 0.5rem; }
@@ -169,8 +147,11 @@
         /* Theme Toggle Button */
         .theme-toggle-btn { padding: 0.5rem; background: var(--bg-tertiary); border: 2px solid var(--green-primary); color: var(--text-primary); border-radius: 0.5rem; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; min-width: 40px; }
         .theme-toggle-btn:hover { color: white; background: var(--green-primary); transform: scale(1.1); }
-        .theme-toggle-btn svg { width: 22px; height: 22px; fill: var(--green-primary); }
-        .theme-toggle-btn:hover svg { fill: white; }
+        .theme-toggle-btn svg,
+        .theme-toggle-btn .teacher-theme-icon svg { width: 22px; height: 22px; fill: var(--green-primary); }
+        .theme-toggle-btn:hover svg,
+        .theme-toggle-btn:hover .teacher-theme-icon svg { fill: white; }
+        .theme-toggle-btn .teacher-theme-icon { display: flex; align-items: center; justify-content: center; }
         html[data-theme="dark"] .theme-toggle-btn { background: #3a3a3a; border-color: #4a9d6f; }
         html[data-theme="dark"] .theme-toggle-btn svg { fill: #f0d060; }
         html[data-theme="dark"] .theme-toggle-btn:hover { background: #4a9d6f; }
@@ -290,17 +271,6 @@
 
     <!-- Main Content -->
     <main class="main-content">
-        @unless(request()->routeIs('grade-school-teacher.dashboard'))
-        <div class="teacher-toolbar">
-            <div class="header-right" style="margin-left:auto;">
-                <button type="button" class="header-btn" title="Language">EN</button>
-                @include('partials.teacher-portal-notifications', [
-                    'notificationsApi' => '/api/grade-school-teacher/notifications',
-                    'markReadApi' => '/api/grade-school-teacher/notifications/read',
-                ])
-            </div>
-        </div>
-        @endunless
         @yield('content')
     </main>
     <script>
@@ -308,51 +278,21 @@
         const savedTheme = localStorage.getItem('theme') || 'light';
         html.setAttribute('data-theme', savedTheme);
 
-        function initThemeToggle() {
-            const headerRight = document.querySelector('.header-right');
-            if (headerRight) {
-                const themeBtn = document.createElement('button');
-                themeBtn.className = 'theme-toggle-btn';
-                themeBtn.id = 'themeToggle';
-                const currentTheme = html.getAttribute('data-theme');
-                if (currentTheme === 'dark') {
-                    themeBtn.innerHTML = `<svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1m-16 0H1m15.364 1.364l.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707m12.02-2.02a7 7 0 11-9.9 9.9 7 7 0 019.9-9.9z"></path></svg>`;
-                    themeBtn.title = 'Light Mode';
-                } else {
-                    themeBtn.innerHTML = `<svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`;
-                    themeBtn.title = 'Dark Mode';
-                }
-                themeBtn.addEventListener('click', toggleTheme);
-                headerRight.insertBefore(themeBtn, headerRight.firstChild);
-            }
-        }
+        const moonSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+        const sunSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
+        const sunSvgFilled = `<svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1m-16 0H1m15.364 1.364l.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707m12.02-2.02a7 7 0 11-9.9 9.9 7 7 0 019.9-9.9z"></path></svg>`;
+        const moonSvgFilled = `<svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`;
 
         function updateThemeButton() {
             const currentTheme = html.getAttribute('data-theme');
-            // Legacy injected button
-            const themeBtn = document.getElementById('themeToggle');
-            if (themeBtn) {
-                if (currentTheme === 'dark') {
-                    themeBtn.innerHTML = `<svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1m-16 0H1m15.364 1.364l.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707m12.02-2.02a7 7 0 11-9.9 9.9 7 7 0 019.9-9.9z"></path></svg>`;
-                    themeBtn.title = 'Light Mode';
-                } else {
-                    themeBtn.innerHTML = `<svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`;
-                    themeBtn.title = 'Dark Mode';
-                }
-            }
-            // Banner button (dashboard)
+            const isDark = currentTheme === 'dark';
+            document.querySelectorAll('[data-theme-toggle]').forEach(function(btn) {
+                btn.title = isDark ? 'Light mode' : 'Dark mode';
+            });
             const bannerIcon = document.getElementById('bannerThemeIcon');
-            const bannerLabel = document.getElementById('bannerThemeLabel');
-            if (bannerIcon) {
-                if (currentTheme === 'dark') {
-                    bannerIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
-                } else {
-                    bannerIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
-                }
-            }
-            if (bannerLabel) {
-                bannerLabel.textContent = currentTheme === 'dark' ? 'Light Mode' : 'Dark Mode';
-            }
+            if (bannerIcon) bannerIcon.innerHTML = isDark ? sunSvg : moonSvg;
+            const toolbarIcon = document.getElementById('toolbarThemeIcon');
+            if (toolbarIcon) toolbarIcon.innerHTML = isDark ? sunSvgFilled : moonSvgFilled;
         }
 
         function toggleTheme() {
@@ -376,9 +316,8 @@
         }
 
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => { initThemeToggle(); updateThemeButton(); initSidebarScroll(); });
+            document.addEventListener('DOMContentLoaded', () => { updateThemeButton(); initSidebarScroll(); });
         } else {
-            initThemeToggle();
             updateThemeButton();
             initSidebarScroll();
         }
