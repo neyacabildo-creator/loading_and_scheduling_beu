@@ -161,9 +161,15 @@ class FacultyLoadSupport
      */
     public static function mergeTeachersByGradeAndSubjectFromLoads(array &$map, ?array $subjectNorm = null): void
     {
-        $schoolLevel = self::schoolLevelForConnection(
-            FacultyLoad::query()->getConnection()->getName()
-        );
+        $connection = FacultyLoad::query()->getConnection()->getName();
+
+        if (! Schema::connection($connection)->hasTable('faculty_loads')
+            || ! Schema::connection($connection)->hasColumn('faculty_loads', 'grade_level')
+            || ! Schema::connection($connection)->hasColumn('faculty_loads', 'subject')) {
+            return;
+        }
+
+        $schoolLevel = self::schoolLevelForConnection($connection);
 
         FacultyLoad::select('faculty_id', 'grade_level', 'subject')
             ->whereNotNull('grade_level')->where('grade_level', '!=', '')

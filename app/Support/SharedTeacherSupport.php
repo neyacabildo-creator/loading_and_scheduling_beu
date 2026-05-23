@@ -38,10 +38,28 @@ class SharedTeacherSupport
      * @param  list<string>  $columns
      * @return list<array<string, mixed>>
      */
-    public static function activeList(string $connection, array $columns = ['id', 'faculty_id', 'teacher_name', 'school_level', 'subjects']): array
+    public static function activeList(string $connection, ?array $columns = null): array
     {
         if (! self::tableExists($connection)) {
             return [];
+        }
+
+        if ($columns === null) {
+            $columns = ['id', 'faculty_id', 'teacher_name'];
+            if (Schema::connection($connection)->hasColumn('shared_teachers', 'school_level')) {
+                $columns[] = 'school_level';
+            }
+            if (Schema::connection($connection)->hasColumn('shared_teachers', 'subjects')) {
+                $columns[] = 'subjects';
+            }
+        } else {
+            $columns = array_values(array_filter(
+                $columns,
+                fn (string $col) => Schema::connection($connection)->hasColumn('shared_teachers', $col)
+            ));
+            if ($columns === []) {
+                $columns = ['id', 'faculty_id', 'teacher_name'];
+            }
         }
 
         return DB::connection($connection)->table('shared_teachers')

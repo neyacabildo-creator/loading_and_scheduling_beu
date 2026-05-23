@@ -13,6 +13,7 @@ use App\Models\ExportLog;
 use App\Models\GeneratedReport;
 use App\Notifications\ScheduleRemovedNotification;
 use App\Support\CombinedScheduleService;
+use App\Support\ScheduleFormSupport;
 use App\Support\ScheduleAudit;
 use App\Support\ScheduleUpdateHelper;
 use Illuminate\Support\Facades\Auth;
@@ -35,6 +36,14 @@ class AdminController extends Controller {
      */
     private function getAdminSchoolLevel() {
         return Auth::user()->school_level ?? 'grade_school';
+    }
+
+    /**
+     * Show create schedule form (Junior High admin).
+     */
+    public function scheduleCreate()
+    {
+        return view('junior-high-admin.schedule-form', ScheduleFormSupport::buildJuniorHigh());
     }
 
     private function removeRelatedWeeklyScheduleRows(ClassSchedule $schedule): void
