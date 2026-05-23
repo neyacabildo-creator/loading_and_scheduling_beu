@@ -169,6 +169,7 @@
                 </div>
                 {{-- Shared Teacher Subjects (conditional) --}}
                 <div id="gs_subjects_container" style="display:none;">
+                    <p style="margin:0 0 0.85rem;font-size:.78rem;color:var(--text-secondary);">Choose from all Grade School subjects (Grades 1–6).</p>
                     <div class="form-row">
                         <div class="form-field">
                             <label class="form-label">Primary Subject <span style="color:#c83232">*</span></label>
@@ -286,14 +287,20 @@
             });
         }
 
+        const GS_SUBJECTS_FALLBACK = @json(\App\Support\SchoolSubjectsCatalog::gradeSchoolSharedTeacherSubjects());
+
         function loadSubjects() {
-            fetch('/api/subjects', { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+            return fetch('/api/subjects?portal=grade_school', { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(res => res.json())
                 .then(data => {
-                    gsSubjects = data.subjects || [];
+                    gsSubjects = (data.subjects && data.subjects.length) ? data.subjects : GS_SUBJECTS_FALLBACK;
                     populateSubjectSelects();
                 })
-                .catch(err => console.error('Error loading subjects:', err));
+                .catch(err => {
+                    console.error('Error loading subjects:', err);
+                    gsSubjects = GS_SUBJECTS_FALLBACK;
+                    populateSubjectSelects();
+                });
         }
 
         function populateSubjectSelects() {
@@ -309,7 +316,12 @@
             const sel = document.getElementById('gs_role_id');
             const roleName = sel.options[sel.selectedIndex]?.dataset?.roleName || '';
             const container = document.getElementById('gs_subjects_container');
-            container.style.display = roleName === 'shared_teacher' ? 'block' : 'none';
+            const show = roleName === 'shared_teacher';
+            container.style.display = show ? 'block' : 'none';
+            if (show) {
+                if (!gsSubjects.length) loadSubjects();
+                else populateSubjectSelects();
+            }
         }
 
         loadTeachers();

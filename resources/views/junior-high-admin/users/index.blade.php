@@ -169,6 +169,7 @@
                 </div>
                 {{-- Shared Teacher Subjects (conditional) --}}
                 <div id="m_subjects_container" style="display:none;">
+                    <p style="margin:0 0 0.85rem;font-size:.78rem;color:var(--text-secondary);">Choose from all Junior High subjects (Grades 6–10).</p>
                     <div class="form-row">
                         <div class="form-field">
                             <label class="form-label">Primary Subject <span style="color:#c83232">*</span></label>
@@ -284,14 +285,20 @@
                 });
         }
 
+        const JH_SUBJECTS_FALLBACK = @json(\App\Support\SchoolSubjectsCatalog::juniorHighSharedTeacherSubjects());
+
         function loadSubjects() {
-            fetch('/api/subjects', { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+            return fetch('/api/subjects?portal=junior_high', { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(res => res.json())
                 .then(data => {
-                    jhSubjects = data.subjects || [];
+                    jhSubjects = (data.subjects && data.subjects.length) ? data.subjects : JH_SUBJECTS_FALLBACK;
                     populateSubjectSelects();
                 })
-                .catch(err => console.error('Error loading subjects:', err));
+                .catch(err => {
+                    console.error('Error loading subjects:', err);
+                    jhSubjects = JH_SUBJECTS_FALLBACK;
+                    populateSubjectSelects();
+                });
         }
 
         function populateSubjectSelects() {
@@ -427,7 +434,12 @@
             const sel = document.getElementById('m_role_id');
             const roleName = sel.options[sel.selectedIndex]?.dataset?.roleName || '';
             const container = document.getElementById('m_subjects_container');
-            container.style.display = roleName === 'shared_teacher' ? 'block' : 'none';
+            const show = roleName === 'shared_teacher';
+            container.style.display = show ? 'block' : 'none';
+            if (show) {
+                if (!jhSubjects.length) loadSubjects();
+                else populateSubjectSelects();
+            }
         }
 
         function setFieldError(field, msg) {

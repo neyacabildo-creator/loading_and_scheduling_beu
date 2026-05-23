@@ -1175,43 +1175,14 @@ Route::middleware(['auth'])->get('/api/teacher-cross-load/{userId}', function ($
 // =============================================================================
 // Subjects API — provides list of available subjects for form dropdowns
 // =============================================================================
-Route::middleware(['auth'])->get('/api/subjects', function () {
-    // Get distinct subjects from both JH and GS class schedules, plus sensible defaults
-    $jhSubjects = \Illuminate\Support\Facades\DB::connection('mysql_jh')
-        ->table('class_schedules')
-        ->select('subject')
-        ->distinct()
-        ->orderBy('subject')
-        ->pluck('subject')
-        ->filter(fn($s) => !empty($s))
-        ->toArray();
-
-    $gsSubjects = \Illuminate\Support\Facades\DB::connection('mysql_gs')
-        ->table('class_schedules')
-        ->select('subject')
-        ->distinct()
-        ->orderBy('subject')
-        ->pluck('subject')
-        ->filter(fn($s) => !empty($s))
-        ->toArray();
-
-    // Merge and deduplicate
-    $allSubjects = array_values(array_unique(array_merge($jhSubjects, $gsSubjects)));
-
-    // Add common defaults if not already present
-    $defaults = ['Mathematics', 'Science', 'English', 'Social Studies', 'Physical Education', 'Arts', 'Music'];
-    foreach ($defaults as $default) {
-        if (!in_array($default, $allSubjects)) {
-            $allSubjects[] = $default;
-        }
-    }
-
-    // Sort alphabetically
-    sort($allSubjects);
+Route::middleware(['auth'])->get('/api/subjects', function (\Illuminate\Http\Request $request) {
+    $portal = (string) $request->query('portal', 'all');
+    $subjects = \App\Support\SchoolSubjectsCatalog::subjectsForPortal($portal);
 
     return response()->json([
         'success'  => true,
-        'subjects' => $allSubjects,
+        'portal'   => \App\Support\SchoolSubjectsCatalog::normalizePortal($portal),
+        'subjects' => $subjects,
     ]);
 })->name('api.subjects');
 
