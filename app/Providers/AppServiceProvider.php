@@ -23,7 +23,12 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         RateLimiter::for('web', function (Request $request) {
-            return Limit::perMinute(120)->by($request->user()?->id ?: $request->ip());
+            // Auth pages are hit often during testing; use a higher ceiling to avoid 429 loops.
+            if ($request->is('login', 'csrf-refresh', 'forgot-password', 'reset-password', 'logout')) {
+                return Limit::perMinute(300)->by($request->ip());
+            }
+
+            return Limit::perMinute(180)->by($request->user()?->id ?: $request->ip());
         });
 
         RateLimiter::for('api', function (Request $request) {

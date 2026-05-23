@@ -65,7 +65,7 @@ Route::get('/csrf-refresh', function () {
 Route::middleware('guest')->group(function () {
     // Public self-registration is disabled — accounts are created by Principals only.
     // Login throttled to 10 attempts per minute per IP to slow brute-force attacks.
-    Route::post('login', [AuthenticatedSessionController::class, 'store'])->middleware('throttle:10,1');
+    Route::post('login', [AuthenticatedSessionController::class, 'store'])->middleware('throttle:30,1');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
     Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
@@ -228,8 +228,9 @@ Route::middleware('auth')->group(function () {
         Route::get('admin/users', function () {
             $users = \App\Models\User::where('school_level', 'junior_high')
                 ->with('role')->latest()->get();
-            $roles = \App\Models\Role::whereNotIn('name', ['principal'])->get();
-            return view('junior-high-admin.users.index', compact('users', 'roles'));
+            $accountRoleOptions = \App\Support\AdminUserRoleSupport::roleOptionsForPortal('junior_high');
+
+            return view('junior-high-admin.users.index', compact('users', 'accountRoleOptions'));
         })->name('admin.users');
 
         Route::get('admin/users/create', function () {
@@ -447,17 +448,7 @@ Route::middleware('auth')->group(function () {
     
     // Fallback dashboard — redirects each role to their proper portal
     Route::get('dashboard', function () {
-        $role = Auth::user()->load('role')->role?->name;
-        return match ($role) {
-            'principal'                         => redirect()->route('principal.dashboard'),
-            'super_admin'                       => redirect()->route('principal.dashboard'),
-            'admin_grade_school'                => redirect()->route('grade-school-admin.dashboard'),
-            'admin_junior_high', 'admin'        => redirect()->route('admin.dashboard'),
-            'teacher_grade_school'              => redirect()->route('grade-school-teacher.dashboard'),
-            'teacher_junior_high', 'teacher'    => redirect()->route('teacher.dashboard'),
-            'shared_teacher'                    => redirect()->route('shared-teacher.dashboard'),
-            default => abort(403, 'No dashboard configured for your role.'),
-        };
+        return redirect()->route(\App\Support\AuthRedirectSupport::homeRouteName());
     })->name('dashboard');
     
     // POST-only logout — GET logout removed to prevent CSRF-based forced sign-out

@@ -9,6 +9,7 @@ use App\Models\Room;
 use App\Models\User;
 use App\Support\ScheduleAudit;
 use App\Support\ScheduleDisplaySupport;
+use App\Support\ScheduleStoreSupport;
 use App\Support\TeacherPortalSupport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -149,6 +150,7 @@ class ScheduleController extends Controller
     {
         // ── Batch grid mode (from the schedule-form grid) ────────────────
         if ($request->has('slots')) {
+            try {
             $request->validate([
                 'grade_level' => 'required|string|max:20',
                 'day_of_week' => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday',
@@ -188,8 +190,7 @@ class ScheduleController extends Controller
             $dailyNewCounts   = []; // "$facultyId|$dayOfWeek" => new entries in this batch
             $conflicts = [];
             // Shared teacher faculty_ids for cross-school (GS) conflict check
-            $jhSharedFacultyIds = \App\Models\SharedTeacher::where('is_active', true)
-                ->pluck('faculty_id')->map(fn($id) => (string) $id)->all();
+            $jhSharedFacultyIds = ScheduleStoreSupport::sharedFacultyIdStrings();
 
             foreach ($slots as $timeKey => $sectionSlots) {
                 if (!isset($timeMap[$timeKey])) continue;
@@ -270,13 +271,11 @@ class ScheduleController extends Controller
 
                         // 4) Cross-school check for shared teachers (GS schedules)
                         if (in_array($primaryFaculty, $jhSharedFacultyIds, true)) {
-                            $crossExisting = DB::connection('mysql_gs')
-                                ->table('class_schedules')
-                                ->where('faculty_id', (int) $primaryFaculty)
-                                ->where('day_of_week', $dayOfWeek)
-                                ->where('start_time', $startTime)
-                                ->where('admin_approved', true)
-                                ->first();
+                            $crossExisting = ScheduleStoreSupport::crossSchoolApprovedConflict(
+                                (int) $primaryFaculty,
+                                $dayOfWeek,
+                                $startTime
+                            );
                             if ($crossExisting) {
                                 $teacher = \App\Models\User::find((int) $primaryFaculty);
                                 $name = $teacher ? trim($teacher->first_name . ' ' . $teacher->last_name) : "Teacher #{$primaryFaculty}";
@@ -356,21 +355,24 @@ class ScheduleController extends Controller
                         'change_log'    => $changeLog,
                     ];
 
-                    $schedule = ClassSchedule::create($scheduleData);
-
-                    ScheduleApproval::create([
-                        'schedule_id'  => $schedule->id,
-                        'submitted_by' => Auth::id(),
-                        'status'       => 'pending',
-                    ]);
+                    ScheduleStoreSupport::createPendingSchedule(
+                        $scheduleData,
+                        (int) (Auth::id() ?? 0)
+                    );
 
                     $created++;
                     } // end foreach allRows
                 }
             }
 
-            return redirect()->route('admin.class-schedule')
-                ->with('success', "$created schedule(s) created for $gradeLevel on $dayOfWeek. Approve them in the Pending Schedules section.");
+            return redirect()->to(route('admin.class-schedule') . '#pending-schedules')
+                ->with('success', "$created schedule(s) created for $gradeLevel on $dayOfWeek. Review them in Pending Schedules below.");
+            } catch (\Throwable $e) {
+                Log::error('JH schedule store failed: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+
+                return redirect()->back()->withInput()
+                    ->with('error', 'Could not save schedules. ' . $e->getMessage());
+            }
         }
 
         // ── Legacy single-record API mode ─────────────────────────────────
@@ -400,13 +402,10 @@ class ScheduleController extends Controller
 
         ScheduleAudit::setAuditUser((new ClassSchedule)->getConnectionName(), Auth::user()?->name);
 
-        $schedule = ClassSchedule::create($validated);
-
-        ScheduleApproval::create([
-            'schedule_id'  => $schedule->id,
-            'submitted_by' => $validated['faculty_id'],
-            'status'       => 'pending',
-        ]);
+        $schedule = ScheduleStoreSupport::createPendingSchedule(
+            $validated,
+            (int) $validated['faculty_id']
+        );
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -474,16 +473,17 @@ class ScheduleController extends Controller
                     ], 409);
                 }
                 // Cross-school check for shared teachers (GS schedules)
-                $isSharedJH = \App\Models\SharedTeacher::where('faculty_id', $schedule->faculty_id)
-                    ->where('is_active', true)->exists();
+                $isSharedJH = in_array(
+                    (string) $schedule->faculty_id,
+                    ScheduleStoreSupport::sharedFacultyIdStrings(),
+                    true
+                );
                 if ($isSharedJH) {
-                    $crossConflict = DB::connection('mysql_gs')
-                        ->table('class_schedules')
-                        ->where('faculty_id', $schedule->faculty_id)
-                        ->where('day_of_week', $schedule->day_of_week)
-                        ->where('start_time', $schedule->start_time)
-                        ->where('admin_approved', true)
-                        ->first();
+                    $crossConflict = ScheduleStoreSupport::crossSchoolApprovedConflict(
+                        (int) $schedule->faculty_id,
+                        (string) $schedule->day_of_week,
+                        (string) $schedule->start_time
+                    );
                     if ($crossConflict) {
                         $teacher = User::find($schedule->faculty_id);
                         $name = $teacher

@@ -89,7 +89,7 @@
     </div>
 
     <!-- Pending Schedules for Review -->
-    <div class="table-card" style="margin-bottom: 2rem;">
+    <div id="pending-schedules" class="table-card" style="margin-bottom: 2rem;">
         <div class="table-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
             <h2 class="table-title">Pending Schedules for Approval</h2>
             <div id="jhPendingBulkActions" style="display:none;"></div>

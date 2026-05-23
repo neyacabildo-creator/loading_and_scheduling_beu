@@ -103,8 +103,8 @@
 
     <div class="table-card">
         <div class="table-header">
-            <div class="table-title">Grade School Teachers</div>
-            <input type="text" id="searchInput" placeholder="Search teachers..." style="padding: 0.5rem 1rem; border: 1px solid #e8dcc8; border-radius: 0.375rem; font-size: 0.875rem;" oninput="filterTable()">
+            <div class="table-title">Grade School User Accounts</div>
+            <input type="search" id="searchInput" name="gs-user-account-filter" placeholder="Search by name or email..." autocomplete="off" autocorrect="off" spellcheck="false" style="padding: 0.5rem 1rem; border: 1px solid #e8dcc8; border-radius: 0.375rem; font-size: 0.875rem;" oninput="filterTable()">
         </div>
         <div style="overflow-x: auto;">
             <table id="usersTable">
@@ -156,9 +156,9 @@
                     <label class="form-label">Role <span style="color:#c83232">*</span></label>
                     <select id="gs_role_id" class="form-input" onchange="gsOnRoleChange()">
                         <option value="">Select role...</option>
-                        <option value="2">Admin - Grade School</option>
-                        <option value="4">Teacher - Grade School</option>
-                        <option value="7">Shared Teacher</option>
+                        @foreach(($accountRoleOptions ?? []) as $role)
+                            <option value="{{ $role->id }}" data-role-name="{{ $role->name }}">{{ $role->display_name }}</option>
+                        @endforeach
                     </select>
                     <span class="field-error" id="gs_err_role_id"></span>
                 </div>
@@ -233,6 +233,8 @@
         }
 
         function loadTeachers() {
+            const searchEl = document.getElementById('searchInput');
+            if (searchEl) searchEl.value = '';
             fetch('/api/grade-school-admin/teachers', {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
             })
@@ -267,13 +269,10 @@
         }
 
         function gsOnRoleChange() {
-            const roleId = document.getElementById('gs_role_id').value;
+            const sel = document.getElementById('gs_role_id');
+            const roleName = sel.options[sel.selectedIndex]?.dataset?.roleName || '';
             const container = document.getElementById('gs_subjects_container');
-            if (roleId === '7') { // Shared Teacher
-                container.style.display = 'block';
-            } else {
-                container.style.display = 'none';
-            }
+            container.style.display = roleName === 'shared_teacher' ? 'block' : 'none';
         }
 
         loadTeachers();
@@ -282,7 +281,7 @@
         function renderTeachers(teachers) {
             const tbody = document.getElementById('usersTableBody');
             if (!teachers.length) {
-                tbody.innerHTML = '<tr><td colspan="7" style="padding:2rem;text-align:center;color:#7a7a6e;">No Grade School teachers found.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="padding:2rem;text-align:center;color:#7a7a6e;">No Grade School user accounts found.</td></tr>';
                 return;
             }
             tbody.innerHTML = teachers.map(t => {
@@ -311,12 +310,14 @@
 
         function filterTable() {
             const q = document.getElementById('searchInput').value.toLowerCase();
-            renderTeachers(q ? allTeachers.filter(t =>
-                (t.name || '').toLowerCase().includes(q) ||
-                (t.first_name || '').toLowerCase().includes(q) ||
-                (t.last_name || '').toLowerCase().includes(q) ||
-                (t.email || '').toLowerCase().includes(q)
-            ) : allTeachers);
+            renderTeachers(q ? allTeachers.filter(t => {
+                const roleLabel = (t.role && (t.role.display_name || t.role.name)) ? String(t.role.display_name || t.role.name).toLowerCase() : '';
+                return (t.name || '').toLowerCase().includes(q) ||
+                    (t.first_name || '').toLowerCase().includes(q) ||
+                    (t.last_name || '').toLowerCase().includes(q) ||
+                    (t.email || '').toLowerCase().includes(q) ||
+                    roleLabel.includes(q);
+            }) : allTeachers);
         }
 
         function toggleActive(id, currentlyActive) {
@@ -410,7 +411,8 @@
             };
 
             // Add subjects for shared teachers
-            if (roleId === '7') {
+            const roleName = document.getElementById('gs_role_id').options[document.getElementById('gs_role_id').selectedIndex]?.dataset?.roleName || '';
+            if (roleName === 'shared_teacher') {
                 payload.subject1 = document.getElementById('gs_subject1').value.trim();
                 payload.subject2 = document.getElementById('gs_subject2').value.trim();
             }
@@ -432,7 +434,17 @@
                     const credEmail = payload.email;
                     const credPwd   = payload.password;
                     closeAddUserModal();
-                    loadTeachers();
+                    if (json.user) {
+                        const u = json.user;
+                        u.plain_password = credPwd;
+                        const idx = allTeachers.findIndex(x => x.id === u.id);
+                        if (idx >= 0) allTeachers[idx] = u;
+                        else allTeachers.push(u);
+                        document.getElementById('searchInput').value = '';
+                        renderTeachers(allTeachers);
+                    } else {
+                        loadTeachers();
+                    }
                     showCredentialsCard(credName, credEmail, credPwd);
                 } else {
                     const errors = json.errors || {};

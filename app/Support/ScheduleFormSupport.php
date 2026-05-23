@@ -117,9 +117,7 @@ class ScheduleFormSupport
     ): array {
         config(['database.school_connection' => $connection]);
 
-        $teachers = User::where('school_level', $schoolLevel)
-            ->whereHas('role', fn ($q) => $q->where('name', 'like', '%teacher%'))
-            ->get();
+        $teachers = AdminUserAccountsSupport::scopeFacultyAssignable(User::query(), $schoolLevel)->get();
 
         $rooms = self::availableRooms($connection);
         $teacherSubjects = self::teacherSubjectsMap($connection);

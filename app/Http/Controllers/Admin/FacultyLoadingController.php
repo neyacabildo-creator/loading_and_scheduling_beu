@@ -18,10 +18,7 @@ class FacultyLoadingController extends Controller
     public function index()
     {
         // Get total faculty (teachers) – Junior High only
-        $totalFaculty = User::where('school_level', 'junior_high')
-            ->whereHas('role', function($q) { 
-                $q->where('name', 'like', '%teacher%'); 
-            })->count();
+        $totalFaculty = \App\Support\AdminUserAccountsSupport::scopeFacultyAssignable(User::query(), 'junior_high')->count();
         
         // Get total classes
         $totalClasses = FacultyLoad::sum('classes_assigned') ?? 0;
@@ -53,10 +50,8 @@ class FacultyLoadingController extends Controller
         }
 
         // Teachers for add/edit modal dropdowns
-        $teachers = User::where('school_level', 'junior_high')
-            ->whereHas('role', function ($q) {
-                $q->where('name', 'like', '%teacher%');
-            })->orderBy('first_name')->get();
+        $teachers = \App\Support\AdminUserAccountsSupport::scopeFacultyAssignable(User::query(), 'junior_high')
+            ->orderBy('first_name')->get();
 
         // Shared teacher user IDs for badge rendering in the view
         $sharedTeacherUserIds = User::whereHas('role', fn($q) => $q->where('name', 'shared_teacher'))
@@ -89,10 +84,7 @@ class FacultyLoadingController extends Controller
      */
     public function create()
     {
-        $teachers = User::where('school_level', 'junior_high')
-            ->whereHas('role', function($q) { 
-                $q->where('name', 'like', '%teacher%'); 
-            })->get();
+        $teachers = \App\Support\AdminUserAccountsSupport::scopeFacultyAssignable(User::query(), 'junior_high')->get();
         $sharedTeacherUserIds = User::whereHas('role', fn($q) => $q->where('name', 'shared_teacher'))
             ->pluck('id')->map(fn($id) => (string) $id)->toArray();
 
@@ -175,10 +167,7 @@ class FacultyLoadingController extends Controller
         if ($facultyLoad->faculty_id) {
             $facultyLoad->setRelation('faculty', User::find($facultyLoad->faculty_id));
         }
-        $teachers = User::where('school_level', 'junior_high')
-            ->whereHas('role', function($q) { 
-                $q->where('name', 'like', '%teacher%'); 
-            })->get();
+        $teachers = \App\Support\AdminUserAccountsSupport::scopeFacultyAssignable(User::query(), 'junior_high')->get();
         $sharedTeacherUserIds = User::whereHas('role', fn($q) => $q->where('name', 'shared_teacher'))
             ->pluck('id')->map(fn($id) => (string) $id)->toArray();
 

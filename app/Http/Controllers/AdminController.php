@@ -703,18 +703,21 @@ class AdminController extends Controller {
             'first_name' => 'required|string|max:100',
             'last_name'  => 'required|string|max:100',
             'email'      => 'required|email|max:191|unique:users,email',
-            'role_id'    => 'required|exists:roles,id',
+            'role_id'    => 'required|integer',
             'password'   => 'required|string|min:8|confirmed',
         ]);
+
+        $role = \App\Support\AdminUserRoleSupport::validateRoleForPortal('junior_high', (int) $validated['role_id']);
+        $schoolLevel = \App\Support\AdminUserRoleSupport::schoolLevelForNewUser($role, 'junior_high');
 
         $user = \App\Models\User::create([
             'first_name'   => $validated['first_name'],
             'last_name'    => $validated['last_name'],
             'name'         => trim($validated['first_name'] . ' ' . $validated['last_name']),
             'email'        => $validated['email'],
-            'role_id'      => $validated['role_id'],
+            'role_id'      => $role->id,
             'password'     => bcrypt($validated['password']),
-            'school_level' => 'junior_high',
+            'school_level' => $schoolLevel,
             'is_active'    => true,
         ]);
 
@@ -726,34 +729,8 @@ class AdminController extends Controller {
             [$validated['password'], $aesKey, $user->id]
         );
 
-        $role = \App\Models\Role::find($validated['role_id']);
         \App\Support\FacultyLoadProvisioning::ensureForNewTeacher($user, $role);
-
-        // Sync shared teacher to shared_teachers table in both JH and GS databases
-        if ($role && $role->name === 'shared_teacher') {
-            // Collect subjects from the form (up to 2)
-            $subjects = array_values(array_filter([
-                trim($request->input('subject1', '')),
-                trim($request->input('subject2', '')),
-            ]));
-            // Department = first subject; auto-set to "Junior High" context
-            $department = $subjects[0] ?? 'Unassigned';
-            $stData = [
-                'faculty_id'   => $user->id,
-                'teacher_name' => $user->name,
-                'email'        => $user->email,
-                'department'   => $department,
-                'subjects'     => json_encode($subjects),
-                'is_active'    => true,
-                'created_at'   => now(),
-                'updated_at'   => now(),
-            ];
-            foreach (['mysql_jh', 'mysql_gs'] as $conn) {
-                $sl = $conn === 'mysql_jh' ? 'junior_high' : 'grade_school';
-                \Illuminate\Support\Facades\DB::connection($conn)->table('shared_teachers')
-                    ->insertOrIgnore(array_merge($stData, ['school_level' => $sl]));
-            }
-        }
+        \App\Support\SharedTeacherRegistrySync::syncFromAdminRequest($user, $role, $request);
 
         if ($request->wantsJson()) {
             $user->load('role');
@@ -879,29 +856,24 @@ class AdminController extends Controller {
      * All teachers in User Accounts for this admin's school level.
      * Faculty load assignment does not remove or hide accounts from this list.
      */
-    public function getTeachers() {
+    public function getTeachers(Request $request) {
         try {
             $schoolLevel = $this->getAdminSchoolLevel();
+            $forFacultyLoad = $request->boolean('faculty_only')
+                || $request->query('context') === 'faculty';
 
-            $teachers = User::where('school_level', $schoolLevel)
-                ->whereHas('role', function($q) {
-                    $q->where('name', 'like', '%teacher%');
-                })
-                ->with('role')
-                ->orderBy('first_name')
-                ->orderBy('last_name')
-                ->get()
-                ->map(function (User $user) {
-                    $data = $user->toArray();
-                    $data['plain_password'] = \App\Support\UserPasswordSupport::decryptPlainPassword($user->id);
+            $query = $forFacultyLoad
+                ? \App\Support\AdminUserAccountsSupport::scopeFacultyAssignable(User::query(), $schoolLevel)
+                : \App\Support\AdminUserAccountsSupport::scopeUserAccounts(User::query(), $schoolLevel);
 
-                    return $data;
-                });
+            $teachers = \App\Support\AdminUserAccountsSupport::mapUsersForApi(
+                $query->with('role')->orderBy('first_name')->orderBy('last_name')->get()
+            );
 
             return response()->json([
                 'success' => true,
                 'data' => $teachers,
-                'count' => $teachers->count(),
+                'count' => count($teachers),
                 'school_level' => $schoolLevel
             ]);
         } catch (\Exception $e) {
@@ -926,7 +898,7 @@ class AdminController extends Controller {
                 'department' => 'nullable|string|max:100',
             ]);
 
-            $user = User::where('school_level', $schoolLevel)->findOrFail($id);
+            $user = \App\Support\AdminUserAccountsSupport::findUserAccount($schoolLevel, (int) $id);
             $user->update($validated);
             return response()->json(['success' => true, 'message' => 'Teacher updated successfully', 'data' => $user]);
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -945,7 +917,7 @@ class AdminController extends Controller {
     public function deleteTeacher($id) {
         try {
             $schoolLevel = $this->getAdminSchoolLevel();
-            $user = User::where('school_level', $schoolLevel)->findOrFail($id);
+            $user = \App\Support\AdminUserAccountsSupport::findUserAccount($schoolLevel, (int) $id);
             \App\Support\UserSchoolDataPurge::purge($user);
             $user->delete();
 
@@ -964,7 +936,7 @@ class AdminController extends Controller {
     public function toggleTeacherActive($id) {
         try {
             $schoolLevel = $this->getAdminSchoolLevel();
-            $user = User::where('school_level', $schoolLevel)->findOrFail($id);
+            $user = \App\Support\AdminUserAccountsSupport::findUserAccount($schoolLevel, (int) $id);
             $user->is_active = !$user->is_active;
             $user->save();
             $status = $user->is_active ? 'activated' : 'deactivated';

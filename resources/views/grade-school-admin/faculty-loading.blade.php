@@ -665,7 +665,7 @@
             // Reload teachers fresh from DB so newly-created users appear
             const sel = document.getElementById('addFacultyId');
             sel.innerHTML = '<option value="">Loading teachers…</option>';
-            fetch('/api/grade-school-admin/teachers', {
+            fetch('/api/grade-school-admin/teachers?context=faculty', {
                 headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': token }
             })
             .then(r => r.json())

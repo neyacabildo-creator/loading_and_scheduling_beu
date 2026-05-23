@@ -583,29 +583,24 @@ class GradeSchoolAdminController extends Controller
      * All teachers in User Accounts for Grade School.
      * Creating faculty loads does not remove or hide accounts from this list.
      */
-    public function getTeachers() {
+    public function getTeachers(Request $request) {
         try {
             $schoolLevel = $this->getAdminSchoolLevel();
+            $forFacultyLoad = $request->boolean('faculty_only')
+                || $request->query('context') === 'faculty';
 
-            $teachers = User::where('school_level', $schoolLevel)
-                ->whereHas('role', function($q) {
-                    $q->where('name', 'like', '%teacher%');
-                })
-                ->with('role')
-                ->orderBy('first_name')
-                ->orderBy('last_name')
-                ->get()
-                ->map(function (User $user) {
-                    $data = $user->toArray();
-                    $data['plain_password'] = \App\Support\UserPasswordSupport::decryptPlainPassword($user->id);
+            $query = $forFacultyLoad
+                ? \App\Support\AdminUserAccountsSupport::scopeFacultyAssignable(User::query(), $schoolLevel)
+                : \App\Support\AdminUserAccountsSupport::scopeUserAccounts(User::query(), $schoolLevel);
 
-                    return $data;
-                });
+            $teachers = \App\Support\AdminUserAccountsSupport::mapUsersForApi(
+                $query->with('role')->orderBy('first_name')->orderBy('last_name')->get()
+            );
 
             return response()->json([
                 'success' => true,
                 'data' => $teachers,
-                'count' => $teachers->count(),
+                'count' => count($teachers),
                 'school_level' => $schoolLevel
             ]);
         } catch (\Exception $e) {
@@ -625,7 +620,7 @@ class GradeSchoolAdminController extends Controller
                 'email' => 'nullable|email|max:100|unique:users,email,' . $id,
             ]);
 
-            $user = User::where('school_level', $schoolLevel)->findOrFail($id);
+            $user = \App\Support\AdminUserAccountsSupport::findUserAccount($schoolLevel, (int) $id);
             $user->update($validated);
             return response()->json(['success' => true, 'message' => 'Teacher updated', 'data' => $user]);
         } catch (\Exception $e) {
@@ -639,7 +634,7 @@ class GradeSchoolAdminController extends Controller
     public function deleteTeacher($id) {
         try {
             $schoolLevel = $this->getAdminSchoolLevel();
-            $user = User::where('school_level', $schoolLevel)->findOrFail($id);
+            $user = \App\Support\AdminUserAccountsSupport::findUserAccount($schoolLevel, (int) $id);
             \App\Support\UserSchoolDataPurge::purge($user);
             $user->delete();
 
@@ -655,7 +650,7 @@ class GradeSchoolAdminController extends Controller
     public function toggleTeacherActive($id) {
         try {
             $schoolLevel = $this->getAdminSchoolLevel();
-            $user = User::where('school_level', $schoolLevel)->findOrFail($id);
+            $user = \App\Support\AdminUserAccountsSupport::findUserAccount($schoolLevel, (int) $id);
             $user->is_active = !$user->is_active;
             $user->save();
             $status = $user->is_active ? 'activated' : 'deactivated';
@@ -743,9 +738,7 @@ class GradeSchoolAdminController extends Controller
      * Show faculty loading page
      */
     public function facultyLoading() {
-        $totalFaculty    = User::where('school_level', 'grade_school')
-            ->whereHas('role', function($q) { $q->where('name', 'like', '%teacher%'); })
-            ->count();
+        $totalFaculty    = \App\Support\AdminUserAccountsSupport::scopeFacultyAssignable(User::query(), 'grade_school')->count();
         $totalClasses    = FacultyLoad::sum('classes_assigned') ?? 0;
         $totalLoadHours  = FacultyLoad::sum('load_hours') ?? 0;
         $avgLoad         = $totalFaculty > 0 ? round($totalLoadHours / $totalFaculty, 2) : 0;
@@ -761,8 +754,7 @@ class GradeSchoolAdminController extends Controller
             ->unique()
             ->count();
 
-        $teachers = User::where('school_level', 'grade_school')
-            ->whereHas('role', function($q) { $q->where('name', 'like', '%teacher%'); })
+        $teachers = \App\Support\AdminUserAccountsSupport::scopeFacultyAssignable(User::query(), 'grade_school')
             ->orderBy('first_name')->get();
 
         // Shared teacher user IDs for badge rendering
@@ -1171,7 +1163,9 @@ class GradeSchoolAdminController extends Controller
      */
     public function users() {
         $users = User::where('school_level', 'grade_school')->with('role')->latest()->get();
-        return view('grade-school-admin.users.index', compact('users'));
+        $accountRoleOptions = \App\Support\AdminUserRoleSupport::roleOptionsForPortal('grade_school');
+
+        return view('grade-school-admin.users.index', compact('users', 'accountRoleOptions'));
     }
 
     public function storeUser(Request $request) {
@@ -1179,20 +1173,23 @@ class GradeSchoolAdminController extends Controller
             'first_name' => 'required|string|max:100',
             'last_name'  => 'required|string|max:100',
             'email'      => 'required|email|max:191|unique:users,email',
-            'role_id'    => 'required|exists:roles,id',
+            'role_id'    => 'required|integer',
             'password'   => 'required|string|min:8|confirmed',
         ], [
             'email.unique' => 'This email address is already registered. A user with this email already exists and cannot be created again.',
         ]);
+
+        $role = \App\Support\AdminUserRoleSupport::validateRoleForPortal('grade_school', (int) $validated['role_id']);
+        $schoolLevel = \App\Support\AdminUserRoleSupport::schoolLevelForNewUser($role, 'grade_school');
 
         $user = User::create([
             'first_name'   => $validated['first_name'],
             'last_name'    => $validated['last_name'],
             'name'         => trim($validated['first_name'] . ' ' . $validated['last_name']),
             'email'        => $validated['email'],
-            'role_id'      => $validated['role_id'],
+            'role_id'      => $role->id,
             'password'     => bcrypt($validated['password']),
-            'school_level' => 'grade_school',
+            'school_level' => $schoolLevel,
             'is_active'    => true,
         ]);
 
@@ -1204,31 +1201,8 @@ class GradeSchoolAdminController extends Controller
             [$validated['password'], $aesKey, $user->id]
         );
 
-        $role = Role::find($validated['role_id']);
         \App\Support\FacultyLoadProvisioning::ensureForNewTeacher($user, $role);
-
-        // Sync shared teacher to shared_teachers table in both JH and GS databases
-        if ($role && $role->name === 'shared_teacher') {
-            // Collect subjects from the form (up to 2)
-            $subjects = array_values(array_filter([
-                trim($request->input('subject1', '')),
-                trim($request->input('subject2', '')),
-            ]));
-            $stData = [
-                'faculty_id'   => $user->id,
-                'teacher_name' => $user->name,
-                'email'        => $user->email,
-                'subjects'     => json_encode($subjects),
-                'is_active'    => true,
-                'created_at'   => now(),
-                'updated_at'   => now(),
-            ];
-            foreach (['mysql_jh', 'mysql_gs'] as $conn) {
-                $sl = $conn === 'mysql_jh' ? 'junior_high' : 'grade_school';
-                DB::connection($conn)->table('shared_teachers')
-                    ->insertOrIgnore(array_merge($stData, ['school_level' => $sl]));
-            }
-        }
+        \App\Support\SharedTeacherRegistrySync::syncFromAdminRequest($user, $role, $request);
 
         if ($request->wantsJson()) {
             $user->load('role');
@@ -1356,9 +1330,7 @@ class GradeSchoolAdminController extends Controller
             $dailyNewCounts   = []; // "$facultyId|$dayOfWeek" => new entries in this batch
             $gsConflicts = [];
             // Shared teacher faculty_ids for cross-school (JH) conflict check
-            $gsSharedFacultyIds = (new \App\Models\SharedTeacher)->setConnection('mysql_gs')
-                ->newQuery()->where('is_active', true)
-                ->pluck('faculty_id')->map(fn($id) => (string) $id)->all();
+            $gsSharedFacultyIds = \App\Support\ScheduleStoreSupport::sharedFacultyIdStrings('mysql_gs');
 
             foreach ($slots as $timeKey => $sectionData) {
                 if (!isset($timeSlotMap[$timeKey])) continue;
@@ -1439,13 +1411,12 @@ class GradeSchoolAdminController extends Controller
 
                         // 4) Cross-school check for shared teachers (JH schedules)
                         if (in_array($primaryFaculty, $gsSharedFacultyIds, true)) {
-                            $crossExisting = DB::connection('mysql_jh')
-                                ->table('class_schedules')
-                                ->where('faculty_id', (int) $primaryFaculty)
-                                ->where('day_of_week', $dayOfWeek)
-                                ->where('start_time', $startTime)
-                                ->where('admin_approved', true)
-                                ->first();
+                            $crossExisting = \App\Support\ScheduleStoreSupport::crossSchoolApprovedConflict(
+                                (int) $primaryFaculty,
+                                $dayOfWeek,
+                                $startTime,
+                                'mysql_gs'
+                            );
                             if ($crossExisting) {
                                 $teacher = User::find((int) $primaryFaculty);
                                 $name = $teacher ? trim($teacher->first_name . ' ' . $teacher->last_name) : "Teacher #{$primaryFaculty}";
@@ -1525,7 +1496,7 @@ class GradeSchoolAdminController extends Controller
                             ['details' => 'Grade School schedule submitted for approval']
                         );
 
-                        $schedule = ClassSchedule::create([
+                        \App\Support\ScheduleStoreSupport::createPendingSchedule([
                             'faculty_id'    => (int) $facultyId,
                             'subject'       => $subject,
                             'grade_level'   => $gradeLevel,
@@ -1540,13 +1511,7 @@ class GradeSchoolAdminController extends Controller
                             'admin_approved'=> false,
                             'version'       => 1,
                             'change_log'    => $changeLog,
-                        ]);
-
-                        ScheduleApproval::create([
-                            'schedule_id'  => $schedule->id,
-                            'submitted_by' => (int) $facultyId,
-                            'status'       => 'pending',
-                        ]);
+                        ], (int) $facultyId);
 
                         $created++;
                     } // end foreach allRows
@@ -1557,8 +1522,8 @@ class GradeSchoolAdminController extends Controller
                 return back()->withInput()->withErrors(['slots' => 'No schedule entries were filled in. Please fill at least one time slot.']);
             }
 
-            return redirect()->route('grade-school-admin.class-schedule')
-                ->with('success', $created . ' schedule entr' . ($created === 1 ? 'y' : 'ies') . ' created and submitted for approval.');
+            return redirect()->to(route('grade-school-admin.class-schedule') . '#pending-schedules')
+                ->with('success', $created . ' schedule entr' . ($created === 1 ? 'y' : 'ies') . ' created. Review them in Pending Schedules below.');
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             return back()->withErrors($e->errors())->withInput();
