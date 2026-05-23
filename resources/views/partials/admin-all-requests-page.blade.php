@@ -21,32 +21,7 @@
     </div>
 </div>
 
-@php
-    $absentToday = $absentToday ?? ['regular' => [], 'shared' => []];
-    $absentRegular = $absentToday['regular'] ?? [];
-    $absentShared = $absentToday['shared'] ?? [];
-@endphp
-@if(count($absentRegular) > 0 || count($absentShared) > 0)
-    <div class="str-absent-alert" role="status">
-        <strong>Currently absent / on leave today</strong>
-        @if(count($absentShared) > 0)
-            <div class="str-absent-group">
-                <span class="str-absent-group-label">Shared teachers:</span>
-                @foreach($absentShared as $person)
-                    <span class="str-presence-badge str-presence-{{ ($person['type'] ?? '') === 'absent' ? 'absent' : 'on_leave' }}">{{ $person['name'] }} — {{ $person['label'] }}</span>
-                @endforeach
-            </div>
-        @endif
-        @if(count($absentRegular) > 0)
-            <div class="str-absent-group">
-                <span class="str-absent-group-label">Teachers:</span>
-                @foreach($absentRegular as $person)
-                    <span class="str-presence-badge str-presence-{{ ($person['type'] ?? '') === 'absent' ? 'absent' : 'on_leave' }}">{{ $person['name'] }} — {{ $person['label'] }}</span>
-                @endforeach
-            </div>
-        @endif
-    </div>
-@endif
+@include('partials.admin-teacher-absence-banner', ['leaveBanner' => $absentToday ?? $leaveBanner ?? null])
 
 <section class="str-panel" aria-labelledby="str-shared-title">
     <div class="str-panel-header">

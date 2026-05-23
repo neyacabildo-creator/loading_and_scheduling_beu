@@ -6,6 +6,9 @@
     $schedulesApi = $schedulesApi ?? (str_contains($apiBase, 'grade-school-teacher')
         ? '/api/grade-school-teacher/adjustment-schedules'
         : '/api/teacher/adjustment-schedules');
+    $availableTeachersApi = $availableTeachersApi ?? (str_contains($apiBase, 'grade-school-teacher')
+        ? '/api/grade-school-teacher/adjustment-available-teachers'
+        : '/api/teacher/adjustment-available-teachers');
     $divisionLabel = $divisionLabel ?? 'Teacher Portal';
     $gradeLevels = $gradeLevels ?? ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'];
 @endphp
@@ -59,63 +62,82 @@
             @csrf
             <div class="form-group">
                 <label>Adjustment Type *</label>
-                <select name="request_type" required>
+                <select name="request_type" id="adjRequestType" required>
                     <option value="">-- Select Type --</option>
-                    <option value="time_change">Time Change</option>
+                    <option value="schedule_change">Schedule Change</option>
                     <option value="room_change">Room Change</option>
                     <option value="teacher_reassignment">Teacher Reassignment</option>
                     <option value="other">Other</option>
                 </select>
             </div>
-            <div class="form-group">
-                <label>Subject *</label>
-                <select name="subject" id="adjSubject" required>
-                    <option value="">-- Select subject from your schedule --</option>
-                </select>
-                <small style="color:var(--text-secondary);font-size:.75rem;">Only subjects from your approved class schedules are listed.</small>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-                <div class="form-group" style="margin-bottom:0;">
-                    <label>Grade Level *</label>
-                    <select name="grade_level" id="adjGradeLevel" required>
-                        <option value="">-- Select --</option>
-                        @foreach($gradeLevels as $g)
-                            <option value="{{ $g }}">{{ $g }}</option>
-                        @endforeach
+
+            <div id="adjBlockContext">
+                <div class="form-group">
+                    <label>Subject *</label>
+                    <select name="subject" id="adjSubject">
+                        <option value="">-- Select subject from your schedule --</option>
                     </select>
+                    <small style="color:var(--text-secondary);font-size:.75rem;">Only subjects from your approved class schedules are listed.</small>
                 </div>
-                <div class="form-group" style="margin-bottom:0;">
-                    <label>Section</label>
-                    <input type="text" name="section_name" id="adjSection" placeholder="Auto-filled from schedule">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>Grade Level *</label>
+                        <select name="grade_level" id="adjGradeLevel">
+                            <option value="">-- Select --</option>
+                            @foreach($gradeLevels as $g)
+                                <option value="{{ $g }}">{{ $g }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>Section</label>
+                        <input type="text" name="section_name" id="adjSection" placeholder="Auto-filled from schedule" readonly>
+                    </div>
                 </div>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-top:1rem;">
+
+            <div id="adjBlockSchedulePrefs" style="display:none;margin-top:1rem;">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>Preferred Day</label>
+                        <select name="day_of_week" id="adjDay">
+                            <option value="">-- Day --</option>
+                            @foreach(['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'] as $d)
+                                <option value="{{ $d }}">{{ $d }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>Preferred Start</label>
+                        <input type="time" name="preferred_start_time" id="adjStart">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>Preferred End</label>
+                        <input type="time" name="preferred_end_time" id="adjEnd">
+                    </div>
+                </div>
+            </div>
+
+            <div id="adjBlockReassignment" style="display:none;margin-top:1rem;">
                 <div class="form-group" style="margin-bottom:0;">
-                    <label>Preferred Day</label>
-                    <select name="day_of_week" id="adjDay">
-                        <option value="">-- Day --</option>
-                        @foreach(['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'] as $d)
-                            <option value="{{ $d }}">{{ $d }}</option>
-                        @endforeach
+                    <label>Requested Substitute Teacher *</label>
+                    <select name="substitute_faculty_id" id="adjSubstitute">
+                        <option value="">-- Select subject and grade first --</option>
                     </select>
-                </div>
-                <div class="form-group" style="margin-bottom:0;">
-                    <label>Preferred Start</label>
-                    <input type="time" name="preferred_start_time" id="adjStart">
-                </div>
-                <div class="form-group" style="margin-bottom:0;">
-                    <label>Preferred End</label>
-                    <input type="time" name="preferred_end_time" id="adjEnd">
+                    <input type="hidden" name="substitute_teacher_name" id="adjSubstituteName">
+                    <small style="color:var(--text-secondary);font-size:.75rem;display:block;margin-top:.35rem;">Lists regular and shared teachers available for this subject and grade level.</small>
                 </div>
             </div>
+
             <input type="hidden" name="schedule_id" id="adjScheduleId">
-            <div class="form-group">
+
+            <div id="adjBlockReason" class="form-group" style="display:none;margin-top:1rem;">
                 <label>Reason for Adjustment *</label>
-                <textarea name="reason" placeholder="Explain why an adjustment is needed..." required minlength="3"></textarea>
+                <textarea name="reason" id="adjReason" placeholder="Explain why an adjustment is needed..." minlength="3"></textarea>
             </div>
-            <div class="form-group">
+            <div id="adjBlockExtra" class="form-group" style="display:none;">
                 <label>Additional Details (optional)</label>
-                <textarea name="proposed_changes" placeholder="Any extra notes for the admin..."></textarea>
+                <textarea name="proposed_changes" id="adjExtra" placeholder="Any extra notes for the admin..."></textarea>
             </div>
             <button type="submit" class="btn-primary">Submit Request</button>
         </form>
@@ -175,9 +197,11 @@
 const ADJUSTMENT_API = @json($apiBase);
 const LEAVE_API = @json($leaveApiBase);
 const ADJUSTMENT_SCHEDULES_API = @json($schedulesApi);
+const ADJ_AVAILABLE_TEACHERS_API = @json($availableTeachersApi);
 const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 let adjApprovedSchedules = [];
 let adjSlotTouched = false;
+let adjAvailableTeachers = [];
 
 function adjNorm(s) {
     return String(s || '').trim().toLowerCase();
@@ -248,20 +272,113 @@ function adjMarkSlotTouched() {
     adjSlotTouched = true;
 }
 
+function adjNormalizedType() {
+    const t = document.getElementById('adjRequestType')?.value || '';
+    return t === 'time_change' ? 'schedule_change' : t;
+}
+
+function adjSetRequired(el, on) {
+    if (!el) return;
+    if (on) el.setAttribute('required', 'required');
+    else el.removeAttribute('required');
+}
+
+function adjUpdateFormLayout() {
+    const type = adjNormalizedType();
+    const ctx = document.getElementById('adjBlockContext');
+    const prefs = document.getElementById('adjBlockSchedulePrefs');
+    const reassign = document.getElementById('adjBlockReassignment');
+    const reason = document.getElementById('adjBlockReason');
+    const extra = document.getElementById('adjBlockExtra');
+    const subj = document.getElementById('adjSubject');
+    const grade = document.getElementById('adjGradeLevel');
+    const sub = document.getElementById('adjSubstitute');
+    const reasonFld = document.getElementById('adjReason');
+
+    const showCtx = ['schedule_change', 'room_change', 'teacher_reassignment', 'other'].includes(type);
+    const showPrefs = type === 'schedule_change';
+    const showReassign = type === 'teacher_reassignment';
+    const showReason = ['schedule_change', 'room_change', 'teacher_reassignment', 'other'].includes(type);
+    const showExtra = type === 'schedule_change' || type === 'other';
+
+    if (ctx) ctx.style.display = showCtx ? '' : 'none';
+    if (prefs) prefs.style.display = showPrefs ? '' : 'none';
+    if (reassign) reassign.style.display = showReassign ? '' : 'none';
+    if (reason) reason.style.display = showReason ? '' : 'none';
+    if (extra) extra.style.display = showExtra ? '' : 'none';
+
+    adjSetRequired(subj, showCtx && type !== 'other');
+    adjSetRequired(grade, showCtx && type !== 'other');
+    adjSetRequired(sub, showReassign);
+    adjSetRequired(reasonFld, showReason);
+
+    if (showReassign) {
+        adjLoadAvailableTeachers();
+    }
+}
+
+async function adjLoadAvailableTeachers() {
+    const subj = document.getElementById('adjSubject')?.value || '';
+    const grade = document.getElementById('adjGradeLevel')?.value || '';
+    const sel = document.getElementById('adjSubstitute');
+    const nameInp = document.getElementById('adjSubstituteName');
+    if (!sel) return;
+
+    if (!subj || !grade) {
+        sel.innerHTML = '<option value="">-- Select subject and grade first --</option>';
+        if (nameInp) nameInp.value = '';
+        return;
+    }
+
+    sel.innerHTML = '<option value="">Loading teachers...</option>';
+    try {
+        const params = new URLSearchParams({ subject: subj, grade_level: grade });
+        const res = await fetch(ADJ_AVAILABLE_TEACHERS_API + '?' + params, { headers: { Accept: 'application/json' } });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Failed');
+        adjAvailableTeachers = json.teachers || [];
+        if (!adjAvailableTeachers.length) {
+            sel.innerHTML = '<option value="">No available teachers for this subject/grade</option>';
+            return;
+        }
+        sel.innerHTML = '<option value="">-- Select teacher --</option>';
+        adjAvailableTeachers.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t.id;
+            opt.textContent = t.name + (t.kind === 'shared_teacher' ? ' (Shared)' : '');
+            opt.dataset.name = t.name;
+            sel.appendChild(opt);
+        });
+    } catch (e) {
+        sel.innerHTML = '<option value="">Unable to load teachers</option>';
+        console.error(e);
+    }
+}
+
+document.getElementById('adjRequestType')?.addEventListener('change', adjUpdateFormLayout);
+
 document.getElementById('adjSubject')?.addEventListener('change', function() {
     adjSlotTouched = false;
     adjFillSlotFromSchedule();
+    if (adjNormalizedType() === 'teacher_reassignment') adjLoadAvailableTeachers();
 });
 document.getElementById('adjGradeLevel')?.addEventListener('change', function() {
     adjSlotTouched = false;
     adjFillSlotFromSchedule();
+    if (adjNormalizedType() === 'teacher_reassignment') adjLoadAvailableTeachers();
 });
-['adjSection', 'adjDay', 'adjStart', 'adjEnd'].forEach(id => {
+document.getElementById('adjSubstitute')?.addEventListener('change', function() {
+    const opt = this.options[this.selectedIndex];
+    const nameInp = document.getElementById('adjSubstituteName');
+    if (nameInp) nameInp.value = opt?.dataset?.name || opt?.textContent?.replace(/\s*\(Shared\)\s*$/, '') || '';
+});
+['adjDay', 'adjStart', 'adjEnd'].forEach(id => {
     document.getElementById(id)?.addEventListener('input', adjMarkSlotTouched);
     document.getElementById(id)?.addEventListener('change', adjMarkSlotTouched);
 });
 
 loadAdjustmentSchedules();
+adjUpdateFormLayout();
 
 function switchTab(name) {
     document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
@@ -287,6 +404,7 @@ function formatProposed(raw) {
         if (p.grade_level || p.section_name) parts.push((p.grade_level || '') + (p.section_name ? ' – ' + p.section_name : ''));
         if (p.day_of_week) parts.push('Day: ' + p.day_of_week);
         if (p.preferred_start_time) parts.push('Time: ' + p.preferred_start_time + (p.preferred_end_time ? ' – ' + p.preferred_end_time : ''));
+        if (p.substitute_teacher_name) parts.push('Substitute: ' + p.substitute_teacher_name);
         if (p.date_from) parts.push('Dates: ' + p.date_from + (p.date_to ? ' – ' + p.date_to : ''));
         if (p.detail) parts.push(p.detail);
         return escapeHtml(parts.filter(Boolean).join(' | ') || raw);
@@ -299,6 +417,21 @@ async function submitRequest(e) {
     e.preventDefault();
     const form = e.target;
     const body = Object.fromEntries(new FormData(form).entries());
+    if (body.request_type === 'time_change') body.request_type = 'schedule_change';
+    const type = body.request_type;
+    if (!['schedule_change', 'room_change', 'teacher_reassignment', 'other'].includes(type)) {
+        showToast('Please select an adjustment type.', 'error');
+        return;
+    }
+    if (type !== 'schedule_change') {
+        delete body.day_of_week;
+        delete body.preferred_start_time;
+        delete body.preferred_end_time;
+    }
+    if (type !== 'teacher_reassignment') {
+        delete body.substitute_faculty_id;
+        delete body.substitute_teacher_name;
+    }
     if (!body.schedule_id) delete body.schedule_id;
     try {
         const res = await fetch(ADJUSTMENT_API, {
@@ -311,6 +444,7 @@ async function submitRequest(e) {
         form.reset();
         adjSlotTouched = false;
         loadAdjustmentSchedules();
+        adjUpdateFormLayout();
         showToast(json.message || 'Your request has been submitted successfully.', 'success');
     } catch (err) {
         showToast(err.message, 'error');
@@ -344,7 +478,8 @@ async function loadRequests() {
 }
 
 const typeLabels = {
-    time_change: 'Time Change',
+    schedule_change: 'Schedule Change',
+    time_change: 'Schedule Change',
     room_change: 'Room Change',
     teacher_reassignment: 'Teacher Reassignment',
     section_change: 'Section Change',

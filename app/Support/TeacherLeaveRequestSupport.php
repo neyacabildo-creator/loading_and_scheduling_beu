@@ -236,6 +236,39 @@ class TeacherLeaveRequestSupport
             $notes
         );
 
+        $teacher = User::find((int) ($row->teacher_id ?? 0));
+        $teacherName = $teacher
+            ? trim(($teacher->first_name ?? '') . ' ' . ($teacher->last_name ?? '')) ?: ($teacher->name ?? 'Teacher')
+            : 'Teacher';
+        AdminPortalNotificationSupport::notifyAdminRequestDecision(
+            $connection,
+            'Teacher',
+            $teacherName,
+            'leave / absence request',
+            $status,
+            self::TABLE,
+            (int) $id
+        );
+
+        if ($status === 'approved') {
+            $from = substr((string) $row->date_from, 0, 10);
+            $to = substr((string) $row->date_to, 0, 10);
+            $totalDays = (int) ($row->total_days ?? 0);
+            if ($totalDays <= 0 && $from && $to) {
+                $totalDays = max(1, \Carbon\Carbon::parse($from)->diffInDays(\Carbon\Carbon::parse($to)) + 1);
+            }
+            $leaveLabel = ($row->leave_type ?? '') === 'absent' ? 'absent' : 'on approved leave';
+            AdminPortalNotificationSupport::notifyTeacherLeaveApprovedForScheduling(
+                $connection,
+                $teacherName,
+                $leaveLabel,
+                $totalDays,
+                \Carbon\Carbon::parse($from)->format('M j, Y'),
+                \Carbon\Carbon::parse($to)->format('M j, Y'),
+                (int) $id
+            );
+        }
+
         return back()->with('success', 'Leave request ' . $status . '.');
     }
 
@@ -267,6 +300,39 @@ class TeacherLeaveRequestSupport
             $status,
             $notes
         );
+
+        $teacher = User::find((int) ($row->teacher_id ?? 0));
+        $teacherName = $teacher
+            ? trim(($teacher->first_name ?? '') . ' ' . ($teacher->last_name ?? '')) ?: ($teacher->name ?? 'Teacher')
+            : 'Teacher';
+        AdminPortalNotificationSupport::notifyAdminRequestDecision(
+            $connection,
+            'Teacher',
+            $teacherName,
+            'leave / absence request',
+            $status,
+            self::TABLE,
+            (int) $id
+        );
+
+        if ($status === 'approved') {
+            $from = substr((string) $row->date_from, 0, 10);
+            $to = substr((string) $row->date_to, 0, 10);
+            $totalDays = (int) ($row->total_days ?? 0);
+            if ($totalDays <= 0 && $from && $to) {
+                $totalDays = max(1, \Carbon\Carbon::parse($from)->diffInDays(\Carbon\Carbon::parse($to)) + 1);
+            }
+            $leaveLabel = ($row->leave_type ?? '') === 'absent' ? 'absent' : 'on approved leave';
+            AdminPortalNotificationSupport::notifyTeacherLeaveApprovedForScheduling(
+                $connection,
+                $teacherName,
+                $leaveLabel,
+                $totalDays,
+                \Carbon\Carbon::parse($from)->format('M j, Y'),
+                \Carbon\Carbon::parse($to)->format('M j, Y'),
+                (int) $id
+            );
+        }
 
         return ['success' => true, 'message' => 'Leave request ' . $status . '.'];
     }

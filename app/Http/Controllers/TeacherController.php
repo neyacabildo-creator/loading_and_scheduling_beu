@@ -367,6 +367,44 @@ class TeacherController extends Controller
     }
 
     /**
+     * API: Personal workload history (schedules + faculty loads).
+     */
+    public function getWorkloadHistory(Request $request)
+    {
+        $teacherId = Auth::id();
+        $schoolYear = date('Y') . '-' . (date('Y') + 1);
+
+        $facultyLoads = FacultyLoad::where('faculty_id', $teacherId)->get();
+        $classSchedules = ClassSchedule::where('faculty_id', $teacherId)
+            ->whereNotIn('status', ['rejected', 'deleted'])
+            ->where(function ($q) {
+                $q->where('admin_approved', true)
+                    ->orWhereIn('status', ['active', 'approved']);
+            })
+            ->with(['room'])
+            ->orderBy('day_of_week')
+            ->orderBy('start_time')
+            ->get();
+
+        $schedules = TeacherPortalSupport::buildWorkloadSchedules($classSchedules, $facultyLoads);
+        $histories = collect($schedules)->map(fn ($s) => [
+            'id'          => $s['id'] ?? null,
+            'subject'     => $s['subject'] ?? $s['subject_name'] ?? '—',
+            'grade_level' => $s['grade_level'] ?? null,
+            'section'     => $s['section_name'] ?? null,
+            'day_of_week' => $s['day_of_week'] ?? '—',
+            'start_time'  => $s['start_time'] ?? null,
+            'end_time'    => $s['end_time'] ?? null,
+            'units'       => (int) ($s['units'] ?? 1),
+            'load_hours'  => (float) ($s['load_hours'] ?? 0),
+            'school_year' => $schoolYear,
+            'status'      => $s['status'] ?? 'active',
+        ])->values();
+
+        return response()->json(['success' => true, 'data' => $histories]);
+    }
+
+    /**
      * Get all teachers (for admin dashboard)
      */
     public function index(Request $request)
@@ -538,6 +576,27 @@ class TeacherController extends Controller
                 'subjects'  => $subjects,
                 'schedules' => $schedules,
             ]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
+    public function getAdjustmentAvailableTeachers(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'subject'     => 'required|string|max:120',
+                'grade_level' => 'nullable|string|max:80',
+            ]);
+            $conn = TeacherAdjustmentRequestSupport::connectionForSchool('junior_high');
+            $teachers = TeacherAdjustmentRequestSupport::availableTeachersForReassignment(
+                $conn,
+                (int) Auth::id(),
+                $validated['subject'],
+                $validated['grade_level'] ?? null
+            );
+
+            return response()->json(['success' => true, 'teachers' => $teachers]);
         } catch (\Throwable $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }

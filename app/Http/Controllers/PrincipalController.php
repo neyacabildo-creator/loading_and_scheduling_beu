@@ -178,6 +178,12 @@ class PrincipalController extends Controller
             'reviewed_at'    => now(),
         ]);
 
+        $permissionRequest->refresh();
+        \App\Support\AdminPortalNotificationSupport::notifyPrincipalPermissionDecision(
+            $permissionRequest,
+            'approved'
+        );
+
         return back()->with('success', 'Request approved and admin has been notified.');
     }
 
@@ -194,6 +200,12 @@ class PrincipalController extends Controller
             'reviewer_notes' => $data['reviewer_notes'],
             'reviewed_at'    => now(),
         ]);
+
+        $permissionRequest->refresh();
+        \App\Support\AdminPortalNotificationSupport::notifyPrincipalPermissionDecision(
+            $permissionRequest,
+            'rejected'
+        );
 
         return back()->with('success', 'Request rejected. Admin has been given your guidance.');
     }

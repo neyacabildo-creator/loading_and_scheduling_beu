@@ -30,7 +30,8 @@ class AdminRequestDisplay
         }
 
         return match ($type) {
-            'time_change'            => 'Time Change',
+            'schedule_change',
+            'time_change'            => 'Schedule Change',
             'room_change'            => 'Room Change',
             'teacher_reassignment'   => 'Teacher Reassignment',
             'section_change'         => 'Section Change',

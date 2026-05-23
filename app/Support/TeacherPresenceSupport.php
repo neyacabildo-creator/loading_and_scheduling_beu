@@ -2,7 +2,9 @@
 
 namespace App\Support;
 
+use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -139,5 +141,125 @@ class TeacherPresenceSupport
         }
 
         return null;
+    }
+
+    /**
+     * Approved leave/absence rows covering today for admin banners.
+     *
+     * @return array{regular: array<int, array<string, mixed>>, shared: array<int, array<string, mixed>>}
+     */
+    public static function collectActiveLeaveBannerData(string $connection, array $sharedTeacherIds = []): array
+    {
+        $sharedSet = array_flip(array_map('intval', $sharedTeacherIds));
+        $regular = [];
+        $shared = [];
+
+        if (! Schema::connection($connection)->hasTable(TeacherLeaveRequestSupport::TABLE)) {
+            return ['regular' => [], 'shared' => []];
+        }
+
+        $today = now()->toDateString();
+        $rows = DB::connection($connection)
+            ->table(TeacherLeaveRequestSupport::TABLE)
+            ->where('status', 'approved')
+            ->where('date_from', '<=', $today)
+            ->where('date_to', '>=', $today)
+            ->orderBy('date_from')
+            ->get();
+
+        $userIds = $rows->pluck('teacher_id')->unique()->filter();
+        $users = $userIds->isNotEmpty()
+            ? User::whereIn('id', $userIds)->get()->keyBy('id')
+            : collect();
+
+        foreach ($rows as $row) {
+            $tid = (int) $row->teacher_id;
+            $user = $users->get($tid);
+            $name = $user
+                ? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: ($user->name ?? 'Teacher')
+                : 'Teacher #' . $tid;
+            $from = substr((string) $row->date_from, 0, 10);
+            $to = substr((string) $row->date_to, 0, 10);
+            $totalDays = (int) ($row->total_days ?? 0);
+            if ($totalDays <= 0 && $from && $to) {
+                $totalDays = max(1, Carbon::parse($from)->diffInDays(Carbon::parse($to)) + 1);
+            }
+            $type = (string) ($row->leave_type ?? 'other');
+            $entry = [
+                'id'          => $tid,
+                'name'        => $name,
+                'label'       => $type === 'absent' ? 'Absent' : 'On Leave',
+                'type'        => $type,
+                'status'      => $type === 'absent' ? 'absent' : 'on_leave',
+                'date_from'   => $from,
+                'date_to'     => $to,
+                'total_days'  => $totalDays,
+                'date_range'  => Carbon::parse($from)->format('M j, Y') . ' – ' . Carbon::parse($to)->format('M j, Y'),
+            ];
+            if (isset($sharedSet[$tid])) {
+                $shared[$tid] = $entry;
+            } else {
+                $regular[$tid] = $entry;
+            }
+        }
+
+        return ['regular' => array_values($regular), 'shared' => array_values($shared)];
+    }
+
+    /**
+     * Faculty load status when teacher is on approved leave (overrides schedule-based availability).
+     */
+    public static function applyPresenceToFacultyLoadRow(array $data, ?array $presence): array
+    {
+        if (! $presence) {
+            return $data;
+        }
+
+        $data['presence_status'] = $presence['status'] ?? null;
+        $data['presence_label'] = $presence['label'] ?? null;
+        $data['status'] = 'unavailable';
+        $days = (int) ($presence['total_days'] ?? 0);
+        if ($days <= 0 && ! empty($presence['date_from']) && ! empty($presence['date_to'])) {
+            $days = max(1, Carbon::parse($presence['date_from'])->diffInDays(Carbon::parse($presence['date_to'])) + 1);
+        }
+        $data['availability_note'] = ($presence['label'] ?? 'On Leave')
+            . ($days > 0 ? " ({$days} day" . ($days === 1 ? '' : 's') . ')' : '')
+            . (! empty($presence['date_to']) ? ' until ' . Carbon::parse($presence['date_to'])->format('M j, Y') : '');
+
+        return $data;
+    }
+
+    /**
+     * Enrich active status with total_days for API consumers.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function activeStatusForTeacherWithDays(string $connection, int $facultyId, ?Carbon $onDate = null): ?array
+    {
+        $status = self::activeStatusForTeacher($connection, $facultyId, $onDate);
+        if (! $status) {
+            return null;
+        }
+
+        if (Schema::connection($connection)->hasTable(TeacherLeaveRequestSupport::TABLE)) {
+            $today = ($onDate ?? now())->toDateString();
+            $row = DB::connection($connection)
+                ->table(TeacherLeaveRequestSupport::TABLE)
+                ->where('teacher_id', $facultyId)
+                ->where('status', 'approved')
+                ->where('date_from', '<=', $today)
+                ->where('date_to', '>=', $today)
+                ->orderByDesc('date_to')
+                ->first();
+            if ($row) {
+                $totalDays = (int) ($row->total_days ?? 0);
+                if ($totalDays <= 0) {
+                    $totalDays = max(1, Carbon::parse($row->date_from)->diffInDays(Carbon::parse($row->date_to)) + 1);
+                }
+                $status['total_days'] = $totalDays;
+            }
+        }
+
+        return $status;
     }
 }

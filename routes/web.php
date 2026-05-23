@@ -180,11 +180,13 @@ Route::middleware('auth')->group(function () {
         Route::get('api/teacher/students', [\App\Http\Controllers\TeacherController::class, 'getMyStudents']);
         Route::get('api/teacher/performance', [\App\Http\Controllers\TeacherController::class, 'getClassPerformance']);
         Route::get('api/teacher/faculty-load', [\App\Http\Controllers\TeacherController::class, 'getFacultyLoad']);
+        Route::get('api/teacher/workload-history', [\App\Http\Controllers\TeacherController::class, 'getWorkloadHistory']);
         Route::get('api/teacher/grades', [\App\Http\Controllers\TeacherController::class, 'getGrades']);
         Route::post('api/teacher/grades/submit', [\App\Http\Controllers\TeacherController::class, 'submitGrades']);
         Route::get('api/teacher/schedules', [ScheduleController::class, 'getTeacherSchedules'])->name('teacher.schedules');
         Route::get('api/teacher/adjustment-requests', [\App\Http\Controllers\TeacherController::class, 'getAdjustmentRequests']);
         Route::get('api/teacher/adjustment-schedules', [\App\Http\Controllers\TeacherController::class, 'getAdjustmentScheduleOptions']);
+        Route::get('api/teacher/adjustment-available-teachers', [\App\Http\Controllers\TeacherController::class, 'getAdjustmentAvailableTeachers']);
         Route::post('api/teacher/adjustment-requests', [\App\Http\Controllers\TeacherController::class, 'storeAdjustmentRequest']);
         Route::get('api/teacher/leave-requests', [\App\Http\Controllers\TeacherController::class, 'getLeaveRequests']);
         Route::post('api/teacher/leave-requests', [\App\Http\Controllers\TeacherController::class, 'storeLeaveRequest']);
@@ -1496,6 +1498,9 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolTeacher::class, 'sc
         ]);
         Route::get('/adjustment-schedules', [
             \App\Http\Controllers\GradeSchoolTeacherController::class, 'getAdjustmentScheduleOptions'
+        ]);
+        Route::get('/adjustment-available-teachers', [
+            \App\Http\Controllers\GradeSchoolTeacherController::class, 'getAdjustmentAvailableTeachers'
         ]);
         Route::post('/adjustment-requests', [
             \App\Http\Controllers\GradeSchoolTeacherController::class, 'storeAdjustmentRequest'

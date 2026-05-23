@@ -142,7 +142,12 @@ class GradeSchoolAdminController extends Controller
                 fn ($s) => ($s['school'] ?? '') === 'GS'
             ));
 
+            $sharedTeacherIds = DB::connection('mysql_gs')->table('shared_teachers')
+                ->where('is_active', true)->pluck('faculty_id')->map(fn ($id) => (int) $id)->all();
+            $leaveBanner = \App\Support\TeacherPresenceSupport::collectActiveLeaveBannerData('mysql_gs', $sharedTeacherIds);
+
             return view('grade-school-admin.dashboard', [
+                'leaveBanner' => $leaveBanner,
                 'timetableSchedules'    => $timetableSchedules,
                 'totalFaculty'          => $totalFaculty,
                 'totalClasses'          => $totalClasses,
@@ -748,9 +753,13 @@ class GradeSchoolAdminController extends Controller
         $dbSubjects = ClassSchedule::distinct()->pluck('subject')->filter()->values()->toArray();
         $subjects   = collect(array_unique(array_merge($dbSubjects, $defaultSubjects)))->sort()->values()->toArray();
 
+        $sharedTeacherIds = DB::connection('mysql_gs')->table('shared_teachers')
+            ->where('is_active', true)->pluck('faculty_id')->map(fn ($id) => (int) $id)->all();
+        $leaveBanner = \App\Support\TeacherPresenceSupport::collectActiveLeaveBannerData('mysql_gs', $sharedTeacherIds);
+
         return view('grade-school-admin.faculty-loading', compact(
             'totalFaculty', 'totalClasses', 'avgLoad', 'overloaded', 'teachers', 'subjects',
-            'sharedTeacherUserIds'
+            'sharedTeacherUserIds', 'leaveBanner'
         ));
     }
 
@@ -793,10 +802,8 @@ class GradeSchoolAdminController extends Controller
                 }
                 $data['is_shared_teacher'] = isset($sharedTeacherIds[(string) $load->faculty_id]);
                 $presence = $load->faculty_id
-                    ? \App\Support\TeacherPresenceSupport::activeStatusForTeacher('mysql_gs', (int) $load->faculty_id)
+                    ? \App\Support\TeacherPresenceSupport::activeStatusForTeacherWithDays('mysql_gs', (int) $load->faculty_id)
                     : null;
-                $data['presence_status'] = $presence['status'] ?? null;
-                $data['presence_label'] = $presence['label'] ?? null;
                 // Compute live classes_assigned, load_hours, and status from approved schedules
                 if ($load->faculty_id) {
                     $allScheds = collect($approvedScheds->get($load->faculty_id, []));
@@ -832,6 +839,10 @@ class GradeSchoolAdminController extends Controller
                         && $sharedCount > FacultyLoadSupport::SHARED_TEACHER_MAX_LOADS;
                     if ($data['shared_load_conflict']) {
                         $data['status'] = 'overloaded';
+                    }
+
+                    if ($presence) {
+                        $data = \App\Support\TeacherPresenceSupport::applyPresenceToFacultyLoadRow($data, $presence);
                     }
                 }
 

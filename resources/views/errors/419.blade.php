@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Session Expired</title>
+    @include('partials.spup-favicon')
     <style>
         body {
             background: #1a1a2e;

@@ -66,6 +66,8 @@
         </button>
     </div>
 
+    @include('partials.admin-teacher-absence-banner')
+
     <!-- Filter Section -->
     <div class="filter-section">
         <input type="text" id="searchInput" class="filter-input" placeholder="Search teacher name...">
@@ -73,6 +75,7 @@
             <option value="">All Status</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
+            <option value="unavailable">Unavailable (Leave)</option>
             <option value="overloaded">Overloaded</option>
         </select>
         <button class="filter-btn" onclick="applyFilters()">Apply Filters</button>
@@ -388,15 +391,19 @@
             tbody.innerHTML = pageData.map(load => {
                 const normalizedStatus = (load.status || 'available').toLowerCase();
                 const isAvailable = normalizedStatus === 'available';
-                const isNotAvailable = normalizedStatus === 'not_available' || normalizedStatus === 'unavailable';
-                const isOverloaded = normalizedStatus === 'overloaded' || normalizedStatus === 'overload';
+                const isOnLeave = !!load.presence_status;
+                const isNotAvailable = isOnLeave || normalizedStatus === 'not_available' || normalizedStatus === 'unavailable';
+                const isOverloaded = !isOnLeave && (normalizedStatus === 'overloaded' || normalizedStatus === 'overload');
                 let statusClass, statusText;
-                if (isAvailable) {
+                if (isOnLeave) {
+                    statusClass = 'badge-danger';
+                    statusText  = load.availability_note || ('Unavailable — ' + (load.presence_label || 'On Leave'));
+                } else if (isAvailable) {
                     statusClass = 'badge-active';
                     statusText  = 'Available';
                 } else if (isNotAvailable) {
                     statusClass = 'badge-danger';
-                    statusText  = 'Not Available';
+                    statusText  = load.availability_note || 'Not Available';
                 } else if (isOverloaded) {
                     statusClass = 'badge-warning';
                     if (load.shared_load_conflict) {

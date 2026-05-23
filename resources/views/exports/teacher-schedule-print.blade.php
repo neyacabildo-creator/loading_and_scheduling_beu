@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>My Schedule — {{ $teacherName }}</title>
+    @include('partials.spup-favicon')
     <style>
         body { font-family: Arial, sans-serif; margin: 2rem; color: #1a1a1a; }
         h1 { font-size: 1.35rem; margin: 0 0 0.25rem; }

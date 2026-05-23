@@ -2,8 +2,8 @@
     $notificationsApi = $notificationsApi ?? url('/api/admin/notifications');
 @endphp
 <style>
-    .ap-notif-wrap { position: relative; }
-    .ap-notif-btn {
+    .ap-notif-wrap { position: relative; display: inline-flex; align-items: center; flex-shrink: 0; }
+    .ap-notif-btn.ap-notif-btn {
         position: relative;
         padding: 0.5rem;
         background: transparent;
@@ -11,8 +11,12 @@
         cursor: pointer;
         color: var(--text-secondary, #6b7280);
         border-radius: 0.5rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
     }
-    .ap-notif-btn:hover { background: var(--bg-primary, #f5f3ed); color: var(--text-primary, #2d3436); }
+    .ap-notif-btn.ap-notif-btn:hover { background: var(--bg-primary, #f5f3ed); color: var(--text-primary, #2d3436); }
     .ap-notif-dot {
         position: absolute;
         top: 2px;
@@ -97,6 +101,7 @@
 (function() {
     const api = @json($notificationsApi);
     const allRequestsUrl = @json($allRequestsUrl ?? '');
+    const permissionRequestsUrl = @json($permissionRequestsUrl ?? '');
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const btn = document.getElementById('apNotifBtn');
     const panel = document.getElementById('apNotifPanel');
@@ -113,9 +118,13 @@
 
     function typeLabel(type) {
         const map = {
-            principal_schedule_approved: 'Principal · Approved',
-            principal_schedule_rejected: 'Principal · Rejected',
-            teacher_request: 'Teacher request',
+            principal_schedule_approved: 'Principal · Schedule approved',
+            principal_schedule_rejected: 'Principal · Schedule rejected',
+            principal_permission_approved: 'Principal · Request approved',
+            principal_permission_rejected: 'Principal · Request rejected',
+            admin_request_approved: 'Admin · Request approved',
+            admin_request_rejected: 'Admin · Request rejected',
+            teacher_request: 'New teacher request',
             general: 'Notice'
         };
         return map[type] || 'Notification';
@@ -140,7 +149,7 @@
                 return;
             }
             list.innerHTML = items.map(n => `
-                <div class="ap-notif-item ${n.is_read ? '' : 'unread'}" data-id="${n.id}">
+                <div class="ap-notif-item ${n.is_read ? '' : 'unread'}" data-id="${n.id}" data-type="${esc(n.type || '')}">
                     <span class="ap-notif-type">${esc(typeLabel(n.type))}</span>
                     <strong>${esc(n.title)}</strong>
                     <p>${esc(n.message)}</p>
@@ -158,7 +167,14 @@
                             body: JSON.stringify({ id: id })
                         }).catch(() => {});
                     }
-                    if (allRequestsUrl) window.location.href = allRequestsUrl;
+                    const t = this.dataset.type || '';
+                    let target = allRequestsUrl;
+                    if (t.startsWith('principal_permission') && permissionRequestsUrl) {
+                        target = permissionRequestsUrl;
+                    } else if ((t.startsWith('admin_request') || t === 'teacher_request' || t.startsWith('principal_schedule')) && allRequestsUrl) {
+                        target = allRequestsUrl;
+                    }
+                    if (target) window.location.href = target;
                     else loadNotifications();
                 });
             });

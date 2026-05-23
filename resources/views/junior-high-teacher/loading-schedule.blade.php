@@ -334,7 +334,7 @@
                 <div class="adj-field">
                     <label>Type of Request</label>
                     <select id="adj-type">
-                        <option value="time_change">Time Change</option>
+                        <option value="schedule_change">Schedule Change</option>
                         <option value="room_change">Room Change</option>
                         <option value="teacher_reassignment">Teacher Reassignment</option>
                         <option value="section_change">Section Change</option>

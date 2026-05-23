@@ -10,6 +10,7 @@
     <meta http-equiv="Expires" content="0">
     <meta name="user-id" content="{{ auth()->id() }}">
     <title>@yield('title', 'Dashboard') - SPUP GS Teacher Portal</title>
+    @include('partials.spup-favicon')
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -82,7 +83,29 @@
         .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; background: var(--bg-secondary); padding: 1.5rem; border-radius: 0.75rem; border: 1px solid var(--border-color); }
         .header-left { display: flex; align-items: center; gap: 1rem; }
         .page-title { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); }
-        .header-right { display: flex; align-items: center; gap: 0.75rem; }
+        .header-right { display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0; }
+        .teacher-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
+            padding: 0.65rem 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+        }
+        .teacher-toolbar .header-btn {
+            padding: 0.45rem 0.75rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.375rem;
+            cursor: pointer;
+        }
+        .teacher-toolbar .header-btn:hover { color: var(--text-primary); border-color: var(--green-primary); }
         .search-btn { padding: 0.5rem; background: transparent; border: none; cursor: pointer; color: var(--text-secondary); border-radius: 0.5rem; transition: all 0.2s; }
         .search-btn:hover { background: var(--bg-primary); color: var(--text-primary); }
         .header-btn { padding: 0.5rem; background: transparent; border: none; cursor: pointer; color: #6b7280; border-radius: 0.5rem; }
@@ -227,32 +250,11 @@
                 <span>Review Schedule</span>
             </a>
 
-            <div class="nav-section">My Workload</div>
-            <a href="{{ route('grade-school-teacher.faculty-loading') }}" class="nav-item {{ request()->routeIs('grade-school-teacher.faculty-loading') ? 'active' : '' }}">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
-                <span>Workload Summary</span>
-            </a>
-            <a href="{{ route('grade-school-teacher.workload-history') }}" class="nav-item {{ request()->routeIs('grade-school-teacher.workload-history') ? 'active' : '' }}">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-                <span>Workload History</span>
-            </a>
-            <a href="{{ route('grade-school-teacher.loading-schedule') }}" class="nav-item {{ request()->routeIs('grade-school-teacher.loading-schedule') ? 'active' : '' }}">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                <span>Loading Schedule</span>
-            </a>
-
-
-
             <div class="nav-section">Actions</div>
             <a href="{{ route('grade-school-teacher.request-adjustments') }}" class="nav-item {{ request()->routeIs('grade-school-teacher.request-adjustments') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                 <span>Request Adjustments</span>
             </a>
-            <a href="{{ route('grade-school-teacher.feedback') }}" class="nav-item {{ request()->routeIs('grade-school-teacher.feedback') ? 'active' : '' }}">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
-                <span>Provide Feedback</span>
-            </a>
-
             <div class="nav-section">Reports</div>
             <a href="{{ route('grade-school-teacher.print-export') }}" class="nav-item {{ request()->routeIs('grade-school-teacher.print-export') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
@@ -288,9 +290,17 @@
 
     <!-- Main Content -->
     <main class="main-content">
-        <div style="position:fixed;top:1rem;right:1.25rem;z-index:1100;">
-            @include('partials.teacher-portal-notifications', ['notificationsApi' => '/api/grade-school-teacher/notifications'])
+        @unless(request()->routeIs('grade-school-teacher.dashboard'))
+        <div class="teacher-toolbar">
+            <div class="header-right" style="margin-left:auto;">
+                <button type="button" class="header-btn" title="Language">EN</button>
+                @include('partials.teacher-portal-notifications', [
+                    'notificationsApi' => '/api/grade-school-teacher/notifications',
+                    'markReadApi' => '/api/grade-school-teacher/notifications/read',
+                ])
+            </div>
         </div>
+        @endunless
         @yield('content')
     </main>
     <script>

@@ -47,11 +47,6 @@
             </div>
 
             <div style="margin-bottom:1rem;">
-                <label style="display:block;font-size:0.8rem;font-weight:600;color:var(--text-secondary);margin-bottom:0.35rem;text-transform:uppercase;letter-spacing:0.03em;">Subject (one line)</label>
-                <input type="text" name="subject" maxlength="200" style="width:100%;padding:0.6rem 0.875rem;border:1px solid var(--border-color);border-radius:0.375rem;font-size:0.875rem;background:var(--bg-tertiary);color:var(--text-primary);" value="{{ old('subject') }}" required placeholder="e.g. Delete schedule for Maria Santos">
-            </div>
-
-            <div style="margin-bottom:1rem;">
                 <label style="display:block;font-size:0.8rem;font-weight:600;color:var(--text-secondary);margin-bottom:0.35rem;text-transform:uppercase;letter-spacing:0.03em;">Details</label>
                 <textarea name="details" rows="5" maxlength="2000" style="width:100%;padding:0.6rem 0.875rem;border:1px solid var(--border-color);border-radius:0.375rem;font-size:0.875rem;background:var(--bg-tertiary);color:var(--text-primary);resize:vertical;" required placeholder="Explain what you intend to do and why you need approval...">{{ old('details') }}</textarea>
             </div>
@@ -76,7 +71,7 @@
                 <thead>
                     <tr>
                         <th>Action</th>
-                        <th>Subject</th>
+                        <th>Details</th>
                         <th>Status</th>
                         <th>Principal Notes</th>
                         <th>Date</th>
@@ -87,8 +82,8 @@
                     @foreach($myRequests as $req)
                     <tr>
                         <td style="white-space:nowrap;font-size:0.8rem;">{{ $req->actionLabel() }}</td>
-                        <td style="max-width:160px;font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ $req->subject }}">
-                            {{ $req->subject }}
+                        <td style="max-width:220px;font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ $req->details }}">
+                            {{ $req->detailsSummary(60) }}
                         </td>
                         <td>
                             <span class="badge badge-{{ $req->status }}">{{ ucfirst($req->status) }}</span>

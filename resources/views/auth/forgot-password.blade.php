@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>SPUP - Forgot Password</title>
+    @include('partials.spup-favicon')
     @include('partials.auth-guest-styles')
 </head>
 <body>

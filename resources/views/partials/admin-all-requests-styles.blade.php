@@ -464,6 +464,18 @@ html[data-theme="dark"] .str-data-table .str-day-line {
     color: var(--text-secondary);
     margin-right: 0.25rem;
 }
+.str-absent-chip {
+    display: inline-block;
+    padding: 0.25rem 0.65rem;
+    border-radius: 9999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+.str-absent-chip em {
+    font-style: normal;
+    opacity: 0.9;
+    font-weight: 500;
+}
 
 @media (max-width: 1100px) {
     .str-actions-grid {

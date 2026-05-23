@@ -1,8 +1,10 @@
 @php
     $notificationsApi = $notificationsApi ?? '/api/teacher/notifications';
+    $markReadApi = $markReadApi ?? ($notificationsApi . '/read');
+    $bannerMode = $bannerMode ?? false;
 @endphp
 <style>
-    .tp-notif-wrap { position: relative; }
+    .tp-notif-wrap { position: relative; display: inline-flex; align-items: center; flex-shrink: 0; }
     .tp-notif-btn {
         position: relative;
         padding: 0.5rem;
@@ -11,19 +13,30 @@
         cursor: pointer;
         color: var(--text-secondary, #6b7280);
         border-radius: 0.5rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
     }
     .tp-notif-btn:hover { background: var(--bg-primary, #f5f3ed); color: var(--text-primary, #2d3436); }
     .tp-notif-dot {
         position: absolute;
-        top: 4px;
-        right: 4px;
-        min-width: 8px;
-        height: 8px;
+        top: 2px;
+        right: 2px;
+        min-width: 16px;
+        height: 16px;
+        padding: 0 4px;
         background: #ef4444;
-        border-radius: 50%;
+        color: #fff;
+        font-size: 0.6rem;
+        font-weight: 700;
+        border-radius: 9999px;
         display: none;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
     }
-    .tp-notif-dot.show { display: block; }
+    .tp-notif-dot.show { display: flex; }
     .tp-notif-panel {
         display: none;
         position: absolute;
@@ -47,6 +60,10 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        position: sticky;
+        top: 0;
+        background: var(--bg-secondary, #fff);
+        z-index: 1;
     }
     .tp-notif-item {
         padding: 0.75rem 1rem;
@@ -74,6 +91,7 @@
 <script>
 (function() {
     const api = @json($notificationsApi);
+    const markReadUrl = @json($markReadApi);
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const btn = document.getElementById('tpNotifBtn');
     const panel = document.getElementById('tpNotifPanel');
@@ -90,12 +108,13 @@
 
     async function loadNotifications() {
         try {
-            const res = await fetch(api, { headers: { 'Accept': 'application/json' } });
+            const res = await fetch(api, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
             const json = await res.json();
             if (!res.ok || !json.success) throw new Error(json.message || 'Failed');
             const items = json.data || [];
             const unread = json.unread_count || 0;
             dot.classList.toggle('show', unread > 0);
+            dot.textContent = unread > 9 ? '9+' : (unread > 0 ? String(unread) : '');
             if (!items.length) {
                 list.innerHTML = '<div class="tp-notif-empty">No notifications yet.</div>';
                 return;
@@ -120,10 +139,11 @@
 
     markAll?.addEventListener('click', async function() {
         try {
-            await fetch(api + '/read', {
+            await fetch(markReadUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
-                body: '{}'
+                body: '{}',
+                credentials: 'same-origin',
             });
             loadNotifications();
         } catch (e) {}

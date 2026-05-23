@@ -136,8 +136,13 @@ class DashboardController extends Controller
                 fn ($s) => ($s['school'] ?? '') === 'JH'
             ));
 
+            $sharedTeacherIds = DB::connection('mysql_jh')->table('shared_teachers')
+                ->where('is_active', true)->pluck('faculty_id')->map(fn ($id) => (int) $id)->all();
+            $leaveBanner = \App\Support\TeacherPresenceSupport::collectActiveLeaveBannerData('mysql_jh', $sharedTeacherIds);
+
             // Junior High Admin dashboard
             return view('junior-high-admin.dashboard', [
+                'leaveBanner' => $leaveBanner,
                 'timetableSchedules' => $timetableSchedules,
                 // Header stats
                 'totalFaculty' => $totalFaculty,

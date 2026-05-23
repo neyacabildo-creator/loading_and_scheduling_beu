@@ -415,39 +415,40 @@ class SharedTeacherPortalController extends Controller
             : collect();
 
         return $rows->map(function ($r) use ($users, $schedules, $presenceMap) {
-            $facultyId = (int) ($r->faculty_id ?? $r->requested_by ?? 0);
+            $facultyId = (int) ($this->rowGet($r, 'faculty_id') ?? $this->rowGet($r, 'requested_by') ?? 0);
             $user = $users->get($facultyId);
-            $schedule = $r->schedule_id ? $schedules->get($r->schedule_id) : null;
-            $reviewer = $users->get($r->reviewed_by);
+            $scheduleId = $this->rowGet($r, 'schedule_id');
+            $schedule = $scheduleId ? $schedules->get($scheduleId) : null;
+            $reviewer = $users->get($this->rowGet($r, 'reviewed_by'));
             $display = $this->resolveAdjustmentRequestDisplay($r, $schedule);
 
             $teacherName = $user
                 ? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: ($user->name ?? null)
                 : null;
-            if (! $teacherName && ! empty($r->teacher_name)) {
-                $teacherName = $r->teacher_name;
+            if (! $teacherName && ! empty($this->rowGet($r, 'teacher_name'))) {
+                $teacherName = $this->rowGet($r, 'teacher_name');
             }
 
             return (object) [
                 'id'                   => $r->id,
                 'source'               => 'teacher_requests',
-                'status'               => $r->status,
+                'status'               => $this->rowGet($r, 'status'),
                 'teacher_name'         => $teacherName,
-                'request_type'         => $r->request_type,
+                'request_type'         => $this->rowGet($r, 'request_type'),
                 'request_type_label'   => $display['request_type_label'] ?? null,
-                'subject'              => $display['subject'] ?? $r->subject,
-                'grade_level'          => $display['grade_level'] ?? $r->grade_level,
-                'section_name'         => $display['section_name'] ?? $r->section_name,
+                'subject'              => $display['subject'] ?? $this->rowGet($r, 'subject'),
+                'grade_level'          => $display['grade_level'] ?? $this->rowGet($r, 'grade_level'),
+                'section_name'         => $display['section_name'] ?? $this->rowGet($r, 'section_name'),
                 'grade_section'        => $display['grade_section'],
-                'day_of_week'          => $display['day_of_week'] ?? $r->day_of_week,
-                'preferred_start_time' => $display['preferred_start_time'] ?? $r->preferred_start_time,
-                'preferred_end_time'   => $display['preferred_end_time'] ?? $r->preferred_end_time,
-                'reason'               => $r->reason ?? $r->description ?? null,
-                'description'          => $r->reason ?? $r->description ?? null,
-                'proposed_changes'     => $r->proposed_changes,
-                'admin_notes'          => $r->admin_notes,
-                'created_at'           => $r->created_at,
-                'reviewed_at'          => $r->reviewed_at,
+                'day_of_week'          => $display['day_of_week'] ?? $this->rowGet($r, 'day_of_week'),
+                'preferred_start_time' => $display['preferred_start_time'] ?? $this->rowGet($r, 'preferred_start_time'),
+                'preferred_end_time'   => $display['preferred_end_time'] ?? $this->rowGet($r, 'preferred_end_time'),
+                'reason'               => $this->rowGet($r, 'reason') ?? $this->rowGet($r, 'description'),
+                'description'          => $this->rowGet($r, 'reason') ?? $this->rowGet($r, 'description'),
+                'proposed_changes'     => $this->rowGet($r, 'proposed_changes'),
+                'admin_notes'          => $this->rowGet($r, 'admin_notes'),
+                'created_at'           => $this->rowGet($r, 'created_at'),
+                'reviewed_at'          => $this->rowGet($r, 'reviewed_at'),
                 'user'                 => $user,
                 'reviewer'             => $reviewer,
                 'presence'             => $presenceMap[$facultyId] ?? null,
@@ -489,18 +490,18 @@ class SharedTeacherPortalController extends Controller
     private function resolveAdjustmentRequestDisplay(object $row, ?object $schedule): array
     {
         $parsed = $this->parseAdjustmentProposed($row->proposed_changes ?? null);
-        $typeLabel = $this->adjustmentTypeLabel($row->request_type ?? null);
+        $typeLabel = $this->adjustmentTypeLabel($this->rowGet($row, 'request_type'));
 
-        $subject = $schedule->subject ?? ($parsed['subject'] ?? null) ?? ($row->subject ?? null);
+        $subject = ($schedule->subject ?? null) ?? ($parsed['subject'] ?? null) ?? $this->rowGet($row, 'subject');
 
-        $gradeLevel = $schedule->grade_level ?? ($parsed['grade_level'] ?? null) ?? ($row->grade_level ?? null);
-        $sectionName = $schedule->section_name ?? ($parsed['section_name'] ?? null) ?? ($row->section_name ?? null);
+        $gradeLevel = ($schedule->grade_level ?? null) ?? ($parsed['grade_level'] ?? null) ?? $this->rowGet($row, 'grade_level');
+        $sectionName = ($schedule->section_name ?? null) ?? ($parsed['section_name'] ?? null) ?? $this->rowGet($row, 'section_name');
 
         $gradeSection = trim(($gradeLevel ?? '') . ($sectionName ? ' – ' . $sectionName : ''));
 
-        $day = $schedule->day_of_week ?? ($parsed['day_of_week'] ?? null) ?? ($row->day_of_week ?? null);
-        $start = $schedule->start_time ?? ($parsed['preferred_start_time'] ?? $parsed['preferred_time'] ?? null) ?? ($row->preferred_start_time ?? null);
-        $end = $schedule->end_time ?? ($parsed['preferred_end_time'] ?? null) ?? ($row->preferred_end_time ?? null);
+        $day = ($schedule->day_of_week ?? null) ?? ($parsed['day_of_week'] ?? null) ?? $this->rowGet($row, 'day_of_week');
+        $start = ($schedule->start_time ?? null) ?? ($parsed['preferred_start_time'] ?? $parsed['preferred_time'] ?? null) ?? $this->rowGet($row, 'preferred_start_time');
+        $end = ($schedule->end_time ?? null) ?? ($parsed['preferred_end_time'] ?? null) ?? $this->rowGet($row, 'preferred_end_time');
 
         if (!$day && !empty($parsed['preferred_day'])) {
             $day = $parsed['preferred_day'];
@@ -521,6 +522,11 @@ class SharedTeacherPortalController extends Controller
     private function adjustmentTypeLabel(?string $type): string
     {
         return \App\Support\AdminRequestDisplay::requestTypeLabel($type);
+    }
+
+    private function rowGet(object $row, string $key, mixed $default = null): mixed
+    {
+        return property_exists($row, $key) ? $row->{$key} : $default;
     }
 
     /**
@@ -581,6 +587,20 @@ class SharedTeacherPortalController extends Controller
                     $status,
                     $notes
                 );
+
+                $teacher = User::find((int) ($row->teacher_id ?? 0));
+                $teacherName = $teacher
+                    ? trim(($teacher->first_name ?? '') . ' ' . ($teacher->last_name ?? '')) ?: ($teacher->name ?? 'Teacher')
+                    : 'Teacher';
+                \App\Support\AdminPortalNotificationSupport::notifyAdminRequestDecision(
+                    $adminConn,
+                    'Teacher',
+                    $teacherName,
+                    $this->adjustmentTypeLabel($row->request_type ?? null),
+                    $status,
+                    'teacher_requests',
+                    (int) $id
+                );
             }
 
             if ($updated === 0) {
@@ -611,47 +631,7 @@ class SharedTeacherPortalController extends Controller
      */
     private function collectAbsentTodaySummary(string $adminConn, array $sharedTeacherIds): array
     {
-        $sharedSet = array_flip(array_map('intval', $sharedTeacherIds));
-        $regular = [];
-        $shared = [];
-
-        if (! \Illuminate\Support\Facades\Schema::connection($adminConn)->hasTable(\App\Support\TeacherLeaveRequestSupport::TABLE)) {
-            return ['regular' => [], 'shared' => []];
-        }
-
-        $today = now()->toDateString();
-        $rows = DB::connection($adminConn)
-            ->table(\App\Support\TeacherLeaveRequestSupport::TABLE)
-            ->where('status', 'approved')
-            ->where('date_from', '<=', $today)
-            ->where('date_to', '>=', $today)
-            ->get();
-
-        $userIds = $rows->pluck('teacher_id')->unique()->filter();
-        $users = $userIds->isNotEmpty()
-            ? User::whereIn('id', $userIds)->get()->keyBy('id')
-            : collect();
-
-        foreach ($rows as $row) {
-            $tid = (int) $row->teacher_id;
-            $user = $users->get($tid);
-            $name = $user
-                ? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: ($user->name ?? 'Teacher')
-                : 'Teacher #' . $tid;
-            $entry = [
-                'id'    => $tid,
-                'name'  => $name,
-                'label' => ($row->leave_type ?? '') === 'absent' ? 'Absent' : 'On Leave',
-                'type'  => (string) ($row->leave_type ?? ''),
-            ];
-            if (isset($sharedSet[$tid])) {
-                $shared[$tid] = $entry;
-            } else {
-                $regular[$tid] = $entry;
-            }
-        }
-
-        return ['regular' => array_values($regular), 'shared' => array_values($shared)];
+        return \App\Support\TeacherPresenceSupport::collectActiveLeaveBannerData($adminConn, $sharedTeacherIds);
     }
 
     private function reviewSharedTeacherRequest(string $connection, int $id, string $status, ?string $notes)
@@ -675,6 +655,20 @@ class SharedTeacherPortalController extends Controller
                 $row,
                 $status,
                 $notes
+            );
+
+            $teacher = User::find((int) ($row->faculty_id ?? 0));
+            $teacherName = $teacher
+                ? trim(($teacher->first_name ?? '') . ' ' . ($teacher->last_name ?? '')) ?: ($teacher->name ?? 'Shared teacher')
+                : 'Shared teacher';
+            \App\Support\AdminPortalNotificationSupport::notifyAdminRequestDecision(
+                $connection,
+                'Shared teacher',
+                $teacherName,
+                'schedule request',
+                $status,
+                self::TBL,
+                (int) $id
             );
 
             return back()->with('success', 'Request ' . $status . '.');

@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\ClassSchedule;
 use App\Models\User;
+use App\Support\FacultyLoadSupport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -39,13 +40,15 @@ class TeacherAdjustmentRequestSupport
     public static function buildProposedPayload(Request $request, ?string $freeText): ?array
     {
         $payload = array_filter([
-            'subject'              => $request->input('subject'),
-            'grade_level'          => $request->input('grade_level'),
-            'section_name'         => $request->input('section_name'),
-            'day_of_week'          => $request->input('day_of_week'),
-            'preferred_start_time' => $request->input('preferred_start_time'),
-            'preferred_end_time'   => $request->input('preferred_end_time'),
-            'detail'               => $freeText,
+            'subject'                 => $request->input('subject'),
+            'grade_level'             => $request->input('grade_level'),
+            'section_name'            => $request->input('section_name'),
+            'day_of_week'             => $request->input('day_of_week'),
+            'preferred_start_time'    => $request->input('preferred_start_time'),
+            'preferred_end_time'      => $request->input('preferred_end_time'),
+            'substitute_faculty_id'   => $request->input('substitute_faculty_id'),
+            'substitute_teacher_name' => $request->input('substitute_teacher_name'),
+            'detail'                  => $freeText,
         ], fn ($v) => $v !== null && $v !== '');
 
         return $payload !== [] ? $payload : null;
@@ -107,22 +110,179 @@ class TeacherAdjustmentRequestSupport
     /**
      * @return array{success: bool, id?: int, message: string}
      */
+    /**
+     * Teachers and shared teachers who can cover a subject (and grade) for reassignment.
+     *
+     * @return array<int, array{id: int, name: string, kind: string}>
+     */
+    public static function availableTeachersForReassignment(
+        string $connection,
+        int $excludeFacultyId,
+        string $subject,
+        ?string $gradeLevel = null
+    ): array {
+        $subjectNorm = strtolower(trim($subject));
+        if ($subjectNorm === '') {
+            return [];
+        }
+
+        $facultyIds = [];
+
+        if (Schema::connection($connection)->hasTable('faculty_loads')) {
+            $loads = DB::connection($connection)->table('faculty_loads')
+                ->whereNotNull('faculty_id')
+                ->where('faculty_id', '!=', $excludeFacultyId)
+                ->get();
+            foreach ($loads as $load) {
+                if (! self::subjectMatches($load->subject ?? '', $subjectNorm)) {
+                    continue;
+                }
+                if ($gradeLevel && ! self::gradeMatches($load->grade_level ?? '', $gradeLevel)) {
+                    continue;
+                }
+                $facultyIds[] = (int) $load->faculty_id;
+            }
+        }
+
+        if (Schema::connection($connection)->hasTable('class_schedules')) {
+            $schedules = DB::connection($connection)->table('class_schedules')
+                ->whereNotNull('faculty_id')
+                ->where('faculty_id', '!=', $excludeFacultyId)
+                ->where(function ($q) {
+                    $q->where('admin_approved', true)->orWhereIn('status', ['active', 'approved']);
+                })
+                ->get();
+            foreach ($schedules as $row) {
+                if (! self::subjectMatches($row->subject ?? '', $subjectNorm)) {
+                    continue;
+                }
+                if ($gradeLevel && ! self::gradeMatches($row->grade_level ?? '', $gradeLevel)) {
+                    continue;
+                }
+                $facultyIds[] = (int) $row->faculty_id;
+            }
+        }
+
+        if (Schema::connection($connection)->hasTable('shared_teachers')) {
+            $shared = DB::connection($connection)->table('shared_teachers')
+                ->where('is_active', true)
+                ->whereNotNull('faculty_id')
+                ->where('faculty_id', '!=', $excludeFacultyId)
+                ->get();
+            foreach ($shared as $st) {
+                $subjects = $st->subjects ?? null;
+                if (is_string($subjects)) {
+                    $subjects = json_decode($subjects, true);
+                }
+                if (! is_array($subjects)) {
+                    continue;
+                }
+                foreach ($subjects as $sub) {
+                    if (self::subjectMatches((string) $sub, $subjectNorm)) {
+                        $facultyIds[] = (int) $st->faculty_id;
+                        break;
+                    }
+                }
+            }
+        }
+
+        $facultyIds = array_values(array_unique(array_filter($facultyIds)));
+
+        $results = [];
+        foreach ($facultyIds as $fid) {
+            $user = User::find($fid);
+            $name = $user
+                ? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: ($user->name ?? 'Teacher')
+                : null;
+
+            if (! $name && Schema::connection($connection)->hasTable('shared_teachers')) {
+                $st = DB::connection($connection)->table('shared_teachers')->where('faculty_id', $fid)->first();
+                $name = $st->teacher_name ?? null;
+            }
+
+            if (! $name) {
+                continue;
+            }
+
+            $isShared = FacultyLoadSupport::isSharedTeacher($fid);
+            $results[] = [
+                'id'   => $fid,
+                'name' => $name,
+                'kind' => $isShared ? 'shared_teacher' : 'teacher',
+            ];
+        }
+
+        usort($results, fn ($a, $b) => strcasecmp($a['name'], $b['name']));
+
+        return $results;
+    }
+
+    private static function subjectMatches(string $candidate, string $subjectNorm): bool
+    {
+        return strtolower(trim($candidate)) === $subjectNorm
+            || str_contains(strtolower(trim($candidate)), $subjectNorm)
+            || str_contains($subjectNorm, strtolower(trim($candidate)));
+    }
+
+    private static function gradeMatches(string $candidate, string $gradeLevel): bool
+    {
+        $a = preg_match('/\d+/', $candidate, $ma) ? $ma[0] : strtolower(trim($candidate));
+        $b = preg_match('/\d+/', $gradeLevel, $mb) ? $mb[0] : strtolower(trim($gradeLevel));
+
+        return $a === $b
+            || str_contains(strtolower(trim($candidate)), strtolower(trim($gradeLevel)))
+            || str_contains(strtolower(trim($gradeLevel)), strtolower(trim($candidate)));
+    }
+
     public static function store(Request $request, string $connection): array
     {
         self::ensureTable($connection);
 
+        $requestType = $request->input('request_type');
+        if ($requestType === 'time_change') {
+            $request->merge(['request_type' => 'schedule_change']);
+        }
+
         $validated = $request->validate([
-            'schedule_id'          => 'nullable|integer',
-            'request_type'         => 'required|in:time_change,room_change,teacher_reassignment,section_change,other',
-            'reason'               => 'required|string|min:3|max:1000',
-            'proposed_changes'     => 'nullable|string|max:1000',
-            'subject'              => 'nullable|string|max:120',
-            'grade_level'          => 'nullable|string|max:80',
-            'section_name'         => 'nullable|string|max:80',
-            'day_of_week'          => 'nullable|string|max:20',
-            'preferred_start_time' => 'nullable|string|max:20',
-            'preferred_end_time'   => 'nullable|string|max:20',
+            'schedule_id'             => 'nullable|integer',
+            'request_type'            => 'required|in:schedule_change,time_change,room_change,teacher_reassignment,section_change,other',
+            'reason'                  => 'required|string|min:3|max:1000',
+            'proposed_changes'        => 'nullable|string|max:1000',
+            'subject'                 => 'nullable|string|max:120',
+            'grade_level'             => 'nullable|string|max:80',
+            'section_name'            => 'nullable|string|max:80',
+            'day_of_week'             => 'nullable|string|max:20',
+            'preferred_start_time'    => 'nullable|string|max:20',
+            'preferred_end_time'      => 'nullable|string|max:20',
+            'substitute_faculty_id'   => 'nullable|integer',
+            'substitute_teacher_name' => 'nullable|string|max:200',
         ]);
+
+        $validated['request_type'] = $validated['request_type'] === 'time_change'
+            ? 'schedule_change'
+            : $validated['request_type'];
+
+        if (in_array($validated['request_type'], ['schedule_change', 'room_change', 'teacher_reassignment'], true)) {
+            $request->validate([
+                'subject'     => 'required|string|max:120',
+                'grade_level' => 'required|string|max:80',
+            ]);
+            $validated['subject'] = $request->input('subject');
+            $validated['grade_level'] = $request->input('grade_level');
+        }
+
+        if ($validated['request_type'] === 'teacher_reassignment') {
+            $request->validate(['substitute_faculty_id' => 'required|integer']);
+            $validated['substitute_faculty_id'] = (int) $request->input('substitute_faculty_id');
+            if (! $request->filled('substitute_teacher_name')) {
+                $sub = User::find($validated['substitute_faculty_id']);
+                $request->merge([
+                    'substitute_teacher_name' => $sub
+                        ? trim(($sub->first_name ?? '') . ' ' . ($sub->last_name ?? '')) ?: ($sub->name ?? '')
+                        : '',
+                ]);
+            }
+        }
 
         if (TeacherPresenceSupport::isAbsenceLeaveType($validated['request_type'] ?? null)) {
             return TeacherLeaveRequestSupport::store($request, $connection);

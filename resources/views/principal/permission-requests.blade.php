@@ -38,7 +38,7 @@
                         <th>Requested By</th>
                         <th>School Level</th>
                         <th>Action Type</th>
-                        <th>Subject</th>
+                        <th>Details</th>
                         <th>Status</th>
                         <th>Submitted</th>
                         <th>Actions</th>
@@ -60,13 +60,8 @@
                             @endif
                         </td>
                         <td><span style="font-size:0.8rem;font-weight:500;">{{ $req->actionLabel() }}</span></td>
-                        <td style="max-width:200px;">
-                            <div style="font-size:0.875rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ $req->subject }}">
-                                {{ $req->subject }}
-                            </div>
-                            <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.2rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ $req->details }}">
-                                {{ Str::limit($req->details, 60) }}
-                            </div>
+                        <td style="max-width:280px;font-size:0.875rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ $req->details }}">
+                            {{ $req->detailsSummary(80) }}
                         </td>
                         <td><span class="badge badge-{{ $req->status }}">{{ ucfirst($req->status) }}</span></td>
                         <td style="color:var(--text-secondary);font-size:0.8rem;white-space:nowrap;">{{ $req->created_at->format('M j, Y') }}</td>
@@ -88,7 +83,7 @@
                                 @csrf
                                 @method('PATCH')
                                 <p style="font-size:0.875rem;font-weight:600;margin-bottom:0.75rem;color:#166534;">
-                                    Approve: "{{ $req->subject }}"
+                                    Approve: {{ $req->actionLabel() }} — {{ $req->detailsSummary(50) }}
                                 </p>
                                 <div class="form-group">
                                     <label class="form-label">Tip / guidance for the admin (optional)</label>
@@ -109,7 +104,7 @@
                                 @csrf
                                 @method('PATCH')
                                 <p style="font-size:0.875rem;font-weight:600;margin-bottom:0.75rem;color:#991b1b;">
-                                    Reject: "{{ $req->subject }}"
+                                    Reject: {{ $req->actionLabel() }} — {{ $req->detailsSummary(50) }}
                                 </p>
                                 <div class="form-group">
                                     <label class="form-label">Reason / guidance <span style="color:#ef4444;">*</span></label>

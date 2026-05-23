@@ -67,7 +67,12 @@ class FacultyLoadingController extends Controller
         $dbSubjects = ClassSchedule::distinct()->pluck('subject')->filter()->values()->toArray();
         $subjects   = collect(array_unique(array_merge($dbSubjects, $defaultSubjects)))->sort()->values()->toArray();
 
+        $sharedTeacherIds = DB::connection('mysql_jh')->table('shared_teachers')
+            ->where('is_active', true)->pluck('faculty_id')->map(fn ($id) => (int) $id)->all();
+        $leaveBanner = \App\Support\TeacherPresenceSupport::collectActiveLeaveBannerData('mysql_jh', $sharedTeacherIds);
+
         return view('junior-high-admin.faculty-loading', [
+            'leaveBanner' => $leaveBanner,
             'totalFaculty' => $totalFaculty,
             'totalClasses' => $totalClasses,
             'avgLoad' => $avgLoad,

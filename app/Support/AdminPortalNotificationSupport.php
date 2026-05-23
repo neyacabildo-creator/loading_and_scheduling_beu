@@ -195,6 +195,115 @@ class AdminPortalNotificationSupport
         return $connection === 'mysql_gs' ? 'grade_school' : 'junior_high';
     }
 
+    public static function connectionForSchoolLevel(?string $schoolLevel): string
+    {
+        return $schoolLevel === 'grade_school' ? 'mysql_gs' : 'mysql_jh';
+    }
+
+    /**
+     * Principal approved or rejected an admin permission request.
+     */
+    public static function notifyPrincipalPermissionDecision(
+        object $permissionRequest,
+        string $status,
+        ?int $principalId = null
+    ): void {
+        if (! in_array($status, ['approved', 'rejected'], true)) {
+            return;
+        }
+
+        $schoolLevel = (string) ($permissionRequest->school_level ?? 'junior_high');
+        $connection = self::connectionForSchoolLevel($schoolLevel);
+        $principalId = $principalId ?? (int) Auth::id();
+        $requestId = (int) ($permissionRequest->id ?? 0);
+
+        $requester = User::find((int) ($permissionRequest->requester_id ?? 0));
+        $requesterName = $requester
+            ? trim(($requester->first_name ?? '') . ' ' . ($requester->last_name ?? '')) ?: ($requester->name ?? 'Administrator')
+            : 'An administrator';
+
+        $actionLabel = self::permissionActionLabel($permissionRequest->action_type ?? null);
+        $detailsPreview = \Illuminate\Support\Str::limit(trim((string) ($permissionRequest->details ?? '')), 80);
+
+        if ($status === 'approved') {
+            $title = 'Principal approved permission request';
+            $message = "The principal approved {$requesterName}'s {$actionLabel} request.";
+            if ($detailsPreview !== '') {
+                $message .= ' ' . $detailsPreview;
+            }
+            $type = 'principal_permission_approved';
+        } else {
+            $title = 'Principal rejected permission request';
+            $message = "The principal rejected {$requesterName}'s {$actionLabel} request.";
+            if ($detailsPreview !== '') {
+                $message .= ' ' . $detailsPreview;
+            }
+            $notes = trim((string) ($permissionRequest->reviewer_notes ?? ''));
+            if ($notes !== '') {
+                $message .= ' Guidance: ' . $notes;
+            }
+            $type = 'principal_permission_rejected';
+        }
+
+        self::notifySchoolAdmins(
+            $connection,
+            $schoolLevel,
+            $title,
+            $message,
+            $type,
+            'permission_requests',
+            $requestId ?: null,
+            $principalId
+        );
+    }
+
+    /**
+     * School admin approved or rejected a teacher / shared-teacher request.
+     */
+    public static function notifyAdminRequestDecision(
+        string $connection,
+        string $sourceLabel,
+        string $partyName,
+        string $requestLabel,
+        string $status,
+        string $relatedType,
+        ?int $relatedId,
+        ?int $reviewerId = null
+    ): void {
+        if (! in_array($status, ['approved', 'rejected'], true)) {
+            return;
+        }
+
+        $schoolLevel = self::schoolLevelForConnection($connection);
+        $reviewerId = $reviewerId ?? (int) Auth::id();
+        $reviewer = User::find($reviewerId);
+        $reviewerName = $reviewer
+            ? trim(($reviewer->first_name ?? '') . ' ' . ($reviewer->last_name ?? '')) ?: ($reviewer->name ?? 'Administrator')
+            : 'An administrator';
+
+        $verb = $status === 'approved' ? 'approved' : 'rejected';
+        $title = ucfirst($sourceLabel) . ' request ' . $verb;
+        $message = "{$reviewerName} {$verb} {$sourceLabel} {$partyName}'s {$requestLabel}.";
+
+        self::notifySchoolAdmins(
+            $connection,
+            $schoolLevel,
+            $title,
+            $message,
+            'admin_request_' . $status,
+            $relatedType,
+            $relatedId,
+            $reviewerId
+        );
+    }
+
+    private static function permissionActionLabel(?string $actionType): string
+    {
+        $map = \App\Models\PermissionRequest::ACTION_TYPES;
+
+        return $map[$actionType] ?? ucfirst(str_replace('_', ' ', (string) $actionType));
+    }
+
     public static function notifyNewTeacherRequest(
         string $connection,
         string $teacherName,
@@ -212,6 +321,33 @@ class AdminPortalNotificationSupport
             $relatedType,
             $relatedId,
             $sentBy
+        );
+    }
+
+    /**
+     * Alert admins when leave is approved — do not schedule the teacher during this period.
+     */
+    public static function notifyTeacherLeaveApprovedForScheduling(
+        string $connection,
+        string $teacherName,
+        string $leaveLabel,
+        int $totalDays,
+        string $dateFrom,
+        string $dateTo,
+        ?int $relatedId = null
+    ): void {
+        $daysText = $totalDays === 1 ? '1 day' : "{$totalDays} days";
+        $message = "{$teacherName} is {$leaveLabel} for {$daysText} ({$dateFrom} – {$dateTo}). "
+            . 'Do not assign new schedules during this period — transfer existing classes to other available teachers in Faculty Loading.';
+
+        self::notifySchoolAdmins(
+            $connection,
+            self::schoolLevelForConnection($connection),
+            'Teacher unavailable — ' . $leaveLabel,
+            $message,
+            'teacher_leave',
+            TeacherLeaveRequestSupport::TABLE,
+            $relatedId
         );
     }
 }

@@ -9,6 +9,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>@yield('title', 'Principal') - SPUP</title>
+    @include('partials.spup-favicon')
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -71,6 +72,14 @@
         .header-right { display: flex; align-items: center; gap: 0.75rem; }
         .header-btn { padding: 0.5rem 1rem; background: transparent; border: none; cursor: pointer; color: var(--text-secondary); border-radius: 0.5rem; transition: all 0.2s; font-weight: 500; font-size: 0.875rem; }
         .header-btn:hover { background: var(--bg-primary); color: var(--text-primary); }
+        .theme-toggle-btn { padding: 0.5rem; background: var(--bg-tertiary); border: 2px solid #f0c040; color: var(--text-primary); border-radius: 0.5rem; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; min-width: 40px; }
+        .theme-toggle-btn:hover { border-color: #f0c040; color: #1a3a5c; background: #f0c040; transform: scale(1.05); }
+        .theme-toggle-btn svg { width: 22px; height: 22px; fill: #1a3a5c; }
+        .theme-toggle-btn:hover svg { fill: #1a3a5c; }
+        html[data-theme="dark"] .theme-toggle-btn { background: #3a3a3a; border-color: #f0c040; }
+        html[data-theme="dark"] .theme-toggle-btn svg { fill: #f0c040; }
+        html[data-theme="dark"] .theme-toggle-btn:hover { background: #f0c040; }
+        html[data-theme="dark"] .theme-toggle-btn:hover svg { fill: #1a3a5c; }
         /* Stats */
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1.25rem; margin-bottom: 2rem; }
         .stat-card { background: var(--bg-secondary); padding: 1.5rem; border-radius: 0.75rem; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm); transition: all 0.2s; }
@@ -246,8 +255,47 @@
 
     @yield('scripts')
     <script>
+        const html = document.documentElement;
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        html.setAttribute('data-theme', savedTheme);
+
+        function initThemeToggle() {
+            const headerRight = document.querySelector('.header-right');
+            if (!headerRight || document.getElementById('themeToggle')) {
+                return;
+            }
+            const themeBtn = document.createElement('button');
+            themeBtn.type = 'button';
+            themeBtn.className = 'theme-toggle-btn';
+            themeBtn.id = 'themeToggle';
+            themeBtn.addEventListener('click', toggleTheme);
+            headerRight.insertBefore(themeBtn, headerRight.firstChild);
+            updateThemeButton();
+        }
+
+        function updateThemeButton() {
+            const themeBtn = document.getElementById('themeToggle');
+            if (!themeBtn) return;
+            const currentTheme = html.getAttribute('data-theme');
+            if (currentTheme === 'dark') {
+                themeBtn.innerHTML = '<svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1m-16 0H1m15.364 1.364l.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707m12.02-2.02a7 7 0 11-9.9 9.9 7 7 0 019.9-9.9z"></path></svg>';
+                themeBtn.title = 'Light Mode';
+            } else {
+                themeBtn.innerHTML = '<svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
+                themeBtn.title = 'Dark Mode';
+            }
+        }
+
+        function toggleTheme() {
+            const newTheme = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeButton();
+        }
+
         // Sidebar scroll persistence
         document.addEventListener('DOMContentLoaded', function() {
+            initThemeToggle();
             var nav = document.querySelector('.sidebar-nav');
             if (!nav) return;
             var saved = sessionStorage.getItem('sa_sidebar_scroll');

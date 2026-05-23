@@ -26,7 +26,6 @@ class PermissionRequestController extends Controller
     {
         $data = $request->validate([
             'action_type'   => ['required', 'string', \Illuminate\Validation\Rule::in(array_keys(PermissionRequest::ACTION_TYPES))],
-            'subject'       => 'required|string|max:200',
             'details'       => 'required|string|max:2000',
             'related_model' => 'nullable|string|max:100',
             'related_id'    => 'nullable|integer|min:1',
@@ -38,7 +37,6 @@ class PermissionRequestController extends Controller
         PermissionRequest::create([
             'requester_id'  => $user->id,
             'action_type'   => $data['action_type'],
-            'subject'       => $data['subject'],
             'details'       => $data['details'],
             'school_level'  => $user->school_level,
             'related_model' => $data['related_model'] ?? null,

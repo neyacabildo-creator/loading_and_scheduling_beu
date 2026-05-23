@@ -56,10 +56,8 @@ class FacultyLoadController extends Controller
             }
             $data['is_shared_teacher'] = isset($sharedTeacherIds[(string) $load->faculty_id]);
             $presence = $load->faculty_id
-                ? \App\Support\TeacherPresenceSupport::activeStatusForTeacher('mysql_jh', (int) $load->faculty_id)
+                ? \App\Support\TeacherPresenceSupport::activeStatusForTeacherWithDays('mysql_jh', (int) $load->faculty_id)
                 : null;
-            $data['presence_status'] = $presence['status'] ?? null;
-            $data['presence_label'] = $presence['label'] ?? null;
 
             // Compute live classes_assigned, load_hours, and status from approved schedules
             if ($load->faculty_id) {
@@ -96,6 +94,10 @@ class FacultyLoadController extends Controller
                     && $sharedCount > FacultyLoadSupport::SHARED_TEACHER_MAX_LOADS;
                 if ($data['shared_load_conflict']) {
                     $data['status'] = 'overloaded';
+                }
+
+                if ($presence) {
+                    $data = \App\Support\TeacherPresenceSupport::applyPresenceToFacultyLoadRow($data, $presence);
                 }
             }
 

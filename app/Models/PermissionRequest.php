@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class PermissionRequest extends Model
 {
@@ -16,7 +17,6 @@ class PermissionRequest extends Model
         'requester_id',
         'reviewed_by',
         'action_type',
-        'subject',
         'details',
         'school_level',
         'related_model',
@@ -72,5 +72,10 @@ class PermissionRequest extends Model
     public function actionLabel(): string
     {
         return self::ACTION_TYPES[$this->action_type] ?? ucfirst(str_replace('_', ' ', $this->action_type));
+    }
+
+    public function detailsSummary(int $limit = 80): string
+    {
+        return Str::limit(trim((string) ($this->details ?? '')), $limit) ?: '—';
     }
 }

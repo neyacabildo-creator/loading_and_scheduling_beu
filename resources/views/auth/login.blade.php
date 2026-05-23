@@ -9,6 +9,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>SPUP - Login</title>
+    @include('partials.spup-favicon')
 
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

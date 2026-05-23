@@ -120,6 +120,7 @@
         </button>
     </div>
 
+    @include('partials.admin-teacher-absence-banner')
 
     <!-- Filter Section -->
     <div class="filter-section">
@@ -449,16 +450,20 @@
 
             tbody.innerHTML = pageData.map(load => {
                 const normalizedStatus = (load.status || 'available').toLowerCase();
+                const isOnLeave = !!load.presence_status;
                 const isAvailable = normalizedStatus === 'available';
-                const isNotAvailable = normalizedStatus === 'not_available' || normalizedStatus === 'unavailable';
-                const isOverloaded = normalizedStatus === 'overloaded' || normalizedStatus === 'overload';
+                const isNotAvailable = isOnLeave || normalizedStatus === 'not_available' || normalizedStatus === 'unavailable';
+                const isOverloaded = !isOnLeave && (normalizedStatus === 'overloaded' || normalizedStatus === 'overload');
                 let statusBadge, statusText;
-                if (isAvailable) {
+                if (isOnLeave) {
+                    statusBadge = 'badge-danger';
+                    statusText  = load.availability_note || ('Unavailable — ' + (load.presence_label || 'On Leave'));
+                } else if (isAvailable) {
                     statusBadge = 'badge-active';
                     statusText  = 'Available';
                 } else if (isNotAvailable) {
                     statusBadge = 'badge-danger';
-                    statusText  = 'Not Available';
+                    statusText  = load.availability_note || 'Not Available';
                 } else if (isOverloaded) {
                     statusBadge = 'badge-warning';
                     if (load.shared_load_conflict) {

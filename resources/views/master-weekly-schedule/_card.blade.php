@@ -22,6 +22,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Master Loading Schedule – {{ trim($teacher->first_name . ' ' . $teacher->last_name) }}</title>
+@include('partials.spup-favicon')
 <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, Helvetica, sans-serif; background: #e5e7eb; padding: 1.5rem; }

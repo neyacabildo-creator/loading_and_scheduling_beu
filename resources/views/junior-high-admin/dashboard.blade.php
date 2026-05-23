@@ -1,4 +1,4 @@
-﻿{{-- resources/views/dashboard.blade.php --}}
+{{-- resources/views/dashboard.blade.php --}}
 @extends('layouts.admin')
 
 @section('title', 'Dashboard - Junior High School')
@@ -12,13 +12,16 @@
             </div>
         </div>
         <div class="header-right">
-            <button class="header-btn">EN</button>
+            <button type="button" class="header-btn">EN</button>
             @include('partials.admin-portal-notifications', [
                 'notificationsApi' => url('/api/admin/notifications'),
                 'allRequestsUrl' => route('admin.shared-teacher-requests'),
+                'permissionRequestsUrl' => route('admin.permission-requests'),
             ])
         </div>
     </div>
+
+    @include('partials.admin-teacher-absence-banner')
 
     <!-- Stats Grid -->
     <div class="stats-grid">
