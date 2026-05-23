@@ -11,6 +11,28 @@ use Illuminate\Http\Request;
  */
 class AuthRedirectSupport
 {
+    /** @var list<string> */
+    public const ADMIN_ROLE_NAMES = [
+        'admin_grade_school',
+        'admin_junior_high',
+        'admin',
+        'principal',
+        'super_admin',
+    ];
+
+    /** @var list<string> */
+    public const TEACHER_ROLE_NAMES = [
+        'teacher_grade_school',
+        'teacher_junior_high',
+        'teacher',
+    ];
+
+    /** Known seeded admin emails (repair if legacy login logic changed their role). */
+    private const KNOWN_ADMIN_EMAILS = [
+        'admin.gradeschool@spup.edu.ph'  => 'admin_grade_school',
+        'admin.juniorhigh@spup.edu.ph' => 'admin_junior_high',
+    ];
+
     public static function homeRouteName(?User $user = null): string
     {
         $user = self::prepareUser($user);
@@ -52,19 +74,62 @@ class AuthRedirectSupport
         }
     }
 
+    public static function isAdminRole(?string $roleName): bool
+    {
+        return $roleName !== null && in_array($roleName, self::ADMIN_ROLE_NAMES, true);
+    }
+
+    public static function isTeacherRole(?string $roleName): bool
+    {
+        return $roleName !== null && in_array($roleName, self::TEACHER_ROLE_NAMES, true);
+    }
+
+    public static function isSharedTeacherRole(?string $roleName): bool
+    {
+        return $roleName === 'shared_teacher';
+    }
+
     /**
-     * Fix legacy accounts: correct role_id and school_level for teacher portals.
+     * Restore seeded GS/JH admin accounts if a prior bug overwrote their role as teacher.
      */
-    public static function repairTeacherAccount(?User $user = null): void
+    public static function repairKnownAdminAccounts(?User $user = null): void
     {
         $user = self::prepareUser($user);
         if (! $user) {
             return;
         }
 
-        $roleName = $user->role?->name;
+        $email = strtolower(trim((string) $user->email));
+        $expectedRoleName = self::KNOWN_ADMIN_EMAILS[$email] ?? null;
+        if ($expectedRoleName === null || $user->role?->name === $expectedRoleName) {
+            return;
+        }
 
-        if ($user->school_level === 'grade_school' || $roleName === 'teacher_grade_school') {
+        $role = Role::query()->where('name', $expectedRoleName)->first();
+        if (! $role) {
+            return;
+        }
+
+        $user->forceFill([
+            'role_id'      => $role->id,
+            'school_level' => $expectedRoleName === 'admin_grade_school' ? 'grade_school' : 'junior_high',
+        ])->saveQuietly();
+        $user->load('role');
+    }
+
+    /**
+     * Fix legacy teacher accounts only — never change admin or shared-teacher roles.
+     */
+    public static function repairTeacherAccount(?User $user = null): void
+    {
+        $user = self::prepareUser($user);
+        if (! $user || ! self::isTeacherRole($user->role?->name)) {
+            return;
+        }
+
+        $roleName = $user->role->name;
+
+        if ($roleName === 'teacher_grade_school' || ($roleName === 'teacher' && $user->school_level === 'grade_school')) {
             $gsTeacher = Role::query()->where('name', 'teacher_grade_school')->first();
             if ($gsTeacher && $roleName !== 'teacher_grade_school') {
                 $user->forceFill([
@@ -72,15 +137,15 @@ class AuthRedirectSupport
                     'school_level' => 'grade_school',
                 ])->saveQuietly();
                 $user->load('role');
-
-                return;
             }
+
+            return;
         }
 
-        if ($user->school_level === 'junior_high' || in_array($roleName, ['teacher_junior_high', 'teacher'], true)) {
+        if (in_array($roleName, ['teacher_junior_high', 'teacher'], true)) {
             $jhTeacher = Role::query()->where('name', 'teacher_junior_high')->first()
                 ?? Role::query()->where('name', 'teacher')->first();
-            if ($jhTeacher && ! in_array($user->role?->name, ['teacher_junior_high', 'teacher'], true)) {
+            if ($jhTeacher && $roleName === 'teacher' && $user->school_level !== 'grade_school') {
                 $user->forceFill([
                     'role_id'      => $jhTeacher->id,
                     'school_level' => 'junior_high',
@@ -92,12 +157,13 @@ class AuthRedirectSupport
 
     public static function normalizeTeacherSchoolLevel(?User $user = null): void
     {
-        self::repairTeacherAccount($user);
-
         $user = self::prepareUser($user);
-        if (! $user) {
+        if (! $user || ! self::isTeacherRole($user->role?->name)) {
             return;
         }
+
+        self::repairTeacherAccount($user);
+        $user = self::prepareUser($user);
 
         $expected = match ($user->role?->name) {
             'teacher_grade_school' => 'grade_school',

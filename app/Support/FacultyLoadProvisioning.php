@@ -14,7 +14,7 @@ class FacultyLoadProvisioning
 {
     public static function ensureForNewTeacher(User $user, ?Role $role): void
     {
-        if (! $role || stripos((string) $role->name, 'teacher') === false) {
+        if (! $role || ! in_array($role->name, ['teacher', 'teacher_grade_school', 'teacher_junior_high'], true)) {
             return;
         }
 

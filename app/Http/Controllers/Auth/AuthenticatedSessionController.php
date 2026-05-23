@@ -44,7 +44,7 @@ class AuthenticatedSessionController extends Controller
             'user_agent' => $request->userAgent(),
         ]);
 
-        AuthRedirectSupport::repairTeacherAccount($user);
+        AuthRedirectSupport::repairKnownAdminAccounts($user);
         AuthRedirectSupport::normalizeTeacherSchoolLevel($user);
         AuthRedirectSupport::applyDepartmentSession($user);
 
