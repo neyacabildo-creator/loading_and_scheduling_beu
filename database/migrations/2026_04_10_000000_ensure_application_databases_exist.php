@@ -7,13 +7,15 @@ use Illuminate\Support\Facades\DB;
  * Creates school-level and principal MySQL databases before migrations
  * that target mysql_jh, mysql_gs, mysql_*_teacher, or mysql_principal.
  *
- * Required on fresh hosts (e.g. Laravel Cloud) where only the default
- * application database exists out of the box.
+ * Drops and recreates each secondary database so `migrate:fresh` (which only
+ * wipes the default DB) does not leave stale tables on Laravel Cloud.
  */
 return new class extends Migration
 {
     public function up(): void
     {
+        $defaultDatabase = config('database.connections.'.config('database.default').'.database');
+
         $databases = array_unique(array_filter([
             config('database.connections.mysql_jh.database'),
             config('database.connections.mysql_gs.database'),
@@ -23,8 +25,13 @@ return new class extends Migration
         ]));
 
         foreach ($databases as $database) {
+            if ($database === $defaultDatabase) {
+                continue;
+            }
+
             $escaped = str_replace('`', '``', $database);
-            DB::statement("CREATE DATABASE IF NOT EXISTS `{$escaped}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            DB::statement("DROP DATABASE IF EXISTS `{$escaped}`");
+            DB::statement("CREATE DATABASE `{$escaped}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
         }
     }
 

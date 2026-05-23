@@ -30,7 +30,7 @@ return new class extends Migration
 
         // ── Create pending_schedules TABLE in each school DB ──────────────────
         foreach ($this->schools as $conn => $level) {
-            // Create table
+            if (! Schema::connection($conn)->hasTable('pending_schedules')) {
             Schema::connection($conn)->create('pending_schedules', function (Blueprint $table) {
                 $table->id();
                 $table->unsignedBigInteger('schedule_id')->unique();
@@ -50,6 +50,7 @@ return new class extends Migration
 
                 $table->index('status');
             });
+            }
 
             // Seed from existing pending class_schedules
             try {
