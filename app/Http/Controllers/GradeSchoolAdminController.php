@@ -593,9 +593,10 @@ class GradeSchoolAdminController extends Controller
                 ? \App\Support\AdminUserAccountsSupport::scopeFacultyAssignable(User::query(), $schoolLevel)
                 : \App\Support\AdminUserAccountsSupport::scopeUserAccounts(User::query(), $schoolLevel);
 
-            $teachers = \App\Support\AdminUserAccountsSupport::mapUsersForApi(
-                $query->with('role')->orderBy('first_name')->orderBy('last_name')->get()
-            );
+            $users = $query->with('role')->orderBy('first_name')->orderBy('last_name')->get();
+            $teachers = $forFacultyLoad
+                ? \App\Support\AdminUserAccountsSupport::mapUsersForFacultyApi($users, $schoolLevel)
+                : \App\Support\AdminUserAccountsSupport::mapUsersForApi($users);
 
             return response()->json([
                 'success' => true,
@@ -867,7 +868,8 @@ class GradeSchoolAdminController extends Controller
                 );
 
                 return $data;
-            })->filter(fn ($row) => $row['has_user_account'] ?? false)->values();
+            })->filter(fn ($row) => ($row['has_user_account'] ?? false)
+                && ! \App\Support\FacultyLoadSupport::isAutoProvisionedPlaceholder($row))->values();
 
             return response()->json(['success' => true, 'data' => $result]);
         } catch (\Exception $e) {
@@ -1203,8 +1205,7 @@ class GradeSchoolAdminController extends Controller
             [$validated['password'], $aesKey, $user->id]
         );
 
-        \App\Support\FacultyLoadProvisioning::ensureForNewTeacher($user, $role);
-        \App\Support\SharedTeacherRegistrySync::syncFromAdminRequest($user, $role, $request);
+        \App\Support\SharedTeacherRegistrySync::syncFromAdminRequest($user, $role, $request, 'grade_school');
 
         if ($request->wantsJson()) {
             $user->load('role');

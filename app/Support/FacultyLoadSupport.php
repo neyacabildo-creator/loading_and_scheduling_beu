@@ -264,6 +264,20 @@ class FacultyLoadSupport
     }
 
     /**
+     * Empty row auto-created before registration was decoupled from faculty loads.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    public static function isAutoProvisionedPlaceholder(array $row): bool
+    {
+        $subject = trim((string) ($row['subject'] ?? ''));
+        $grade = trim((string) ($row['grade_level'] ?? ''));
+        $notes = strtolower((string) ($row['notes'] ?? ''));
+
+        return $subject === '' && $grade === '' && str_contains($notes, 'auto-created');
+    }
+
+    /**
      * Teacher account exists in User Accounts for this school (may be inactive).
      */
     public static function facultyIdHasRegisteredAccount(int $facultyId, string $schoolLevel): bool
@@ -273,8 +287,11 @@ class FacultyLoadSupport
         }
 
         return User::where('id', $facultyId)
-            ->where('school_level', $schoolLevel)
-            ->whereHas('role', fn ($q) => $q->where('name', 'like', '%teacher%'))
+            ->where(function ($q) use ($schoolLevel) {
+                $q->where('school_level', $schoolLevel)
+                    ->orWhereHas('role', fn ($r) => $r->where('name', 'shared_teacher'));
+            })
+            ->whereHas('role', fn ($q) => $q->whereIn('name', AdminUserAccountsSupport::FACULTY_ASSIGNABLE_ROLE_NAMES))
             ->exists();
     }
 

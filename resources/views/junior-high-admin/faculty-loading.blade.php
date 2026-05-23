@@ -634,6 +634,7 @@
         };
         let jhFacultySchedulesCache = [];
         let jhEditFacultySchedulesCache = [];
+        let jhFacultyTeachersCache = [];
         let jhEditLoadSnapshot = { subjects: [] };
 
         function jhGetEditSubjectPreserve() {
@@ -761,6 +762,22 @@
             return (h || 0) * 60 + (m || 0);
         }
 
+        function jhApplySharedTeacherSubjects() {
+            const facultyId = document.getElementById('addFacultyTeacherId')?.value;
+            const teacher = jhFacultyTeachersCache.find(t => String(t.id) === String(facultyId));
+            const roleName = teacher?.role_name || teacher?.role?.name || '';
+            const subjects = Array.isArray(teacher?.assigned_subjects) ? teacher.assigned_subjects : [];
+
+            if (roleName === 'shared_teacher' && subjects.length && typeof jhRenderSubjectRows === 'function') {
+                jhRenderSubjectRows(subjects);
+                jhRecalculateAddHours();
+                jhRecalculateOngoingClasses(false);
+                return true;
+            }
+
+            return false;
+        }
+
         function jhFetchFacultySchedules() {
             const facultyId = document.getElementById('addFacultyTeacherId').value;
             if (!facultyId) {
@@ -770,6 +787,14 @@
                     '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a teacher and grade level, then add subjects.</p>';
                 return;
             }
+
+            if (jhApplySharedTeacherSubjects()) {
+                // Subjects pre-filled from User Accounts; still load schedules for hours/classes.
+            } else {
+                document.getElementById('jhAddSubjectList').innerHTML =
+                    '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a grade level, then add each subject.</p>';
+            }
+
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
             fetch(`/api/admin/schedules?faculty_id=${facultyId}`, {
                 headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken }
@@ -826,13 +851,18 @@
             .then(r => r.json())
             .then(data => {
                 const teachers = Array.isArray(data) ? data : (data.data || []);
+                jhFacultyTeachersCache = teachers;
                 sel.innerHTML = '<option value="">-- Select Teacher --</option>';
                 teachers.forEach(t => {
                     const opt = document.createElement('option');
                     opt.value = t.id;
-                    opt.textContent = (t.first_name || t.last_name)
+                    const roleName = t.role_name || t.role?.name || '';
+                    if (roleName === 'shared_teacher') {
+                        opt.dataset.shared = '1';
+                    }
+                    opt.textContent = ((t.first_name || t.last_name)
                         ? (t.first_name + ' ' + t.last_name).trim()
-                        : (t.name || '');
+                        : (t.name || '')) + (roleName === 'shared_teacher' ? ' (Shared Teacher)' : '');
                     sel.appendChild(opt);
                 });
             })

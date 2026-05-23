@@ -107,7 +107,8 @@ class FacultyLoadController extends Controller
             );
 
             return $data;
-        })->filter(fn ($row) => $row['has_user_account'] ?? false)->values();
+        })->filter(fn ($row) => ($row['has_user_account'] ?? false)
+            && ! FacultyLoadSupport::isAutoProvisionedPlaceholder($row))->values();
 
         // Check if this is an API request
         if ($request->wantsJson() || $request->ajax()) {

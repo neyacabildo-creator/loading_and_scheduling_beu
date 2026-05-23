@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Schema;
  */
 class SharedTeacherRegistrySync
 {
-    public static function syncFromAdminRequest(User $user, Role $role, Request $request): void
+    public static function syncFromAdminRequest(User $user, Role $role, Request $request, string $portal = 'junior_high'): void
     {
         if ($role->name !== 'shared_teacher') {
             return;
@@ -24,7 +24,14 @@ class SharedTeacherRegistrySync
             trim($request->input('subject2', '')),
         ]));
 
-        $base = [
+        $schoolLevel = $portal === 'grade_school' ? 'grade_school' : 'junior_high';
+        $connection = $schoolLevel === 'grade_school' ? 'mysql_gs' : 'mysql_jh';
+
+        if (! SharedTeacherSupport::tableExists($connection)) {
+            return;
+        }
+
+        $row = [
             'faculty_id'   => $user->id,
             'teacher_name' => $user->name,
             'email'        => $user->email,
@@ -32,29 +39,37 @@ class SharedTeacherRegistrySync
             'is_active'    => true,
             'created_at'   => now(),
             'updated_at'   => now(),
+            'school_level' => $schoolLevel,
         ];
 
         if ($subjects !== []) {
-            $base['subjects'] = json_encode($subjects);
+            $row['subjects'] = json_encode($subjects);
         }
 
-        foreach (['mysql_jh', 'mysql_gs'] as $connection) {
-            if (! SharedTeacherSupport::tableExists($connection)) {
-                continue;
-            }
+        if (! Schema::connection($connection)->hasColumn('shared_teachers', 'subjects')) {
+            unset($row['subjects']);
+        }
+        if (! Schema::connection($connection)->hasColumn('shared_teachers', 'department')) {
+            unset($row['department']);
+        }
+        if (! Schema::connection($connection)->hasColumn('shared_teachers', 'school_level')) {
+            unset($row['school_level']);
+        }
 
-            $row = array_merge($base, [
-                'school_level' => $connection === 'mysql_jh' ? 'junior_high' : 'grade_school',
-            ]);
+        $registry = DB::connection($connection)->table('shared_teachers')
+            ->where('faculty_id', $user->id);
 
-            if (! Schema::connection($connection)->hasColumn('shared_teachers', 'subjects')) {
-                unset($row['subjects']);
-            }
-            if (! Schema::connection($connection)->hasColumn('shared_teachers', 'department')) {
-                unset($row['department']);
-            }
+        if (Schema::connection($connection)->hasColumn('shared_teachers', 'school_level')) {
+            $registry->where('school_level', $schoolLevel);
+        }
 
-            DB::connection($connection)->table('shared_teachers')->insertOrIgnore($row);
+        $updateRow = $row;
+        unset($updateRow['created_at']);
+
+        if ($registry->exists()) {
+            $registry->update($updateRow);
+        } else {
+            DB::connection($connection)->table('shared_teachers')->insert($row);
         }
     }
 }

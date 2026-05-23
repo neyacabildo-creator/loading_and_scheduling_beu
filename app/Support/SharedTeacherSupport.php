@@ -20,6 +20,42 @@ class SharedTeacherSupport
     /**
      * @return list<int|string>
      */
+    /**
+     * Subjects chosen when the shared teacher account was created (User Accounts).
+     *
+     * @return list<string>
+     */
+    public static function assignedSubjectsForFaculty(string $connection, int $facultyId, ?string $schoolLevel = null): array
+    {
+        if ($facultyId <= 0 || ! self::tableExists($connection)) {
+            return [];
+        }
+
+        $query = DB::connection($connection)->table('shared_teachers')
+            ->where('faculty_id', $facultyId)
+            ->where('is_active', true);
+
+        if ($schoolLevel !== null && Schema::connection($connection)->hasColumn('shared_teachers', 'school_level')) {
+            $query->where('school_level', $schoolLevel);
+        }
+
+        $row = $query->first();
+        if (! $row || empty($row->subjects)) {
+            return [];
+        }
+
+        $decoded = json_decode((string) $row->subjects, true);
+
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(
+            static fn ($s) => trim((string) $s),
+            $decoded
+        )));
+    }
+
     public static function activeFacultyIds(string $connection): array
     {
         if (! self::tableExists($connection)) {

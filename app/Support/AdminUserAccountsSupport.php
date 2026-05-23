@@ -108,4 +108,26 @@ class AdminUserAccountsSupport
 
         return $mapped;
     }
+
+    /**
+     * Teachers for the Add Faculty Load dropdown (includes shared-teacher assigned subjects).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function mapUsersForFacultyApi(iterable $users, string $schoolLevel): array
+    {
+        $connection = $schoolLevel === 'grade_school' ? 'mysql_gs' : 'mysql_jh';
+        $mapped = self::mapUsersForApi($users);
+
+        foreach ($mapped as &$user) {
+            $roleName = $user['role']['name'] ?? null;
+            $user['role_name'] = $roleName;
+            $user['assigned_subjects'] = $roleName === 'shared_teacher'
+                ? SharedTeacherSupport::assignedSubjectsForFaculty($connection, (int) ($user['id'] ?? 0), $schoolLevel)
+                : [];
+        }
+        unset($user);
+
+        return $mapped;
+    }
 }

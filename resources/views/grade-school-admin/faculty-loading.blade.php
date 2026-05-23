@@ -490,6 +490,7 @@
         };
         let gsFacultySchedulesCache = [];
         let gsEditFacultySchedulesCache = [];
+        let gsFacultyTeachersCache = [];
 
         function gsSubjectsForGrade(gradeLevel) {
             return GS_GRADE_SUBJECTS[gradeLevel] || GS_ALL_SUBJECTS;
@@ -607,6 +608,22 @@
             return (h || 0) * 60 + (m || 0);
         }
 
+        function gsApplySharedTeacherSubjects() {
+            const facultyId = document.getElementById('addFacultyId')?.value;
+            const teacher = gsFacultyTeachersCache.find(t => String(t.id) === String(facultyId));
+            const roleName = teacher?.role_name || teacher?.role?.name || '';
+            const subjects = Array.isArray(teacher?.assigned_subjects) ? teacher.assigned_subjects : [];
+
+            if (roleName === 'shared_teacher' && subjects.length && typeof gsRenderSubjectRows === 'function') {
+                gsRenderSubjectRows(subjects);
+                gsRecalculateAddHours();
+                gsRecalculateOngoingClasses(false);
+                return true;
+            }
+
+            return false;
+        }
+
         function gsFetchFacultySchedules() {
             const facultyId = document.getElementById('addFacultyId').value;
             if (!facultyId) {
@@ -616,6 +633,14 @@
                     '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a teacher and grade level, then add subjects.</p>';
                 return;
             }
+
+            if (gsApplySharedTeacherSubjects()) {
+                // Subjects pre-filled from User Accounts; still load schedules for hours/classes.
+            } else {
+                document.getElementById('gsAddSubjectList').innerHTML =
+                    '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a grade level, then add each subject.</p>';
+            }
+
             fetch(`/api/grade-school-admin/schedules?faculty_id=${facultyId}`, {
                 headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': token }
             })
@@ -671,13 +696,18 @@
             .then(r => r.json())
             .then(data => {
                 const teachers = Array.isArray(data) ? data : (data.data || []);
+                gsFacultyTeachersCache = teachers;
                 sel.innerHTML = '<option value="">-- Select Teacher --</option>';
                 teachers.forEach(t => {
                     const opt = document.createElement('option');
                     opt.value = t.id;
-                    opt.textContent = (t.first_name || t.last_name)
+                    const roleName = t.role_name || t.role?.name || '';
+                    if (roleName === 'shared_teacher') {
+                        opt.dataset.shared = '1';
+                    }
+                    opt.textContent = ((t.first_name || t.last_name)
                         ? (t.first_name + ' ' + t.last_name).trim()
-                        : (t.name || '');
+                        : (t.name || '')) + (roleName === 'shared_teacher' ? ' (Shared Teacher)' : '');
                     sel.appendChild(opt);
                 });
             })
