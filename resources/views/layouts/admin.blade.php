@@ -569,6 +569,7 @@
         });
     </script>
 
+    <script src="{{ asset('js/admin-schedule-display.js') }}" defer></script>
     <script src="{{ asset('js/admin-schedule-delete.js') }}" defer></script>
     @include('partials.spup-responsive-script')
     @stack('scripts')

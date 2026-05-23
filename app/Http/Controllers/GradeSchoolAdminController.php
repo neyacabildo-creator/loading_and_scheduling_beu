@@ -15,6 +15,7 @@ use App\Models\FacultyLoad;
 use App\Models\ExportLog;
 use App\Models\GeneratedReport;
 use App\Support\FacultyLoadSupport;
+use App\Support\ScheduleDisplaySupport;
 use App\Support\ScheduleFormSupport;
 use App\Support\ScheduleAudit;
 use App\Support\ScheduleUpdateHelper;
@@ -203,14 +204,24 @@ class GradeSchoolAdminController extends Controller
             $rooms = $roomIds->isNotEmpty() ? Room::whereIn('id', $roomIds)->get()->keyBy('id') : collect();
 
             $result = $schedules->map(function ($s) use ($users, $rooms) {
-                $data = $s->toArray();
+                $data = ScheduleDisplaySupport::enrichForApi(
+                    $s->toArray(),
+                    $s,
+                    isset($rooms[$s->room_id]) ? $rooms[$s->room_id] : null,
+                    isset($users[$s->faculty_id]) ? $users[$s->faculty_id] : null
+                );
                 $data['schedule_date'] = $s->getRawOriginal('schedule_date');
-                $data['faculty']  = isset($users[$s->faculty_id])  ? ['id' => $s->faculty_id,  'name' => $users[$s->faculty_id]->name]  : null;
-                $data['room']     = isset($rooms[$s->room_id])     ? $rooms[$s->room_id]->toArray()                                      : null;
-                $data['approver'] = isset($users[$s->approved_by]) ? ['id' => $s->approved_by, 'name' => $users[$s->approved_by]->name] : null;
+                $data['display_date'] = ScheduleDisplaySupport::formatScheduleDate($data['schedule_date']);
+                if (isset($rooms[$s->room_id])) {
+                    $data['room'] = $rooms[$s->room_id]->toArray();
+                }
+                $data['approver'] = isset($users[$s->approved_by])
+                    ? ['id' => $s->approved_by, 'name' => $users[$s->approved_by]->name]
+                    : null;
                 $data['approved_by_name'] = ScheduleAudit::approverName($s->approved_by, $users);
+
                 return $data;
-            });
+            })->values();
 
             return response()->json(['data' => $result]);
         } catch (\Exception $e) {
@@ -244,11 +255,18 @@ class GradeSchoolAdminController extends Controller
     public function getSchedule($id) {
         try {
             $schedule = ClassSchedule::findOrFail($id);
-            $schedule->setRelation('faculty', $schedule->faculty_id ? User::find($schedule->faculty_id) : null);
-            $schedule->setRelation('room', $schedule->room_id ? Room::find($schedule->room_id) : null);
-            $schedule->setRelation('approver', $schedule->approved_by ? User::find($schedule->approved_by) : null);
-            $schedule->setAttribute('approved_by_name', $schedule->approver?->name);
-            return response()->json(['data' => $schedule]);
+            $room = $schedule->room_id ? Room::find($schedule->room_id) : null;
+            $faculty = $schedule->faculty_id ? User::find($schedule->faculty_id) : null;
+            $data = ScheduleDisplaySupport::enrichForApi($schedule->toArray(), $schedule, $room, $faculty);
+            $data['schedule_date'] = $schedule->getRawOriginal('schedule_date');
+            $data['display_date'] = ScheduleDisplaySupport::formatScheduleDate($data['schedule_date']);
+            $data['faculty'] = $faculty ? ['id' => $faculty->id, 'name' => $faculty->name] : null;
+            $data['room'] = $room?->toArray();
+            $approver = $schedule->approved_by ? User::find($schedule->approved_by) : null;
+            $data['approver'] = $approver ? ['id' => $approver->id, 'name' => $approver->name] : null;
+            $data['approved_by_name'] = $approver?->name;
+
+            return response()->json(['data' => $data]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Schedule not found'], 404);
         }
@@ -1239,7 +1257,9 @@ class GradeSchoolAdminController extends Controller
         $rooms   = $roomIds->isNotEmpty() ? Room::whereIn('id', $roomIds)->get()->keyBy('id') : collect();
         $schedules->each(function ($s) use ($users, $rooms) {
             $s->setRelation('faculty', $users[$s->faculty_id] ?? null);
-            $s->setRelation('room',    $rooms[$s->room_id]    ?? null);
+            $room = $rooms[$s->room_id] ?? null;
+            $s->setRelation('room', $room);
+            ScheduleDisplaySupport::applyToModel($s, $room);
         });
 
         $stats = [

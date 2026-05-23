@@ -7,6 +7,7 @@ use App\Models\ClassSchedule;
 use App\Models\ScheduleApproval;
 use App\Models\User;
 use App\Models\Room;
+use App\Support\ScheduleDisplaySupport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -39,7 +40,9 @@ class ScheduleApprovalController extends Controller
         $rooms = $roomIds->isNotEmpty() ? Room::whereIn('id', $roomIds)->get()->keyBy('id') : collect();
         $schedules->each(function ($s) use ($users, $rooms) {
             $s->setRelation('faculty', $users[$s->faculty_id] ?? null);
-            $s->setRelation('room', $rooms[$s->room_id] ?? null);
+            $room = $rooms[$s->room_id] ?? null;
+            $s->setRelation('room', $room);
+            ScheduleDisplaySupport::applyToModel($s, $room);
         });
         
         $stats = [

@@ -8,6 +8,7 @@ use App\Models\ScheduleApproval;
 use App\Models\Room;
 use App\Models\User;
 use App\Support\ScheduleAudit;
+use App\Support\ScheduleDisplaySupport;
 use App\Support\TeacherPortalSupport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -23,38 +24,44 @@ class ScheduleController extends Controller
     public function index()
     {
         try {
-            $schedules = ClassSchedule::on('mysql_jh')->orderBy('created_at', 'desc')->get();
+            $connection = config('database.school_connection') ?: 'mysql_jh';
+            $schedules = ClassSchedule::on($connection)->orderBy('created_at', 'desc')->get();
 
-            // Manually load users from default connection to avoid cross-connection eager loading
             $userIds = $schedules->pluck('faculty_id')
                 ->merge($schedules->pluck('approved_by'))
                 ->filter()->unique();
             $users = $userIds->isNotEmpty() ? User::whereIn('id', $userIds)->get()->keyBy('id') : collect();
 
             $roomIds = $schedules->pluck('room_id')->filter()->unique();
-            $rooms   = $roomIds->isNotEmpty() ? Room::on('mysql_jh')->whereIn('id', $roomIds)->get()->keyBy('id') : collect();
+            $rooms = $roomIds->isNotEmpty()
+                ? Room::on($connection)->whereIn('id', $roomIds)->get()->keyBy('id')
+                : collect();
 
-            $result = $schedules->map(function(ClassSchedule $schedule) use ($users, $rooms) {
-                $data = $schedule->toArray();
+            $result = $schedules->map(function (ClassSchedule $schedule) use ($users, $rooms) {
+                $data = ScheduleDisplaySupport::enrichForApi(
+                    $schedule->toArray(),
+                    $schedule,
+                    isset($rooms[$schedule->room_id]) ? $rooms[$schedule->room_id] : null,
+                    isset($users[$schedule->faculty_id]) ? $users[$schedule->faculty_id] : null
+                );
                 $data['time_start'] = $schedule->start_time;
-                $data['time_end']   = $schedule->end_time;
-                $data['grade']      = trim(($schedule->grade_level ?? '') . ' - ' . ($schedule->section_name ?? ''), ' -') ?: null;
-                $data['faculty']  = isset($users[$schedule->faculty_id])
-                    ? ['id' => $schedule->faculty_id, 'name' => $users[$schedule->faculty_id]->name]
-                    : null;
-                $data['room']     = isset($rooms[$schedule->room_id])
-                    ? $rooms[$schedule->room_id]->toArray()
-                    : null;
+                $data['time_end'] = $schedule->end_time;
+                $data['schedule_date'] = $schedule->getRawOriginal('schedule_date');
+                $data['display_date'] = ScheduleDisplaySupport::formatScheduleDate($data['schedule_date']);
+                if (isset($rooms[$schedule->room_id])) {
+                    $data['room'] = $rooms[$schedule->room_id]->toArray();
+                }
                 $data['approver'] = isset($users[$schedule->approved_by])
                     ? ['id' => $schedule->approved_by, 'name' => $users[$schedule->approved_by]->name]
                     : null;
                 $data['approved_by_name'] = ScheduleAudit::approverName($schedule->approved_by, $users);
+
                 return $data;
-            });
+            })->values();
 
             return response()->json([
                 'data' => $result,
-                'success' => true
+                'success' => true,
             ]);
         } catch (\Exception $e) {
             Log::error('Schedule index error: ' . $e->getMessage(), [

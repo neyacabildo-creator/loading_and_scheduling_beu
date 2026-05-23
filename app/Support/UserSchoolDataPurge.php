@@ -51,23 +51,7 @@ class UserSchoolDataPurge
         }
 
         try {
-            if (Schema::connection($connection)->hasTable('class_schedules')) {
-                DB::connection($connection)->table('class_schedules')
-                    ->where('faculty_id', $facultyId)
-                    ->delete();
-            }
-
-            if (Schema::connection($connection)->hasTable('faculty_loads')) {
-                DB::connection($connection)->table('faculty_loads')
-                    ->where('faculty_id', $facultyId)
-                    ->delete();
-            }
-
-            if (Schema::connection($connection)->hasTable('master_weekly_schedules')) {
-                DB::connection($connection)->table('master_weekly_schedules')
-                    ->where('faculty_id', $facultyId)
-                    ->delete();
-            }
+            FacultyLoadSupport::purgeAllDataForFaculty($facultyId, $connection);
 
             if (Schema::connection($connection)->hasTable('teacher_requests')) {
                 DB::connection($connection)->table('teacher_requests')
@@ -78,12 +62,6 @@ class UserSchoolDataPurge
             if (Schema::connection($connection)->hasTable('teacher_leave_requests')) {
                 DB::connection($connection)->table('teacher_leave_requests')
                     ->where('teacher_id', $facultyId)
-                    ->delete();
-            }
-
-            if (Schema::connection($connection)->hasTable('teacher_loading_schedules')) {
-                DB::connection($connection)->table('teacher_loading_schedules')
-                    ->where('faculty_id', $facultyId)
                     ->delete();
             }
 
@@ -105,12 +83,6 @@ class UserSchoolDataPurge
                     ->delete();
             }
 
-            if (Schema::connection($connection)->hasTable('load_conflict_log')) {
-                DB::connection($connection)->table('load_conflict_log')
-                    ->where('faculty_id', $facultyId)
-                    ->delete();
-            }
-
             $teacherConn = str_contains($connection, 'gs') ? 'mysql_gs_teacher' : 'mysql_jh_teacher';
             if (Schema::connection($teacherConn)->hasTable('schedule_adjustment_requests')) {
                 DB::connection($teacherConn)->table('schedule_adjustment_requests')
@@ -118,7 +90,7 @@ class UserSchoolDataPurge
                     ->delete();
             }
         } catch (\Throwable $e) {
-            Log::warning("UserSchoolDataPurge [{$connection}] faculty {$facultyId}: " . $e->getMessage());
+            Log::warning("UserSchoolDataPurge [{$connection}] faculty {$facultyId}: ".$e->getMessage());
         }
     }
 }

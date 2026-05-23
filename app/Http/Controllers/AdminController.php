@@ -13,6 +13,7 @@ use App\Models\ExportLog;
 use App\Models\GeneratedReport;
 use App\Notifications\ScheduleRemovedNotification;
 use App\Support\CombinedScheduleService;
+use App\Support\ScheduleDisplaySupport;
 use App\Support\ScheduleFormSupport;
 use App\Support\ScheduleAudit;
 use App\Support\ScheduleUpdateHelper;
@@ -146,16 +147,24 @@ class AdminController extends Controller {
             $roomIds = $schedules->pluck('room_id')->filter()->unique();
             $rooms = $roomIds->isNotEmpty() ? Room::whereIn('id', $roomIds)->get()->keyBy('id') : collect();
             $result = $schedules->map(function ($s) use ($users, $rooms) {
-                $data = $s->toArray();
+                $data = ScheduleDisplaySupport::enrichForApi(
+                    $s->toArray(),
+                    $s,
+                    isset($rooms[$s->room_id]) ? $rooms[$s->room_id] : null,
+                    isset($users[$s->faculty_id]) ? $users[$s->faculty_id] : null
+                );
                 $data['schedule_date'] = $s->getRawOriginal('schedule_date');
-                $data['faculty']  = isset($users[$s->faculty_id])  ? $users[$s->faculty_id]->toArray()  : null;
-                $data['room']     = isset($rooms[$s->room_id])
-                    ? (method_exists($rooms[$s->room_id], 'toArray') ? $rooms[$s->room_id]->toArray() : (array) $rooms[$s->room_id])
-                    : null;
+                $data['display_date'] = ScheduleDisplaySupport::formatScheduleDate($data['schedule_date']);
+                if (isset($rooms[$s->room_id])) {
+                    $room = $rooms[$s->room_id];
+                    $data['room'] = method_exists($room, 'toArray') ? $room->toArray() : (array) $room;
+                }
                 $data['approver'] = isset($users[$s->approved_by]) ? $users[$s->approved_by]->toArray() : null;
                 $data['approved_by_name'] = ScheduleAudit::approverName($s->approved_by, $users);
+
                 return $data;
-            });
+            })->values();
+
             return response()->json(['data' => $result]);
         } catch (\Exception $e) {
             Log::error('Get schedules error: ' . $e->getMessage());
@@ -169,11 +178,16 @@ class AdminController extends Controller {
     public function getSchedule($id) {
         try {
             $schedule = ClassSchedule::findOrFail($id);
-            $data = $schedule->toArray();
-            $data['faculty']  = $schedule->faculty_id  ? User::find($schedule->faculty_id)?->toArray()  : null;
-            $data['room']     = $schedule->room_id     ? Room::find($schedule->room_id)?->toArray()     : null;
+            $room = $schedule->room_id ? Room::find($schedule->room_id) : null;
+            $faculty = $schedule->faculty_id ? User::find($schedule->faculty_id) : null;
+            $data = ScheduleDisplaySupport::enrichForApi($schedule->toArray(), $schedule, $room, $faculty);
+            $data['schedule_date'] = $schedule->getRawOriginal('schedule_date');
+            $data['display_date'] = ScheduleDisplaySupport::formatScheduleDate($data['schedule_date']);
+            $data['faculty'] = $faculty?->toArray();
+            $data['room'] = $room?->toArray();
             $data['approver'] = $schedule->approved_by ? User::find($schedule->approved_by)?->toArray() : null;
             $data['approved_by_name'] = $data['approver']['name'] ?? null;
+
             return response()->json(['data' => $data]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json(['success' => false, 'message' => 'Schedule not found'], 404);

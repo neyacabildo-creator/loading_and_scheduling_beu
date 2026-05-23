@@ -457,21 +457,15 @@
                 schedules.forEach(s => { if (s && s.id) gsScheduleCache[s.id] = s; });
                 if (schedules.length > 0) {
                     tbody.innerHTML = schedules.map(s => {
-                        const timeStart = s.start_time ? s.start_time.substring(0, 5) : 'N/A';
-                        const timeEnd   = s.end_time   ? s.end_time.substring(0, 5)   : 'N/A';
-                        const displayDate = s.schedule_date ? new Date(s.schedule_date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '—';
                         return `<tr>
                             <td class="id-badge">#${s.id}</td>
                             <td>${s.faculty?.name || 'N/A'}${gsSharedTeacherIds.has(s.faculty_id) ? ' <span style="background:#2563eb;color:white;border-radius:9999px;font-size:0.65rem;padding:1px 7px;font-weight:700;vertical-align:middle;white-space:nowrap;">SHARED</span>' : ''}</td>
                             <td>${s.subject || 'N/A'}</td>
-                            <td>${s.grade_level ? s.grade_level + (s.section_name ? ' - ' + s.section_name : '') : (s.section_name || 'N/A')}</td>
-                            <td>${s.day_of_week || 'N/A'}</td>
-                            <td>${displayDate}</td>
-                            <td>${timeStart} - ${timeEnd}</td>
-                            <td>${s.room_id
-                                ? `<strong>Room #${s.room_id}</strong>`
-                                : '<span style="color:var(--text-secondary);">—</span>'
-                            }${(s.grade_level||s.section_name) ? '<br><span style="font-size:.68rem;color:var(--text-secondary);">' + (s.grade_level ? s.grade_level + (s.section_name ? ' – '+s.section_name : '') : s.section_name) + '</span>' : ''}</td>
+                            <td>${adminScheduleGradeSection(s)}</td>
+                            <td>${s.day_of_week || '—'}</td>
+                            <td>${adminScheduleDate(s)}</td>
+                            <td>${adminScheduleTimeRange(s)}</td>
+                            <td>${adminScheduleRoom(s)}</td>
                             <td>
                                 <div class="action-buttons">
                                     <button class="action-btn approve" onclick="gsOpenApprovalModal(${s.id}, 'approve')">Approve</button>
@@ -512,22 +506,15 @@
                 }
                 if (schedules.length > 0) {
                     tbody.innerHTML = schedules.map(s => {
-                        let displayDate = 'N/A';
-                        if (s.schedule_date) displayDate = new Date(s.schedule_date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
-                        const timeStart   = s.start_time   ? s.start_time.substring(0, 5)   : 'N/A';
-                        const timeEnd     = s.end_time     ? s.end_time.substring(0, 5)     : 'N/A';
                         return `<tr data-schedule-id="${s.id}">
                             <td class="id-badge">#${s.id}</td>
                             <td>${s.faculty?.name || 'N/A'}${gsSharedTeacherIds.has(s.faculty_id) ? ' <span style="background:#2563eb;color:white;border-radius:9999px;font-size:0.65rem;padding:1px 7px;font-weight:700;vertical-align:middle;white-space:nowrap;">SHARED</span>' : ''}</td>
                             <td>${s.subject || 'N/A'}</td>
-                            <td>${s.grade_level ? s.grade_level + (s.section_name ? ' - ' + s.section_name : '') : (s.section_name || 'N/A')}</td>
-                            <td>${s.day_of_week || 'N/A'}</td>
-                            <td>${displayDate}</td>
-                            <td>${timeStart} - ${timeEnd}</td>
-                            <td>${s.room_id
-                                ? `<strong>Room #${s.room_id}</strong>`
-                                : '<span style="color:var(--text-secondary);">—</span>'
-                            }${(s.grade_level||s.section_name) ? '<br><span style="font-size:.68rem;color:var(--text-secondary);">' + (s.grade_level ? s.grade_level + (s.section_name ? ' – '+s.section_name : '') : s.section_name) + '</span>' : ''}</td>
+                            <td>${adminScheduleGradeSection(s)}</td>
+                            <td>${s.day_of_week || '—'}</td>
+                            <td>${adminScheduleDate(s)}</td>
+                            <td>${adminScheduleTimeRange(s)}</td>
+                            <td>${adminScheduleRoom(s)}</td>
                             <td><span class="badge badge-active">${s.status || 'active'}</span></td>
                             <td>
                                 <div class="schedule-actions-row">

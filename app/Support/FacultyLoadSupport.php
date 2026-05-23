@@ -660,6 +660,68 @@ class FacultyLoadSupport
         return $deleted;
     }
 
+    /**
+     * Remove all schedules, loads, weekly timetable, and related rows when a user account is deleted.
+     */
+    public static function purgeAllDataForFaculty(int $facultyId, string $connection): void
+    {
+        if ($facultyId <= 0 || ! in_array($connection, ['mysql_jh', 'mysql_gs'], true)) {
+            return;
+        }
+
+        DB::connection($connection)->transaction(function () use ($facultyId, $connection) {
+            if (Schema::connection($connection)->hasTable('class_schedules')) {
+                $schedules = ClassSchedule::on($connection)->where('faculty_id', $facultyId)->get();
+                foreach ($schedules as $schedule) {
+                    self::deleteScheduleAndRelated($schedule, true);
+                }
+            }
+
+            if (Schema::connection($connection)->hasTable('pending_schedules')) {
+                DB::connection($connection)->table('pending_schedules')
+                    ->where('faculty_id', $facultyId)
+                    ->delete();
+            }
+
+            if (Schema::connection($connection)->hasTable('rejected_schedules')) {
+                $query = DB::connection($connection)->table('rejected_schedules');
+                if (Schema::connection($connection)->hasColumn('rejected_schedules', 'faculty_id')) {
+                    $query->where('faculty_id', $facultyId)->delete();
+                }
+            }
+
+            if (Schema::connection($connection)->hasTable('faculty_loads')) {
+                DB::connection($connection)->table('faculty_loads')
+                    ->where('faculty_id', $facultyId)
+                    ->delete();
+            }
+
+            if (Schema::connection($connection)->hasTable('master_weekly_schedules')) {
+                MasterWeeklySchedule::on($connection)
+                    ->where('faculty_id', $facultyId)
+                    ->delete();
+            }
+
+            if (Schema::connection($connection)->hasTable('teacher_loading_schedules')) {
+                DB::connection($connection)->table('teacher_loading_schedules')
+                    ->where('faculty_id', $facultyId)
+                    ->delete();
+            }
+
+            if (Schema::connection($connection)->hasTable('load_conflict_log')) {
+                DB::connection($connection)->table('load_conflict_log')
+                    ->where('faculty_id', $facultyId)
+                    ->delete();
+            }
+
+            if (Schema::connection($connection)->hasTable('load_conflict_logs')) {
+                DB::connection($connection)->table('load_conflict_logs')
+                    ->where('faculty_id', $facultyId)
+                    ->delete();
+            }
+        });
+    }
+
     public static function refreshTeacherLoadingScheduleRow(FacultyLoad $load, ?string $oldSubject = null): void
     {
         $conn = $load->getConnectionName() ?: config('database.school_connection', 'mysql_jh');

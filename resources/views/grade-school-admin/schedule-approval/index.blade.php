@@ -95,6 +95,8 @@
                         <th>Faculty Name</th>
                         <th>Subject</th>
                         <th>Grade/Section</th>
+                        <th>Day</th>
+                        <th>Date</th>
                         <th>Room</th>
                         <th>Time</th>
                         <th>Status</th>
@@ -106,9 +108,11 @@
                     <tr>
                         <td><strong>{{ optional($schedule->faculty)->name ?? 'N/A' }}</strong></td>
                         <td>{{ $schedule->subject }}</td>
-                        <td>{{ $schedule->grade_section }}</td>
-                        <td>{{ $schedule->room_id ? 'Room #'.$schedule->room_id : 'N/A' }}</td>
-                        <td>{{ $schedule->start_time ?? 'N/A' }} - {{ $schedule->end_time ?? 'N/A' }}</td>
+                        <td>{{ $schedule->grade_section ?? '—' }}</td>
+                        <td>{{ $schedule->day_of_week ?? '—' }}</td>
+                        <td>{{ $schedule->display_date ?? '—' }}</td>
+                        <td>{{ $schedule->room_label ?? '—' }}</td>
+                        <td>{{ substr((string)($schedule->start_time ?? ''), 0, 5) }} – {{ substr((string)($schedule->end_time ?? ''), 0, 5) }}</td>
                         <td>
                             @if($schedule->admin_approved && $schedule->status === 'active')
                                 <span class="badge badge-active">Approved</span>
@@ -233,7 +237,7 @@
         function gsToday()     { gsCalDate = new Date(); renderGSCalendar(); }
 
         function loadGSCalendarSchedules() {
-            fetch('/api/admin/schedules', {
+            fetch('/api/grade-school-admin/schedules', {
                 headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': _csrf },
                 credentials: 'same-origin'
             })

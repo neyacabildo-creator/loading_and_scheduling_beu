@@ -105,12 +105,13 @@
                         <th>Day</th>
                         <th>Date</th>
                         <th>Time</th>
+                        <th>Room</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody id="pendingTableBody">
                     <tr>
-                        <td colspan="8" style="text-align: center; padding: 2rem;">Loading schedules...</td>
+                        <td colspan="9" style="text-align: center; padding: 2rem;">Loading schedules...</td>
                     </tr>
                 </tbody>
             </table>
@@ -134,13 +135,14 @@
                         <th>Day</th>
                         <th>Date</th>
                         <th>Time</th>
+                        <th>Room</th>
                         <th>Status</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody id="approvedTableBody">
                     <tr>
-                        <td colspan="9" style="text-align: center; padding: 2rem;">Loading schedules...</td>
+                        <td colspan="10" style="text-align: center; padding: 2rem;">Loading schedules...</td>
                     </tr>
                 </tbody>
             </table>
@@ -450,26 +452,17 @@
                 
                 if (schedules.length > 0) {
                     tbody.innerHTML = schedules.map(schedule => {
-                        // Use schedule_date if available, otherwise use day_of_week
-                        let displayDate = 'N/A';
-                        if (schedule.schedule_date) {
-                            const dateObj = new Date(schedule.schedule_date);
-                            displayDate = dateObj.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
-                        }
-                        
-                        const dayOfWeek = schedule.day_of_week || 'N/A';
-                        const timeStart = schedule.start_time ? schedule.start_time.substring(0, 5) : (schedule.time_start ? schedule.time_start.substring(11, 16) : 'N/A');
-                        const timeEnd = schedule.end_time ? schedule.end_time.substring(0, 5) : (schedule.time_end ? schedule.time_end.substring(11, 16) : 'N/A');
-                        
+                        const dayOfWeek = schedule.day_of_week || '—';
                         return `
                             <tr data-schedule-id="${schedule.id}">
                                 <td class="id-badge">#${schedule.id}</td>
                                 <td>${schedule.faculty?.name || 'N/A'}${jhSharedTeacherIds.has(schedule.faculty_id) ? ' <span style="background:#2563eb;color:white;border-radius:9999px;font-size:0.65rem;padding:1px 7px;font-weight:700;vertical-align:middle;white-space:nowrap;">SHARED</span>' : ''}</td>
                                 <td>${schedule.subject || 'N/A'}</td>
-                                <td>${schedule.grade_level ? schedule.grade_level + (schedule.section_name ? ' - ' + schedule.section_name : '') : (schedule.section_name || 'N/A')}</td>
+                                <td>${adminScheduleGradeSection(schedule)}</td>
                                 <td>${dayOfWeek}</td>
-                                <td>${displayDate}</td>
-                                <td>${timeStart} - ${timeEnd}</td>
+                                <td>${adminScheduleDate(schedule)}</td>
+                                <td>${adminScheduleTimeRange(schedule)}</td>
+                                <td>${adminScheduleRoom(schedule)}</td>
                                 <td>
                                     <div class="action-buttons">
                                         <button class="action-btn approve" onclick="openApprovalModal(${schedule.id}, 'approve')">Approve</button>
@@ -481,12 +474,12 @@
                         `;
                     }).join('');
                 } else {
-                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No pending schedules</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No pending schedules</td></tr>';
                 }
             })
             .catch(error => {
                 console.error('Error loading pending schedules:', error);
-                tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: #ef4444; padding: 2rem;">Unable to load schedules. ${error.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: #ef4444; padding: 2rem;">Unable to load schedules. ${error.message}</td></tr>`;
             });
         }
 
@@ -545,25 +538,17 @@
 
                 if (schedules.length > 0) {
                     tbody.innerHTML = schedules.map(schedule => {
-                        // Use schedule_date if available, otherwise use day_of_week
-                        let displayDate = 'N/A';
-                        if (schedule.schedule_date) {
-                            const dateObj = new Date(schedule.schedule_date);
-                            displayDate = dateObj.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
-                        }
-                        
-                        const dayOfWeek = schedule.day_of_week || 'N/A';
-                        const timeStart = schedule.start_time ? schedule.start_time.substring(0, 5) : (schedule.time_start ? schedule.time_start.substring(11, 16) : 'N/A');
-                        const timeEnd = schedule.end_time ? schedule.end_time.substring(0, 5) : (schedule.time_end ? schedule.time_end.substring(11, 16) : 'N/A');
+                        const dayOfWeek = schedule.day_of_week || '—';
                         return `
                             <tr data-schedule-id="${schedule.id}">
                                 <td class="id-badge">#${schedule.id}</td>
                                 <td>${schedule.faculty?.name || 'N/A'}${jhSharedTeacherIds.has(schedule.faculty_id) ? ' <span style="background:#2563eb;color:white;border-radius:9999px;font-size:0.65rem;padding:1px 7px;font-weight:700;vertical-align:middle;white-space:nowrap;">SHARED</span>' : ''}</td>
                                 <td>${schedule.subject || 'N/A'}</td>
-                                <td>${schedule.grade_level ? schedule.grade_level + (schedule.section_name ? ' - ' + schedule.section_name : '') : (schedule.section_name || 'N/A')}</td>
+                                <td>${adminScheduleGradeSection(schedule)}</td>
                                 <td>${dayOfWeek}</td>
-                                <td>${displayDate}</td>
-                                <td>${timeStart} - ${timeEnd}</td>
+                                <td>${adminScheduleDate(schedule)}</td>
+                                <td>${adminScheduleTimeRange(schedule)}</td>
+                                <td>${adminScheduleRoom(schedule)}</td>
                                 <td><span class="badge badge-active">${schedule.status || 'active'}</span></td>
                                 <td>
                                     <div class="schedule-actions-row">
@@ -575,12 +560,12 @@
                         `;
                     }).join('');
                 } else {
-                    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No approved schedules</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No approved schedules</td></tr>';
                 }
             })
             .catch(error => {
                 console.error('Error loading approved schedules:', error);
-                tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: #ef4444; padding: 2rem;">Unable to load schedules. ${error.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: #ef4444; padding: 2rem;">Unable to load schedules. ${error.message}</td></tr>`;
             });
         }
 
