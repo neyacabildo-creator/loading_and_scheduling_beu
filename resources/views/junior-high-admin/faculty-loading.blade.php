@@ -258,8 +258,14 @@
                     <select id="addFacultyTeacherId" required onchange="jhFetchFacultySchedules()">
                         <option value="">-- Select Teacher --</option>
                         @foreach($teachers as $teacher)
-                            @php $isShared = in_array((string)$teacher->id, $sharedTeacherUserIds ?? []); @endphp
-                            <option value="{{ $teacher->id }}" @if($isShared) data-shared="1" @endif>{{ trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name }}{{ $isShared ? ' (Shared Teacher)' : '' }}</option>
+                            @php
+                                $isShared = in_array((string)$teacher->id, $sharedTeacherUserIds ?? []);
+                                $assignedSubjects = ($sharedTeacherSubjectsMap ?? [])[$teacher->id] ?? [];
+                            @endphp
+                            <option value="{{ $teacher->id }}"
+                                @if($isShared) data-shared="1" @endif
+                                data-role-name="{{ $teacher->role?->name ?? '' }}"
+                                data-assigned-subjects="{{ e(json_encode($assignedSubjects)) }}">{{ trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name }}{{ $isShared ? ' (Shared Teacher)' : '' }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -635,6 +641,7 @@
         let jhFacultySchedulesCache = [];
         let jhEditFacultySchedulesCache = [];
         let jhFacultyTeachersCache = [];
+        let jhPendingSharedSubjects = [];
         let jhEditLoadSnapshot = { subjects: [] };
 
         function jhGetEditSubjectPreserve() {
@@ -676,7 +683,8 @@
             getScheduleCache: function () { return jhFacultySchedulesCache; },
             getEditScheduleCache: function () { return jhEditFacultySchedulesCache; },
             onRecalculateAddHours: function () { jhRecalculateAddHours(true); },
-            onRecalculateEditHours: jhRecalculateEditHours
+            onRecalculateEditHours: jhRecalculateEditHours,
+            getPendingSharedSubjects: function () { return jhPendingSharedSubjects; }
         });
 
         function jhNormalizeSubject(v) {
@@ -762,20 +770,77 @@
             return (h || 0) * 60 + (m || 0);
         }
 
+        function jhSubjectsFromFacultySelect() {
+            const sel = document.getElementById('addFacultyTeacherId');
+            const opt = sel?.options[sel.selectedIndex];
+            if (!opt) return [];
+            try {
+                const parsed = JSON.parse(opt.dataset.assignedSubjects || '[]');
+                return Array.isArray(parsed) ? parsed.filter(s => String(s || '').trim() !== '') : [];
+            } catch {
+                return [];
+            }
+        }
+
         function jhApplySharedTeacherSubjects() {
             const facultyId = document.getElementById('addFacultyTeacherId')?.value;
-            const teacher = jhFacultyTeachersCache.find(t => String(t.id) === String(facultyId));
-            const roleName = teacher?.role_name || teacher?.role?.name || '';
-            const subjects = Array.isArray(teacher?.assigned_subjects) ? teacher.assigned_subjects : [];
-
-            if (roleName === 'shared_teacher' && subjects.length && typeof jhRenderSubjectRows === 'function') {
-                jhRenderSubjectRows(subjects);
-                jhRecalculateAddHours();
-                jhRecalculateOngoingClasses(false);
-                return true;
+            const sel = document.getElementById('addFacultyTeacherId');
+            if (!facultyId) {
+                jhPendingSharedSubjects = [];
+                return Promise.resolve(false);
             }
 
-            return false;
+            const teacher = jhFacultyTeachersCache.find(t => String(t.id) === String(facultyId));
+            const roleName = sel?.options[sel.selectedIndex]?.dataset?.roleName
+                || teacher?.role_name
+                || teacher?.role?.name
+                || '';
+
+            if (roleName !== 'shared_teacher') {
+                jhPendingSharedSubjects = [];
+                return Promise.resolve(false);
+            }
+
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+            const applyList = (subjects) => {
+                const list = (subjects || []).filter(s => String(s || '').trim() !== '');
+                if (!list.length) {
+                    jhPendingSharedSubjects = [];
+                    return false;
+                }
+                jhPendingSharedSubjects = list.slice();
+                if (typeof jhRenderSubjectRows === 'function') {
+                    jhRenderSubjectRows(jhPendingSharedSubjects);
+                }
+                jhRecalculateAddHours(true);
+                jhRecalculateOngoingClasses(false);
+                return true;
+            };
+
+            const fromOption = jhSubjectsFromFacultySelect();
+            if (fromOption.length) {
+                if (teacher) {
+                    teacher.assigned_subjects = fromOption;
+                }
+                return Promise.resolve(applyList(fromOption));
+            }
+
+            return fetch(`/api/teachers/${facultyId}/assigned-subjects`, {
+                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken }
+            })
+            .then(r => r.json())
+            .then(data => {
+                const subjects = data.subjects || teacher?.assigned_subjects || [];
+                if (teacher) {
+                    teacher.assigned_subjects = subjects;
+                }
+                if (sel?.options[sel.selectedIndex] && subjects.length) {
+                    sel.options[sel.selectedIndex].dataset.assignedSubjects = JSON.stringify(subjects);
+                }
+                return applyList(subjects);
+            })
+            .catch(() => applyList(teacher?.assigned_subjects || []));
         }
 
         function jhFetchFacultySchedules() {
@@ -783,24 +848,27 @@
             if (!facultyId) {
                 document.getElementById('addFacultyHours').value = '';
                 document.getElementById('addFacultyClasses').value = '0';
+                jhPendingSharedSubjects = [];
                 document.getElementById('jhAddSubjectList').innerHTML =
                     '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a teacher and grade level, then add subjects.</p>';
                 return;
             }
 
-            if (jhApplySharedTeacherSubjects()) {
-                // Subjects pre-filled from User Accounts; still load schedules for hours/classes.
-            } else {
-                document.getElementById('jhAddSubjectList').innerHTML =
-                    '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a grade level, then add each subject.</p>';
-            }
-
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-            fetch(`/api/admin/schedules?faculty_id=${facultyId}`, {
-                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken }
+
+            jhApplySharedTeacherSubjects().then(function (applied) {
+                if (!applied) {
+                    document.getElementById('jhAddSubjectList').innerHTML =
+                        '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a grade level, then add each subject.</p>';
+                }
+
+                return fetch(`/api/admin/schedules?faculty_id=${facultyId}`, {
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken }
+                });
             })
-            .then(r => r.json())
+            .then(r => (r && typeof r.json === 'function') ? r.json() : null)
             .then(res => {
+                if (!res) return;
                 jhFacultySchedulesCache = (res.data || []).filter(s => s.admin_approved);
                 jhRecalculateAddHours();
                 jhRecalculateOngoingClasses(false);
@@ -836,6 +904,7 @@
 
         function openAddFacultyLoadModal() {
             document.getElementById('addFacultyLoadForm').reset();
+            jhPendingSharedSubjects = [];
             jhFacultySchedulesCache = [];
             document.getElementById('addFacultyHours').value = '';
             document.getElementById('jhAddSubjectList').innerHTML =
@@ -860,6 +929,8 @@
                     if (roleName === 'shared_teacher') {
                         opt.dataset.shared = '1';
                     }
+                    opt.dataset.roleName = roleName;
+                    opt.dataset.assignedSubjects = JSON.stringify(t.assigned_subjects || []);
                     opt.textContent = ((t.first_name || t.last_name)
                         ? (t.first_name + ' ' + t.last_name).trim()
                         : (t.name || '')) + (roleName === 'shared_teacher' ? ' (Shared Teacher)' : '');

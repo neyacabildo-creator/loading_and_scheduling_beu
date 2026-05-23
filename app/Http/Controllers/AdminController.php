@@ -731,6 +731,13 @@ class AdminController extends Controller {
             [$validated['password'], $aesKey, $user->id]
         );
 
+        if ($role->name === 'shared_teacher') {
+            $request->validate([
+                'subject1' => 'required|string|max:191',
+                'subject2' => 'required|string|max:191|different:subject1',
+            ]);
+        }
+
         \App\Support\SharedTeacherRegistrySync::syncFromAdminRequest($user, $role, $request, 'junior_high');
 
         if ($request->wantsJson()) {
@@ -857,6 +864,26 @@ class AdminController extends Controller {
      * All teachers in User Accounts for this admin's school level.
      * Faculty load assignment does not remove or hide accounts from this list.
      */
+    public function getTeacherAssignedSubjects(int $id)
+    {
+        try {
+            $schoolLevel = $this->getAdminSchoolLevel();
+            $user = \App\Support\AdminUserAccountsSupport::findUserAccount($schoolLevel, $id);
+            $connection = $schoolLevel === 'grade_school' ? 'mysql_gs' : 'mysql_jh';
+            $subjects = ($user->role?->name === 'shared_teacher')
+                ? \App\Support\SharedTeacherSupport::assignedSubjectsForFaculty($connection, $user->id, $schoolLevel)
+                : [];
+
+            return response()->json(['success' => true, 'subjects' => $subjects]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['success' => false, 'message' => 'Teacher not found'], 404);
+        } catch (\Exception $e) {
+            Log::error('Get teacher assigned subjects error: ' . $e->getMessage());
+
+            return response()->json(['success' => false, 'message' => 'Error loading subjects'], 400);
+        }
+    }
+
     public function getTeachers(Request $request) {
         try {
             $schoolLevel = $this->getAdminSchoolLevel();

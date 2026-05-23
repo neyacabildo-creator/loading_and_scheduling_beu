@@ -51,7 +51,15 @@ class FacultyLoadingController extends Controller
 
         // Teachers for add/edit modal dropdowns
         $teachers = \App\Support\AdminUserAccountsSupport::scopeFacultyAssignable(User::query(), 'junior_high')
-            ->orderBy('first_name')->get();
+            ->with('role')
+            ->orderBy('first_name')
+            ->get();
+
+        $sharedTeacherSubjectsMap = \App\Support\SharedTeacherSupport::subjectsMapForFacultyIds(
+            'mysql_jh',
+            $teachers->pluck('id')->all(),
+            'junior_high'
+        );
 
         // Shared teacher user IDs for badge rendering in the view
         $sharedTeacherUserIds = User::whereHas('role', fn($q) => $q->where('name', 'shared_teacher'))
@@ -76,6 +84,7 @@ class FacultyLoadingController extends Controller
             'teachers'    => $teachers,
             'subjects'    => $subjects,
             'sharedTeacherUserIds' => $sharedTeacherUserIds,
+            'sharedTeacherSubjectsMap' => $sharedTeacherSubjectsMap,
         ]);
     }
 

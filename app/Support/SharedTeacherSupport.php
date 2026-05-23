@@ -18,9 +18,6 @@ class SharedTeacherSupport
     }
 
     /**
-     * @return list<int|string>
-     */
-    /**
      * Subjects chosen when the shared teacher account was created (User Accounts).
      *
      * @return list<string>
@@ -31,29 +28,89 @@ class SharedTeacherSupport
             return [];
         }
 
-        $query = DB::connection($connection)->table('shared_teachers')
-            ->where('faculty_id', $facultyId)
-            ->where('is_active', true);
+        $row = self::registryRowForFaculty($connection, $facultyId, $schoolLevel);
+        if (! $row) {
+            return [];
+        }
 
+        return self::parseSubjectsField($row->subjects ?? null, $row->department ?? null);
+    }
+
+    /**
+     * @param  list<int>  $facultyIds
+     * @return array<int, list<string>>
+     */
+    public static function subjectsMapForFacultyIds(string $connection, array $facultyIds, ?string $schoolLevel = null): array
+    {
+        $map = [];
+        foreach ($facultyIds as $facultyId) {
+            $id = (int) $facultyId;
+            if ($id > 0) {
+                $map[$id] = self::assignedSubjectsForFaculty($connection, $id, $schoolLevel);
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * @return object|null
+     */
+    private static function registryRowForFaculty(string $connection, int $facultyId, ?string $schoolLevel)
+    {
         if ($schoolLevel !== null && Schema::connection($connection)->hasColumn('shared_teachers', 'school_level')) {
-            $query->where('school_level', $schoolLevel);
+            $scoped = DB::connection($connection)->table('shared_teachers')
+                ->where('faculty_id', $facultyId)
+                ->where('is_active', true)
+                ->where('school_level', $schoolLevel)
+                ->first();
+            if ($scoped) {
+                return $scoped;
+            }
         }
 
-        $row = $query->first();
-        if (! $row || empty($row->subjects)) {
-            return [];
+        $rows = DB::connection($connection)->table('shared_teachers')
+            ->where('faculty_id', $facultyId)
+            ->where('is_active', true)
+            ->orderByDesc('updated_at')
+            ->get();
+
+        foreach ($rows as $row) {
+            $parsed = self::parseSubjectsField($row->subjects ?? null, null);
+            if (count($parsed) >= 2) {
+                return $row;
+            }
         }
 
-        $decoded = json_decode((string) $row->subjects, true);
+        return $rows->first();
+    }
 
-        if (! is_array($decoded)) {
-            return [];
+    /**
+     * @return list<string>
+     */
+    private static function parseSubjectsField(mixed $raw, ?string $department = null): array
+    {
+        $decoded = [];
+
+        if (is_array($raw)) {
+            $decoded = $raw;
+        } elseif (is_string($raw) && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (! is_array($decoded)) {
+                $decoded = array_map('trim', explode(',', $raw));
+            }
         }
 
-        return array_values(array_filter(array_map(
+        $subjects = array_values(array_filter(array_map(
             static fn ($s) => trim((string) $s),
             $decoded
         )));
+
+        if ($subjects === [] && $department !== null && trim($department) !== '' && strcasecmp(trim($department), 'Unassigned') !== 0) {
+            $subjects = [trim($department)];
+        }
+
+        return $subjects;
     }
 
     public static function activeFacultyIds(string $connection): array

@@ -583,6 +583,25 @@ class GradeSchoolAdminController extends Controller
      * All teachers in User Accounts for Grade School.
      * Creating faculty loads does not remove or hide accounts from this list.
      */
+    public function getTeacherAssignedSubjects(int $id)
+    {
+        try {
+            $schoolLevel = $this->getAdminSchoolLevel();
+            $user = \App\Support\AdminUserAccountsSupport::findUserAccount($schoolLevel, $id);
+            $subjects = ($user->role?->name === 'shared_teacher')
+                ? \App\Support\SharedTeacherSupport::assignedSubjectsForFaculty('mysql_gs', $user->id, $schoolLevel)
+                : [];
+
+            return response()->json(['success' => true, 'subjects' => $subjects]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['success' => false, 'message' => 'Teacher not found'], 404);
+        } catch (\Exception $e) {
+            Log::error('GS getTeacherAssignedSubjects: ' . $e->getMessage());
+
+            return response()->json(['success' => false, 'message' => 'Error loading subjects'], 400);
+        }
+    }
+
     public function getTeachers(Request $request) {
         try {
             $schoolLevel = $this->getAdminSchoolLevel();
@@ -757,7 +776,15 @@ class GradeSchoolAdminController extends Controller
             ->count();
 
         $teachers = \App\Support\AdminUserAccountsSupport::scopeFacultyAssignable(User::query(), 'grade_school')
-            ->orderBy('first_name')->get();
+            ->with('role')
+            ->orderBy('first_name')
+            ->get();
+
+        $sharedTeacherSubjectsMap = \App\Support\SharedTeacherSupport::subjectsMapForFacultyIds(
+            'mysql_gs',
+            $teachers->pluck('id')->all(),
+            'grade_school'
+        );
 
         // Shared teacher user IDs for badge rendering
         $sharedTeacherUserIds = User::whereHas('role', fn($q) => $q->where('name', 'shared_teacher'))
@@ -774,7 +801,7 @@ class GradeSchoolAdminController extends Controller
 
         return view('grade-school-admin.faculty-loading', compact(
             'totalFaculty', 'totalClasses', 'avgLoad', 'overloaded', 'teachers', 'subjects',
-            'sharedTeacherUserIds', 'leaveBanner'
+            'sharedTeacherUserIds', 'sharedTeacherSubjectsMap', 'leaveBanner'
         ));
     }
 
@@ -1204,6 +1231,13 @@ class GradeSchoolAdminController extends Controller
             'UPDATE users SET password_encrypted = AES_ENCRYPT(?, ?) WHERE id = ?',
             [$validated['password'], $aesKey, $user->id]
         );
+
+        if ($role->name === 'shared_teacher') {
+            $request->validate([
+                'subject1' => 'required|string|max:191',
+                'subject2' => 'required|string|max:191|different:subject1',
+            ]);
+        }
 
         \App\Support\SharedTeacherRegistrySync::syncFromAdminRequest($user, $role, $request, 'grade_school');
 

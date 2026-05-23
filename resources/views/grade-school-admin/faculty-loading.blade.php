@@ -209,8 +209,14 @@
                     <select id="addFacultyId" required onchange="gsFetchFacultySchedules()" style="width:100%;padding:0.65rem;border:1px solid var(--border-color);border-radius:0.375rem;background:var(--bg-secondary);color:var(--text-primary);">
                         <option value="">-- Select Teacher --</option>
                         @foreach($teachers as $teacher)
-                            @php $isShared = in_array((string)$teacher->id, $sharedTeacherUserIds ?? []); @endphp
-                            <option value="{{ $teacher->id }}" @if($isShared) data-shared="1" @endif>{{ trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name }}{{ $isShared ? ' (Shared Teacher)' : '' }}</option>
+                            @php
+                                $isShared = in_array((string)$teacher->id, $sharedTeacherUserIds ?? []);
+                                $assignedSubjects = ($sharedTeacherSubjectsMap ?? [])[$teacher->id] ?? [];
+                            @endphp
+                            <option value="{{ $teacher->id }}"
+                                @if($isShared) data-shared="1" @endif
+                                data-role-name="{{ $teacher->role?->name ?? '' }}"
+                                data-assigned-subjects="{{ e(json_encode($assignedSubjects)) }}">{{ trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name }}{{ $isShared ? ' (Shared Teacher)' : '' }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -491,6 +497,7 @@
         let gsFacultySchedulesCache = [];
         let gsEditFacultySchedulesCache = [];
         let gsFacultyTeachersCache = [];
+        let gsPendingSharedSubjects = [];
 
         function gsSubjectsForGrade(gradeLevel) {
             return GS_GRADE_SUBJECTS[gradeLevel] || GS_ALL_SUBJECTS;
@@ -516,7 +523,8 @@
             getScheduleCache: function () { return gsFacultySchedulesCache; },
             getEditScheduleCache: function () { return gsEditFacultySchedulesCache; },
             onRecalculateAddHours: function () { gsRecalculateAddHours(); },
-            onRecalculateEditHours: gsRecalculateEditHours
+            onRecalculateEditHours: gsRecalculateEditHours,
+            getPendingSharedSubjects: function () { return gsPendingSharedSubjects; }
         });
 
         let gsEditLoadSnapshot = { subjects: [] };
@@ -608,20 +616,75 @@
             return (h || 0) * 60 + (m || 0);
         }
 
+        function gsSubjectsFromFacultySelect() {
+            const sel = document.getElementById('addFacultyId');
+            const opt = sel?.options[sel.selectedIndex];
+            if (!opt) return [];
+            try {
+                const parsed = JSON.parse(opt.dataset.assignedSubjects || '[]');
+                return Array.isArray(parsed) ? parsed.filter(s => String(s || '').trim() !== '') : [];
+            } catch {
+                return [];
+            }
+        }
+
         function gsApplySharedTeacherSubjects() {
             const facultyId = document.getElementById('addFacultyId')?.value;
-            const teacher = gsFacultyTeachersCache.find(t => String(t.id) === String(facultyId));
-            const roleName = teacher?.role_name || teacher?.role?.name || '';
-            const subjects = Array.isArray(teacher?.assigned_subjects) ? teacher.assigned_subjects : [];
+            const sel = document.getElementById('addFacultyId');
+            if (!facultyId) {
+                gsPendingSharedSubjects = [];
+                return Promise.resolve(false);
+            }
 
-            if (roleName === 'shared_teacher' && subjects.length && typeof gsRenderSubjectRows === 'function') {
-                gsRenderSubjectRows(subjects);
+            const teacher = gsFacultyTeachersCache.find(t => String(t.id) === String(facultyId));
+            const roleName = sel?.options[sel.selectedIndex]?.dataset?.roleName
+                || teacher?.role_name
+                || teacher?.role?.name
+                || '';
+
+            if (roleName !== 'shared_teacher') {
+                gsPendingSharedSubjects = [];
+                return Promise.resolve(false);
+            }
+
+            const applyList = (subjects) => {
+                const list = (subjects || []).filter(s => String(s || '').trim() !== '');
+                if (!list.length) {
+                    gsPendingSharedSubjects = [];
+                    return false;
+                }
+                gsPendingSharedSubjects = list.slice();
+                if (typeof gsRenderSubjectRows === 'function') {
+                    gsRenderSubjectRows(gsPendingSharedSubjects);
+                }
                 gsRecalculateAddHours();
                 gsRecalculateOngoingClasses(false);
                 return true;
+            };
+
+            const fromOption = gsSubjectsFromFacultySelect();
+            if (fromOption.length) {
+                if (teacher) {
+                    teacher.assigned_subjects = fromOption;
+                }
+                return Promise.resolve(applyList(fromOption));
             }
 
-            return false;
+            return fetch(`/api/grade-school-admin/teachers/${facultyId}/assigned-subjects`, {
+                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': token }
+            })
+            .then(r => r.json())
+            .then(data => {
+                const subjects = data.subjects || teacher?.assigned_subjects || [];
+                if (teacher) {
+                    teacher.assigned_subjects = subjects;
+                }
+                if (sel?.options[sel.selectedIndex] && subjects.length) {
+                    sel.options[sel.selectedIndex].dataset.assignedSubjects = JSON.stringify(subjects);
+                }
+                return applyList(subjects);
+            })
+            .catch(() => applyList(teacher?.assigned_subjects || []));
         }
 
         function gsFetchFacultySchedules() {
@@ -629,23 +692,25 @@
             if (!facultyId) {
                 document.getElementById('addFacultyHours').value = '';
                 document.getElementById('addFacultyClasses').value = '0';
+                gsPendingSharedSubjects = [];
                 document.getElementById('gsAddSubjectList').innerHTML =
                     '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a teacher and grade level, then add subjects.</p>';
                 return;
             }
 
-            if (gsApplySharedTeacherSubjects()) {
-                // Subjects pre-filled from User Accounts; still load schedules for hours/classes.
-            } else {
-                document.getElementById('gsAddSubjectList').innerHTML =
-                    '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a grade level, then add each subject.</p>';
-            }
+            gsApplySharedTeacherSubjects().then(function (applied) {
+                if (!applied) {
+                    document.getElementById('gsAddSubjectList').innerHTML =
+                        '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a grade level, then add each subject.</p>';
+                }
 
-            fetch(`/api/grade-school-admin/schedules?faculty_id=${facultyId}`, {
-                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': token }
+                return fetch(`/api/grade-school-admin/schedules?faculty_id=${facultyId}`, {
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': token }
+                });
             })
-            .then(r => r.json())
+            .then(r => (r && typeof r.json === 'function') ? r.json() : null)
             .then(res => {
+                if (!res) return;
                 gsFacultySchedulesCache = (res.data || []).filter(s => s.admin_approved);
                 gsRecalculateAddHours();
                 gsRecalculateOngoingClasses(false);
@@ -681,6 +746,7 @@
         // Add Faculty Load
         function openAddFacultyLoadModal() {
             document.getElementById('addFacultyLoadForm').reset();
+            gsPendingSharedSubjects = [];
             gsFacultySchedulesCache = [];
             document.getElementById('addFacultyHours').value = '';
             document.getElementById('gsAddSubjectList').innerHTML =
@@ -705,6 +771,8 @@
                     if (roleName === 'shared_teacher') {
                         opt.dataset.shared = '1';
                     }
+                    opt.dataset.roleName = roleName;
+                    opt.dataset.assignedSubjects = JSON.stringify(t.assigned_subjects || []);
                     opt.textContent = ((t.first_name || t.last_name)
                         ? (t.first_name + ' ' + t.last_name).trim()
                         : (t.name || '')) + (roleName === 'shared_teacher' ? ' (Shared Teacher)' : '');

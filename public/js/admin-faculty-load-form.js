@@ -73,6 +73,28 @@
             classesEl.value = countOngoingSchedules(cache, grade);
         }
 
+        function setSelectValue(sel, value) {
+            const v = String(value || '').trim();
+            if (!v) return;
+            const exact = Array.from(sel.options).find(o => o.value === v);
+            if (exact) {
+                sel.value = exact.value;
+                return;
+            }
+            const ci = Array.from(sel.options).find(
+                o => o.value && o.value.toLowerCase() === v.toLowerCase()
+            );
+            if (ci) {
+                sel.value = ci.value;
+                return;
+            }
+            const opt = document.createElement('option');
+            opt.value = v;
+            opt.textContent = v;
+            sel.appendChild(opt);
+            sel.value = v;
+        }
+
         function appendSubjectRow(container, rowClassName, gradeLevel, value, idx, onChange) {
             const wrap = document.createElement('div');
             wrap.style.cssText = 'display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem;';
@@ -82,7 +104,7 @@
                 <button type="button" class="fl-remove-subject" title="Remove" style="border:none;background:transparent;color:#b91c1c;cursor:pointer;font-size:1.1rem;line-height:1;">&times;</button>
             `;
             const sel = wrap.querySelector('select');
-            if (value) sel.value = value;
+            if (value) setSelectValue(sel, value);
             sel.addEventListener('change', onChange);
             wrap.querySelector('.fl-remove-subject').addEventListener('click', function () {
                 const rows = container.querySelectorAll('.' + rowClassName);
@@ -110,7 +132,18 @@
             const container = document.getElementById(containerId);
             if (!container) return;
             container.innerHTML = '';
-            const list = (preselected && preselected.length) ? preselected : [''];
+            const pending = typeof cfg.getPendingSharedSubjects === 'function'
+                ? (cfg.getPendingSharedSubjects() || []).filter(s => String(s || '').trim() !== '')
+                : [];
+            let list = (preselected && preselected.length)
+                ? preselected.filter(s => String(s || '').trim() !== '')
+                : [];
+            if (!list.length && pending.length) {
+                list = pending.slice();
+            }
+            if (!list.length) {
+                list = [''];
+            }
             list.forEach((val, i) => appendSubjectRow(container, rowClassName, gradeLevel, val, i, onChange));
         }
 
@@ -142,14 +175,33 @@
             };
         }
 
+        function resolvePreselected(preselected) {
+            const pending = typeof cfg.getPendingSharedSubjects === 'function'
+                ? cfg.getPendingSharedSubjects()
+                : [];
+            if (Array.isArray(pending) && pending.length) {
+                return pending;
+            }
+            if (Array.isArray(preselected) && preselected.length) {
+                return preselected;
+            }
+            return [''];
+        }
+
         global[cfg.globalRenderAdd] = function (preselected) {
             const grade = document.getElementById(gradeAddId)?.value || '';
+            const list = resolvePreselected(preselected);
             if (!grade) {
                 const c = document.getElementById(listAddId);
-                if (c) c.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a grade level first.</p>';
+                if (c && list.length && String(list[0] || '').trim() !== '') {
+                    c.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a grade level to finalize subject options. Assigned subjects are kept below.</p>';
+                    renderSubjectList(listAddId, rowClass, '', list, onHoursChange);
+                } else if (c) {
+                    c.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a grade level first.</p>';
+                }
                 return;
             }
-            renderSubjectList(listAddId, rowClass, grade, preselected, onHoursChange);
+            renderSubjectList(listAddId, rowClass, grade, list, onHoursChange);
             recalculateOngoingClasses(false);
         };
 
@@ -174,7 +226,12 @@
         const gradeAdd = document.getElementById(gradeAddId);
         if (gradeAdd) {
             gradeAdd.addEventListener('change', function () {
-                global[cfg.globalRenderAdd](collectSubjects(rowClass));
+                const pending = typeof cfg.getPendingSharedSubjects === 'function'
+                    ? (cfg.getPendingSharedSubjects() || []).filter(s => String(s || '').trim() !== '')
+                    : [];
+                const fromDom = collectSubjects(rowClass).filter(s => String(s || '').trim() !== '');
+                const pre = pending.length ? pending : (fromDom.length ? fromDom : ['']);
+                global[cfg.globalRenderAdd](pre);
             });
         }
         const gradeEdit = document.getElementById(gradeEditId);

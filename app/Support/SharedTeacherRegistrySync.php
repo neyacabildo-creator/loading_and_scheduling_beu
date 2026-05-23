@@ -56,20 +56,14 @@ class SharedTeacherRegistrySync
             unset($row['school_level']);
         }
 
-        $registry = DB::connection($connection)->table('shared_teachers')
-            ->where('faculty_id', $user->id);
-
+        $match = ['faculty_id' => $user->id];
         if (Schema::connection($connection)->hasColumn('shared_teachers', 'school_level')) {
-            $registry->where('school_level', $schoolLevel);
+            $match['school_level'] = $schoolLevel;
         }
 
         $updateRow = $row;
         unset($updateRow['created_at']);
 
-        if ($registry->exists()) {
-            $registry->update($updateRow);
-        } else {
-            DB::connection($connection)->table('shared_teachers')->insert($row);
-        }
+        DB::connection($connection)->table('shared_teachers')->updateOrInsert($match, $updateRow);
     }
 }

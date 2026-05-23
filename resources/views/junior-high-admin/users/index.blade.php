@@ -470,8 +470,28 @@
 
             const roleName = document.getElementById('m_role_id').options[document.getElementById('m_role_id').selectedIndex]?.dataset?.roleName || '';
             if (roleName === 'shared_teacher') {
-                payload.subject1 = document.getElementById('m_subject1').value.trim();
-                payload.subject2 = document.getElementById('m_subject2').value.trim();
+                const s1 = document.getElementById('m_subject1').value.trim();
+                const s2 = document.getElementById('m_subject2').value.trim();
+                if (!s1) {
+                    setFieldError('subject1', 'Primary subject is required.');
+                    btn.disabled = false;
+                    btn.textContent = 'Create User';
+                    return;
+                }
+                if (!s2) {
+                    setFieldError('subject2', 'Secondary subject is required.');
+                    btn.disabled = false;
+                    btn.textContent = 'Create User';
+                    return;
+                }
+                if (s1.toLowerCase() === s2.toLowerCase()) {
+                    setFieldError('subject2', 'Secondary subject must be different from primary.');
+                    btn.disabled = false;
+                    btn.textContent = 'Create User';
+                    return;
+                }
+                payload.subject1 = s1;
+                payload.subject2 = s2;
             }
 
             fetch('/admin/users', {
