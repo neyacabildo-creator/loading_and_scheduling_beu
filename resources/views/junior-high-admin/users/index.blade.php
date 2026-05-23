@@ -104,7 +104,9 @@
     <div class="table-card">
         <div class="table-header">
             <div class="table-title">Junior High User Accounts</div>
-            <input type="search" id="searchInput" name="jh-user-account-filter" placeholder="Search by name or email..." autocomplete="off" autocorrect="off" spellcheck="false" style="padding: 0.5rem 1rem; border: 1px solid #e8dcc8; border-radius: 0.375rem; font-size: 0.875rem;" oninput="filterTable()">
+            {{-- Decoy field absorbs browser autofill so the real search stays empty until the admin types --}}
+            <input type="text" name="jh_autofill_trap" value="" tabindex="-1" autocomplete="username" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;">
+            <input type="text" id="searchInput" name="jh_user_account_q" placeholder="Search by name or email..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" readonly data-lpignore="true" data-1p-ignore style="padding: 0.5rem 1rem; border: 1px solid #e8dcc8; border-radius: 0.375rem; font-size: 0.875rem;" onfocus="this.removeAttribute('readonly')" oninput="handleUserSearchInput()">
         </div>
         <div style="overflow-x: auto;">
             <table id="usersTable">
@@ -215,6 +217,29 @@
         let allTeachers = [];
         let jhSubjects = [];
 
+        function resetUserSearchInput() {
+            const el = document.getElementById('searchInput');
+            if (!el) return;
+            el.value = '';
+            delete el.dataset.userSearch;
+            el.setAttribute('readonly', 'readonly');
+        }
+
+        function guardUserSearchAutofill() {
+            const el = document.getElementById('searchInput');
+            if (!el || el.dataset.userSearch === '1') return;
+            if (el.value.trim() !== '') {
+                el.value = '';
+                renderTeachers(allTeachers);
+            }
+        }
+
+        function handleUserSearchInput() {
+            const el = document.getElementById('searchInput');
+            if (el) el.dataset.userSearch = '1';
+            filterTable();
+        }
+
         function escapeHtml(s) {
             const d = document.createElement('div');
             d.textContent = s ?? '';
@@ -233,13 +258,14 @@
         }
 
         function loadTeachers() {
-            const searchEl = document.getElementById('searchInput');
-            if (searchEl) searchEl.value = '';
+            resetUserSearchInput();
             fetch('/api/teachers', { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(res => res.json())
                 .then(data => {
                     allTeachers = data.data || [];
                     renderTeachers(allTeachers);
+                    resetUserSearchInput();
+                    [0, 100, 300, 600].forEach(ms => setTimeout(guardUserSearchAutofill, ms));
                 })
                 .catch(() => {
                     document.getElementById('usersTableBody').innerHTML =
@@ -268,6 +294,11 @@
 
         loadTeachers();
         loadSubjects();
+        window.addEventListener('pageshow', () => {
+            resetUserSearchInput();
+            guardUserSearchAutofill();
+            if (allTeachers.length) renderTeachers(allTeachers);
+        });
 
         function renderTeachers(teachers) {
             const tbody = document.getElementById('usersTableBody');
@@ -300,7 +331,10 @@
         }
 
         function filterTable() {
-            const q = document.getElementById('searchInput').value.toLowerCase();
+            const searchEl = document.getElementById('searchInput');
+            const q = (searchEl && searchEl.dataset.userSearch === '1')
+                ? searchEl.value.trim().toLowerCase()
+                : '';
             renderTeachers(q ? allTeachers.filter(t => {
                 const roleLabel = (t.role && (t.role.display_name || t.role.name)) ? String(t.role.display_name || t.role.name).toLowerCase() : '';
                 return (t.name || '').toLowerCase().includes(q) ||
@@ -438,7 +472,8 @@
                         const idx = allTeachers.findIndex(x => x.id === u.id);
                         if (idx >= 0) allTeachers[idx] = u;
                         else allTeachers.push(u);
-                        document.getElementById('searchInput').value = '';
+                        resetUserSearchInput();
+                        renderTeachers(allTeachers);
                         renderTeachers(allTeachers);
                     } else {
                         loadTeachers();
