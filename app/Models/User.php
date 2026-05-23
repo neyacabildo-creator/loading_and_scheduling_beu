@@ -28,6 +28,7 @@ class User extends Authenticatable
         'email',
         'password',
         'school_level',
+        'shared_teacher_subjects',
         'is_active',
         'profile_photo_path',
     ];
@@ -54,6 +55,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'shared_teacher_subjects' => 'array',
         ];
     }
 

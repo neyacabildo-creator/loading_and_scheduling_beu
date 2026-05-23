@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -24,16 +25,22 @@ class SharedTeacherSupport
      */
     public static function assignedSubjectsForFaculty(string $connection, int $facultyId, ?string $schoolLevel = null): array
     {
-        if ($facultyId <= 0 || ! self::tableExists($connection)) {
+        if ($facultyId <= 0) {
             return [];
         }
 
-        $row = self::registryRowForFaculty($connection, $facultyId, $schoolLevel);
-        if (! $row) {
-            return [];
+        $merged = self::subjectsFromUserRecord($facultyId);
+        foreach (self::registryConnectionsForPortal($connection, $schoolLevel) as $conn) {
+            $merged = self::mergeSubjectLists($merged, self::subjectsFromRegistryConnection($conn, $facultyId, $schoolLevel));
         }
 
-        return self::parseSubjectsField($row->subjects ?? null, $row->department ?? null);
+        $merged = self::normalizeSubjectList($merged);
+
+        if ($merged !== []) {
+            self::persistSubjectsOnUser($facultyId, $merged);
+        }
+
+        return $merged;
     }
 
     /**
@@ -54,35 +61,110 @@ class SharedTeacherSupport
     }
 
     /**
-     * @return object|null
+     * @return list<string>
      */
-    private static function registryRowForFaculty(string $connection, int $facultyId, ?string $schoolLevel)
+    public static function subjectsFromUserRecord(int $facultyId): array
     {
-        if ($schoolLevel !== null && Schema::connection($connection)->hasColumn('shared_teachers', 'school_level')) {
-            $scoped = DB::connection($connection)->table('shared_teachers')
-                ->where('faculty_id', $facultyId)
-                ->where('is_active', true)
-                ->where('school_level', $schoolLevel)
-                ->first();
-            if ($scoped) {
-                return $scoped;
-            }
+        if ($facultyId <= 0 || ! Schema::connection('mysql')->hasColumn('users', 'shared_teacher_subjects')) {
+            return [];
         }
 
-        $rows = DB::connection($connection)->table('shared_teachers')
+        $user = User::find($facultyId);
+        if (! $user || $user->role?->name !== 'shared_teacher') {
+            return [];
+        }
+
+        $raw = $user->shared_teacher_subjects;
+        if (is_array($raw)) {
+            return self::normalizeSubjectList($raw);
+        }
+
+        return [];
+    }
+
+    /**
+     * @param  list<string>  $subjects
+     */
+    public static function persistSubjectsOnUser(int $facultyId, array $subjects): void
+    {
+        $subjects = self::normalizeSubjectList($subjects);
+        if ($subjects === [] || ! Schema::connection('mysql')->hasColumn('users', 'shared_teacher_subjects')) {
+            return;
+        }
+
+        User::where('id', $facultyId)->update(['shared_teacher_subjects' => $subjects]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function subjectsFromRegistryConnection(string $connection, int $facultyId, ?string $schoolLevel): array
+    {
+        if (! self::tableExists($connection)) {
+            return [];
+        }
+
+        $base = DB::connection($connection)->table('shared_teachers')
             ->where('faculty_id', $facultyId)
-            ->where('is_active', true)
-            ->orderByDesc('updated_at')
-            ->get();
+            ->where('is_active', true);
 
-        foreach ($rows as $row) {
-            $parsed = self::parseSubjectsField($row->subjects ?? null, null);
-            if (count($parsed) >= 2) {
-                return $row;
-            }
+        if ($schoolLevel !== null && Schema::connection($connection)->hasColumn('shared_teachers', 'school_level')) {
+            $scoped = (clone $base)->where('school_level', $schoolLevel)->get();
+            $rows = $scoped->isNotEmpty() ? $scoped : $base->orderByDesc('updated_at')->get();
+        } else {
+            $rows = $base->orderByDesc('updated_at')->get();
         }
 
-        return $rows->first();
+        $merged = [];
+        foreach ($rows as $row) {
+            $merged = self::mergeSubjectLists(
+                $merged,
+                self::parseSubjectsField($row->subjects ?? null, $row->department ?? null)
+            );
+        }
+
+        return self::normalizeSubjectList($merged);
+    }
+
+    /**
+     * Prefer the portal DB, but also read the other school DB (legacy / cross-portal creates).
+     *
+     * @return list<string>
+     */
+    private static function registryConnectionsForPortal(string $connection, ?string $schoolLevel): array
+    {
+        $primary = $connection;
+        $secondary = $connection === 'mysql_gs' ? 'mysql_jh' : 'mysql_gs';
+
+        return array_values(array_unique([$primary, $secondary]));
+    }
+
+    /**
+     * @param  list<string>  $a
+     * @param  list<string>  $b
+     * @return list<string>
+     */
+    private static function mergeSubjectLists(array $a, array $b): array
+    {
+        return self::normalizeSubjectList(array_merge($a, $b));
+    }
+
+    /**
+     * @param  list<string>  $subjects
+     * @return list<string>
+     */
+    private static function normalizeSubjectList(array $subjects): array
+    {
+        $map = [];
+        foreach ($subjects as $subject) {
+            $subject = trim((string) $subject);
+            if ($subject === '' || strcasecmp($subject, 'Unassigned') === 0) {
+                continue;
+            }
+            $map[strtolower($subject)] = $subject;
+        }
+
+        return array_values($map);
     }
 
     /**
@@ -101,10 +183,7 @@ class SharedTeacherSupport
             }
         }
 
-        $subjects = array_values(array_filter(array_map(
-            static fn ($s) => trim((string) $s),
-            $decoded
-        )));
+        $subjects = self::normalizeSubjectList($decoded);
 
         if ($subjects === [] && $department !== null && trim($department) !== '' && strcasecmp(trim($department), 'Unassigned') !== 0) {
             $subjects = [trim($department)];

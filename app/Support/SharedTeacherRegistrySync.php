@@ -65,5 +65,9 @@ class SharedTeacherRegistrySync
         unset($updateRow['created_at']);
 
         DB::connection($connection)->table('shared_teachers')->updateOrInsert($match, $updateRow);
+
+        if ($subjects !== []) {
+            SharedTeacherSupport::persistSubjectsOnUser($user->id, $subjects);
+        }
     }
 }

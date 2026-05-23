@@ -819,19 +819,26 @@
             };
 
             const fromOption = jhSubjectsFromFacultySelect();
-            if (fromOption.length) {
-                if (teacher) {
-                    teacher.assigned_subjects = fromOption;
-                }
-                return Promise.resolve(applyList(fromOption));
-            }
+
+            const mergeSubjectLists = (...lists) => {
+                const map = {};
+                lists.flat().forEach(s => {
+                    const t = String(s || '').trim();
+                    if (t) map[t.toLowerCase()] = t;
+                });
+                return Object.values(map);
+            };
 
             return fetch(`/api/teachers/${facultyId}/assigned-subjects`, {
                 headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken }
             })
             .then(r => r.json())
             .then(data => {
-                const subjects = data.subjects || teacher?.assigned_subjects || [];
+                const subjects = mergeSubjectLists(
+                    data.subjects || [],
+                    fromOption,
+                    teacher?.assigned_subjects || []
+                );
                 if (teacher) {
                     teacher.assigned_subjects = subjects;
                 }
@@ -840,7 +847,7 @@
                 }
                 return applyList(subjects);
             })
-            .catch(() => applyList(teacher?.assigned_subjects || []));
+            .catch(() => applyList(mergeSubjectLists(fromOption, teacher?.assigned_subjects || [])));
         }
 
         function jhFetchFacultySchedules() {

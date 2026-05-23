@@ -327,8 +327,13 @@ class PrincipalController extends Controller
             ];
             foreach (['mysql_jh', 'mysql_gs'] as $conn) {
                 $sl = $conn === 'mysql_jh' ? 'junior_high' : 'grade_school';
-                DB::connection($conn)->table('shared_teachers')
-                    ->insertOrIgnore(array_merge($stData, ['school_level' => $sl]));
+                DB::connection($conn)->table('shared_teachers')->updateOrInsert(
+                    ['faculty_id' => $user->id, 'school_level' => $sl],
+                    array_merge($stData, ['school_level' => $sl, 'updated_at' => now()])
+                );
+            }
+            if ($subjects !== []) {
+                \App\Support\SharedTeacherSupport::persistSubjectsOnUser($user->id, $subjects);
             }
         }
 
