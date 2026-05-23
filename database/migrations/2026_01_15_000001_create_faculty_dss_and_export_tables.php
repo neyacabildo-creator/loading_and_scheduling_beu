@@ -11,7 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Faculty Loads Table
+        // Safe to re-run after a partial failed deploy (MySQL DDL does not roll back).
+        if (! Schema::hasTable('faculty_loads')) {
         Schema::create('faculty_loads', function (Blueprint $table) {
             $table->id();
             $table->foreignId('faculty_id')->constrained('users')->onDelete('cascade');
@@ -22,8 +23,9 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->timestamps();
         });
+        }
 
-        // DSS Recommendations Table
+        if (! Schema::hasTable('dss_recommendations')) {
         Schema::create('dss_recommendations', function (Blueprint $table) {
             $table->id();
             $table->string('type');
@@ -34,8 +36,9 @@ return new class extends Migration
             $table->foreignId('related_faculty_id')->nullable()->constrained('users')->onDelete('set null');
             $table->timestamps();
         });
+        }
 
-        // Export Logs Table
+        if (! Schema::hasTable('export_logs')) {
         Schema::create('export_logs', function (Blueprint $table) {
             $table->id();
             $table->string('format');
@@ -47,8 +50,10 @@ return new class extends Migration
             $table->foreignId('created_by')->nullable()->constrained('users')->onDelete('set null');
             $table->timestamps();
         });
+        }
 
         // Rooms must exist before class_schedules (FK references rooms.id).
+        if (! Schema::hasTable('rooms')) {
         Schema::create('rooms', function (Blueprint $table) {
             $table->id();
             $table->string('room_number', 50)->unique();
@@ -60,7 +65,9 @@ return new class extends Migration
             $table->enum('status', ['available', 'in-use', 'maintenance'])->default('available');
             $table->timestamps();
         });
+        }
 
+        if (! Schema::hasTable('class_schedules')) {
         Schema::create('class_schedules', function (Blueprint $table) {
             $table->id();
             $table->foreignId('faculty_id')->constrained('users')->onDelete('cascade');
@@ -74,6 +81,7 @@ return new class extends Migration
             $table->enum('status', ['pending', 'active', 'completed'])->default('active');
             $table->timestamps();
         });
+        }
     }
 
     /**
