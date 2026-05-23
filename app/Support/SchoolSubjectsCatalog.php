@@ -86,8 +86,10 @@ class SchoolSubjectsCatalog
         'Grade 3' => ['FILIPINO', 'CLVE', 'MAKABANSA', 'SCIENCE', 'MATHEMATICS', 'READING AND LITERACY', 'ENGLISH', 'COMPUTER'],
         'Grade 4' => ['MATHEMATICS', 'HELE', 'AP', 'MAPEH', 'ENGLISH', 'SCIENCE', 'CLVE', 'FILIPINO', 'COMPUTER'],
         'Grade 5' => ['AP', 'FILIPINO', 'ENGLISH', 'SCIENCE', 'HELE', 'MATHEMATICS', 'MAPEH', 'COMPUTER', 'CLVE'],
-        'Grade 6' => ['MATHEMATICS', 'ENGLISH', 'SCIENCE', 'FILIPINO', 'CLVE', 'HELE', 'MAPEH', 'AP'],
     ];
+
+    /** @var list<string> */
+    public const GS_SHARED_TEACHER_GRADES = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5'];
 
     /**
      * All JH subjects (Grades 6–10) for shared-teacher assignment.
@@ -103,7 +105,7 @@ class SchoolSubjectsCatalog
     }
 
     /**
-     * All GS subjects (Grades 1–6) for shared-teacher assignment.
+     * All GS subjects (Grades 1–5) for shared-teacher assignment.
      *
      * @return list<string>
      */
@@ -111,7 +113,7 @@ class SchoolSubjectsCatalog
     {
         return self::mergeSubjects(
             self::flattenGrades(self::GS_BY_GRADE),
-            self::subjectsFromSchedules('mysql_gs')
+            self::subjectsFromSchedules('mysql_gs', self::GS_SHARED_TEACHER_GRADES)
         );
     }
 
@@ -182,19 +184,28 @@ class SchoolSubjectsCatalog
     }
 
     /**
+     * @param  list<string>|null  $gradeLevels  When set, only subjects from these grade levels are included.
      * @return list<string>
      */
-    private static function subjectsFromSchedules(string $connection): array
+    private static function subjectsFromSchedules(string $connection, ?array $gradeLevels = null): array
     {
         try {
             if (! Schema::connection($connection)->hasTable('class_schedules')) {
                 return [];
             }
 
-            return DB::connection($connection)
+            $query = DB::connection($connection)
                 ->table('class_schedules')
                 ->whereNotNull('subject')
-                ->where('subject', '!=', '')
+                ->where('subject', '!=', '');
+
+            if ($gradeLevels !== null
+                && $gradeLevels !== []
+                && Schema::connection($connection)->hasColumn('class_schedules', 'grade_level')) {
+                $query->whereIn('grade_level', $gradeLevels);
+            }
+
+            return $query
                 ->distinct()
                 ->orderBy('subject')
                 ->pluck('subject')

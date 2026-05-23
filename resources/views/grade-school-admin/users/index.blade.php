@@ -169,7 +169,7 @@
                 </div>
                 {{-- Shared Teacher Subjects (conditional) --}}
                 <div id="gs_subjects_container" style="display:none;">
-                    <p style="margin:0 0 0.85rem;font-size:.78rem;color:var(--text-secondary);">Choose from all Grade School subjects (Grades 1–6).</p>
+                    <p style="margin:0 0 0.85rem;font-size:.78rem;color:var(--text-secondary);">Choose from all Grade School subjects (Grades 1–5).</p>
                     <div class="form-row">
                         <div class="form-field">
                             <label class="form-label">Primary Subject <span style="color:#c83232">*</span></label>
