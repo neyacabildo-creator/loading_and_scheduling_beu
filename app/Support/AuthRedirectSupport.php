@@ -52,4 +52,41 @@ class AuthRedirectSupport
             session(['department' => 'junior_high']);
         }
     }
+
+    /** Keep school_level aligned with teacher role so portal middleware allows access. */
+    public static function normalizeTeacherSchoolLevel(?User $user = null): void
+    {
+        $user ??= auth()->user();
+        if (! $user) {
+            return;
+        }
+
+        if (! $user->relationLoaded('role')) {
+            $user->load('role');
+        }
+
+        $expected = match ($user->role?->name) {
+            'teacher_grade_school' => 'grade_school',
+            'teacher_junior_high', 'teacher' => 'junior_high',
+            default => null,
+        };
+
+        if ($expected !== null && $user->school_level !== $expected) {
+            $user->forceFill(['school_level' => $expected])->saveQuietly();
+        }
+    }
+
+    public static function isJuniorHighTeacher(?User $user = null): bool
+    {
+        $user ??= auth()->user();
+
+        return in_array($user?->role?->name, ['teacher_junior_high', 'teacher'], true);
+    }
+
+    public static function isGradeSchoolTeacher(?User $user = null): bool
+    {
+        $user ??= auth()->user();
+
+        return $user?->role?->name === 'teacher_grade_school';
+    }
 }

@@ -44,6 +44,7 @@ class AuthenticatedSessionController extends Controller
             'user_agent' => $request->userAgent(),
         ]);
 
+        AuthRedirectSupport::normalizeTeacherSchoolLevel($user);
         AuthRedirectSupport::applyDepartmentSession($user);
 
         return redirect()->route(AuthRedirectSupport::homeRouteName($user));

@@ -2,13 +2,61 @@
 
 namespace App\Support;
 
+use App\Models\ClassSchedule;
 use App\Models\Room;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class TeacherPortalSupport
 {
+    public static function hasClassSchedulesTable(?string $connection = null): bool
+    {
+        $connection = $connection ?? config('database.school_connection', 'mysql_jh');
+
+        try {
+            return Schema::connection($connection)->hasTable('class_schedules');
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Approved/active schedules for a teacher dashboard (empty collection if table missing).
+     */
+    public static function approvedSchedulesForTeacher(int $facultyId, ?string $connection = null): Collection
+    {
+        if (! self::hasClassSchedulesTable($connection)) {
+            return collect();
+        }
+
+        return ClassSchedule::on($connection ?? config('database.school_connection', 'mysql_jh'))
+            ->where('faculty_id', $facultyId)
+            ->where(function ($q) {
+                $q->where('admin_approved', true)->orWhere('status', 'active');
+            })
+            ->orderBy('day_of_week')
+            ->orderBy('start_time')
+            ->get();
+    }
+
+    /**
+     * @return array{mySchedules: Collection, myClasses: int, totalStudents: int, teachingLoad: int|float, pendingTasks: int}
+     */
+    public static function dashboardMetrics(int $facultyId, ?string $connection = null): array
+    {
+        $mySchedules = self::approvedSchedulesForTeacher($facultyId, $connection);
+
+        return [
+            'mySchedules'   => $mySchedules,
+            'myClasses'     => $mySchedules->count(),
+            'totalStudents' => (int) $mySchedules->sum(fn ($schedule) => $schedule->student_count ?? 0),
+            'teachingLoad'  => (int) $mySchedules->sum(fn ($schedule) => $schedule->units ?? 0),
+            'pendingTasks'  => $mySchedules->where('status', 'pending')->count(),
+        ];
+    }
+
     public static function scheduleDurationHours(?string $start, ?string $end): float
     {
         if (! $start || ! $end) {

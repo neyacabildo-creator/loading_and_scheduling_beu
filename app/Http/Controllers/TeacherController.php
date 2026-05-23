@@ -102,33 +102,12 @@ class TeacherController extends Controller
      */
     public function dashboard(Request $request)
     {
-        try {
-            $user = Auth::user();
-            $schoolLevel = $this->getTeacherSchoolLevel();
+        $user = Auth::user();
+        $metrics = TeacherPortalSupport::dashboardMetrics((int) $user->id);
 
-            $mySchedules = ClassSchedule::where('faculty_id', $user->id)
-                ->where(function ($q) {
-                    $q->where('admin_approved', true)->orWhere('status', 'active');
-                })
-                ->orderBy('created_at', 'desc')
-                ->get();
-
-            $myClasses = $mySchedules->count();
-            $totalStudents = $mySchedules->sum(fn ($schedule) => $schedule->student_count ?? 0);
-            $teachingLoad = $mySchedules->sum(fn ($schedule) => $schedule->units ?? 0);
-            $pendingTasks = $mySchedules->where('status', 'pending')->count();
-
-            return view($schoolLevel === 'junior_high' ? 'junior-high-teacher.dashboard' : 'grade-school-teacher.dashboard', [
-                'mySchedules'    => $mySchedules,
-                'myClasses'      => $myClasses,
-                'totalStudents'  => $totalStudents,
-                'teachingLoad'   => $teachingLoad,
-                'pendingTasks'   => $pendingTasks,
-                'school_level'   => $schoolLevel,
-            ]);
-        } catch (\Exception $e) {
-            return back()->withError('Error loading dashboard: ' . $e->getMessage());
-        }
+        return view('junior-high-teacher.dashboard', array_merge($metrics, [
+            'school_level' => 'junior_high',
+        ]));
     }
 
     /**
@@ -139,14 +118,7 @@ class TeacherController extends Controller
         $teacherId = Auth::id();
         $schoolLevel = $this->getTeacherSchoolLevel();
 
-        $classes = ClassSchedule::where('faculty_id', $teacherId)
-            ->where(function ($q) {
-                $q->where('admin_approved', true)->orWhere('status', 'active');
-            })
-            ->orderBy('day_of_week')
-            ->orderBy('start_time')
-            ->with(['room'])
-            ->get();
+        $classes = TeacherPortalSupport::approvedSchedulesForTeacher((int) $teacherId);
 
         $result = $classes->map(function ($s) {
             $data = $s->toArray();
@@ -169,6 +141,15 @@ class TeacherController extends Controller
     {
         $teacherId = Auth::id();
         $schoolLevel = $this->getTeacherSchoolLevel();
+
+        if (! TeacherPortalSupport::hasClassSchedulesTable()) {
+            return response()->json([
+                'success' => true,
+                'data' => [],
+                'count' => 0,
+                'total_students' => 0,
+            ]);
+        }
 
         $dbConn = DB::connection(config('database.school_connection', config('database.default')));
 
@@ -347,7 +328,7 @@ class TeacherController extends Controller
                     'message' => $e->getMessage()
                 ], 500);
             }
-            return back()->withError('Error fetching teachers');
+            return back()->withErrors(['error' => 'Error fetching teachers']);
         }
     }
 
