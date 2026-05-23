@@ -234,13 +234,25 @@ class TeacherAdjustmentRequestSupport
             || str_contains(strtolower(trim($gradeLevel)), strtolower(trim($candidate)));
     }
 
+    /**
+     * UI label "Schedule Change" posts schedule_change; DB enum stores time_change.
+     */
+    public static function normalizeIncomingRequestType(Request $request): void
+    {
+        $type = trim((string) $request->input('request_type', ''));
+        if ($type === 'schedule_change') {
+            $request->merge(['request_type' => 'time_change']);
+        }
+    }
+
     public static function store(Request $request, string $connection): array
     {
         self::ensureTable($connection);
+        self::normalizeIncomingRequestType($request);
 
         $validated = $request->validate([
             'schedule_id'             => 'nullable|integer',
-            'request_type'            => 'required|in:schedule_change,time_change,room_change,teacher_reassignment,section_change,other',
+            'request_type'            => 'required|in:time_change,room_change,teacher_reassignment,section_change,other',
             'reason'                  => 'required|string|min:3|max:1000',
             'proposed_changes'        => 'nullable|string|max:1000',
             'subject'                 => 'nullable|string|max:120',
@@ -253,21 +265,22 @@ class TeacherAdjustmentRequestSupport
             'substitute_teacher_name' => 'nullable|string|max:200',
         ]);
 
-        if ($validated['request_type'] === 'schedule_change') {
-            $validated['request_type'] = 'time_change';
-        }
-
         if (in_array($validated['request_type'], ['time_change', 'room_change', 'teacher_reassignment'], true)) {
             $request->validate([
                 'subject'     => 'required|string|max:120',
                 'grade_level' => 'required|string|max:80',
+            ], [
+                'subject.required'     => 'Please select the subject for this adjustment.',
+                'grade_level.required' => 'Please select the grade level for this adjustment.',
             ]);
-            $validated['subject'] = $request->input('subject');
-            $validated['grade_level'] = $request->input('grade_level');
+            $validated['subject'] = trim((string) $request->input('subject'));
+            $validated['grade_level'] = trim((string) $request->input('grade_level'));
         }
 
         if ($validated['request_type'] === 'teacher_reassignment') {
-            $request->validate(['substitute_faculty_id' => 'required|integer']);
+            $request->validate(['substitute_faculty_id' => 'required|integer'], [
+                'substitute_faculty_id.required' => 'Please select a substitute teacher.',
+            ]);
             $validated['substitute_faculty_id'] = (int) $request->input('substitute_faculty_id');
             if (! $request->filled('substitute_teacher_name')) {
                 $sub = User::find($validated['substitute_faculty_id']);

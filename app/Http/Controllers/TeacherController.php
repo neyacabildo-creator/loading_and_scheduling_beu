@@ -509,7 +509,11 @@ class TeacherController extends Controller
 
             return response()->json($result);
         } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => $e->errors()], 422);
+            return response()->json([
+                'success' => false,
+                'message' => collect($e->errors())->flatten()->first() ?? $e->getMessage(),
+                'errors'  => $e->errors(),
+            ], 422);
         } catch (\Throwable $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }

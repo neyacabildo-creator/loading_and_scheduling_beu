@@ -210,6 +210,23 @@ function adjNorm(s) {
     return String(s || '').trim().toLowerCase();
 }
 
+function adjPopulateGradeLevels() {
+    const gradeSel = document.getElementById('adjGradeLevel');
+    if (!gradeSel) return;
+    const fromSchedules = [...new Set(adjApprovedSchedules.map(s => s.grade_level).filter(Boolean))];
+    const defaults = @json($gradeLevels);
+    const merged = [...new Set([...defaults, ...fromSchedules])];
+    const current = gradeSel.value;
+    gradeSel.innerHTML = '<option value="">-- Select --</option>';
+    merged.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g;
+        opt.textContent = g;
+        gradeSel.appendChild(opt);
+    });
+    if (current && merged.includes(current)) gradeSel.value = current;
+}
+
 function adjGradeKey(g) {
     const m = String(g || '').match(/\d+/);
     return m ? m[0] : adjNorm(g);
@@ -233,6 +250,7 @@ async function loadAdjustmentSchedules() {
             opt.textContent = sub;
             subjSel.appendChild(opt);
         });
+        adjPopulateGradeLevels();
     } catch (err) {
         subjSel.innerHTML = '<option value="">Unable to load subjects</option>';
         console.error(err);
@@ -362,6 +380,15 @@ document.getElementById('adjRequestType')?.addEventListener('change', adjUpdateF
 
 document.getElementById('adjSubject')?.addEventListener('change', function() {
     adjSlotTouched = false;
+    const subject = this.value || '';
+    const gradeSel = document.getElementById('adjGradeLevel');
+    if (subject && gradeSel) {
+        const grades = [...new Set(adjApprovedSchedules
+            .filter(s => adjNorm(s.subject) === adjNorm(subject))
+            .map(s => s.grade_level)
+            .filter(Boolean))];
+        if (grades.length === 1) gradeSel.value = grades[0];
+    }
     adjFillSlotFromSchedule();
     if (adjNormalizedType() === 'teacher_reassignment') adjLoadAvailableTeachers();
 });
@@ -416,17 +443,24 @@ function formatProposed(raw) {
     }
 }
 
+function adjFormatValidationErrors(json) {
+    if (!json?.errors || typeof json.errors !== 'object') return json?.message || 'Could not submit request';
+    return Object.values(json.errors).flat().filter(Boolean).join(' ');
+}
+
 async function submitRequest(e) {
     e.preventDefault();
     const form = e.target;
     const body = Object.fromEntries(new FormData(form).entries());
-    if (body.request_type === 'time_change') body.request_type = 'schedule_change';
+    delete body._token;
+    const uiType = body.request_type;
+    if (uiType === 'schedule_change') body.request_type = 'time_change';
     const type = body.request_type;
-    if (!['schedule_change', 'room_change', 'teacher_reassignment', 'other'].includes(type)) {
+    if (!['time_change', 'room_change', 'teacher_reassignment', 'other'].includes(type)) {
         showToast('Please select an adjustment type.', 'error');
         return;
     }
-    if (type !== 'schedule_change') {
+    if (type !== 'time_change') {
         delete body.day_of_week;
         delete body.preferred_start_time;
         delete body.preferred_end_time;
@@ -436,6 +470,7 @@ async function submitRequest(e) {
         delete body.substitute_teacher_name;
     }
     if (!body.schedule_id) delete body.schedule_id;
+    if (body.substitute_faculty_id === '') delete body.substitute_faculty_id;
     try {
         const res = await fetch(ADJUSTMENT_API, {
             method: 'POST',
@@ -443,7 +478,7 @@ async function submitRequest(e) {
             body: JSON.stringify(body)
         });
         const json = await res.json();
-        if (!res.ok || !json.success) throw new Error(json.message ?? 'Could not submit request');
+        if (!res.ok || !json.success) throw new Error(adjFormatValidationErrors(json));
         form.reset();
         adjSlotTouched = false;
         loadAdjustmentSchedules();
