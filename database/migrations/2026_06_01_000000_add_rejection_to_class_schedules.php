@@ -7,28 +7,46 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Add rejection tracking columns to class_schedules.
-     * (admin_approved, approved_at, approved_by already exist from the 2026_01_19 migration)
+     * Add rejection tracking columns to class_schedules on school databases.
+     * (Main DB copy was removed in 2026_05_22_100000_cleanup_legacy_unused_database_artifacts.)
      */
     public function up(): void
     {
-        Schema::table('class_schedules', function (Blueprint $table) {
-            if (!Schema::hasColumn('class_schedules', 'rejected_at')) {
-                $table->timestamp('rejected_at')->nullable()->after('approved_at');
+        foreach (['mysql_jh', 'mysql_gs'] as $conn) {
+            if (! Schema::connection($conn)->hasTable('class_schedules')) {
+                continue;
             }
-            if (!Schema::hasColumn('class_schedules', 'rejection_reason')) {
-                $table->text('rejection_reason')->nullable()->after('rejected_at');
-            }
-        });
+
+            Schema::connection($conn)->table('class_schedules', function (Blueprint $table) use ($conn) {
+                if (! Schema::connection($conn)->hasColumn('class_schedules', 'rejected_at')) {
+                    $table->timestamp('rejected_at')->nullable()->after('approved_at');
+                }
+                if (! Schema::connection($conn)->hasColumn('class_schedules', 'rejection_reason')) {
+                    $table->text('rejection_reason')->nullable()->after('rejected_at');
+                }
+            });
+        }
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::table('class_schedules', function (Blueprint $table) {
-            $table->dropColumn(['rejected_at', 'rejection_reason']);
-        });
+        foreach (['mysql_jh', 'mysql_gs'] as $conn) {
+            if (! Schema::connection($conn)->hasTable('class_schedules')) {
+                continue;
+            }
+
+            Schema::connection($conn)->table('class_schedules', function (Blueprint $table) use ($conn) {
+                $columns = [];
+                if (Schema::connection($conn)->hasColumn('class_schedules', 'rejected_at')) {
+                    $columns[] = 'rejected_at';
+                }
+                if (Schema::connection($conn)->hasColumn('class_schedules', 'rejection_reason')) {
+                    $columns[] = 'rejection_reason';
+                }
+                if ($columns !== []) {
+                    $table->dropColumn($columns);
+                }
+            });
+        }
     }
 };
