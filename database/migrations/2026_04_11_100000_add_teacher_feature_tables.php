@@ -19,6 +19,16 @@ return new class extends Migration
 {
     public function up(): void
     {
+        foreach ([
+            config('database.connections.mysql_jh_teacher.database'),
+            config('database.connections.mysql_gs_teacher.database'),
+        ] as $database) {
+            $escaped = str_replace('`', '``', $database);
+            \Illuminate\Support\Facades\DB::statement(
+                "CREATE DATABASE IF NOT EXISTS `{$escaped}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+            );
+        }
+
         foreach (['mysql_jh_teacher', 'mysql_gs_teacher'] as $conn) {
             // Subject Assignments
             if (!Schema::connection($conn)->hasTable('subject_assignments')) {
