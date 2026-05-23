@@ -12,11 +12,8 @@
         padding: 1.75rem 2rem;
         margin-bottom: 1.5rem;
         box-shadow: var(--shadow-sm);
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 1rem;
+        position: relative;
+        overflow: visible;
     }
     .st-req-hero h1 {
         font-size: 1.75rem;
@@ -31,26 +28,6 @@
         color: var(--text-secondary);
         max-width: 32rem;
         line-height: 1.5;
-    }
-    .st-req-back-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        padding: 0.55rem 1.1rem;
-        background: var(--bg-secondary);
-        border: 1px solid var(--border-color);
-        border-radius: 0.5rem;
-        color: var(--text-primary);
-        font-size: 0.85rem;
-        font-weight: 600;
-        text-decoration: none;
-        transition: border-color 0.2s, color 0.2s, box-shadow 0.2s;
-        white-space: nowrap;
-    }
-    .st-req-back-btn:hover {
-        border-color: var(--green-primary);
-        color: var(--green-primary);
-        box-shadow: var(--shadow-sm);
     }
     .st-req-flash {
         display: flex;
@@ -332,16 +309,12 @@
 
 @section('content')
 <div class="st-req-hero">
-    <div>
-        <h1>Schedule Requests</h1>
-        <p>Submit a new request to your JH or GS admin, and track the status of previous requests.</p>
-    </div>
-    <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;flex-shrink:0;">
+    <div class="st-dash-hero-inner">
+        <div class="st-dash-hero-text">
+            <h1>Schedule Requests</h1>
+            <p>Submit a new request to your JH or GS admin, and track the status of previous requests.</p>
+        </div>
         @include('partials.shared-teacher-header-actions')
-        <a href="{{ route('shared-teacher.dashboard') }}" class="st-req-back-btn">
-            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
-            Back to Dashboard
-        </a>
     </div>
 </div>
 

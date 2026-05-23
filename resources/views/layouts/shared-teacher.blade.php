@@ -67,7 +67,7 @@
         .header-right { display: flex; gap: 0.75rem; align-items: center; flex-shrink: 0; }
         .st-dash-hero-inner {
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             justify-content: space-between;
             gap: 1.25rem;
             flex-wrap: wrap;
