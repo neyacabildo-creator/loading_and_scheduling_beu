@@ -233,7 +233,6 @@ class PrincipalController extends Controller
             'email'        => 'required|email|max:255|unique:users,email',
             'role_id'      => 'required|exists:roles,id',
             'school_level' => 'nullable|in:grade_school,junior_high',
-            'position'     => 'nullable|string|max:100',
             'password'     => 'required|string|min:8|confirmed',
         ]);
 
@@ -261,7 +260,6 @@ class PrincipalController extends Controller
             'password'     => Hash::make($data['password']),
             'role_id'      => $data['role_id'],
             'school_level' => $schoolLevel,
-            'position'     => $data['position'] ?? null,
             'is_active'    => true,
         ]);
 
@@ -340,35 +338,39 @@ class PrincipalController extends Controller
     }
 
     /**
-     * Update a user's name, email, role, position, and optionally password.
+     * Update a user's name, email, role, and optionally password.
      */
     public function updateUser(Request $request, User $user)
     {
         $data = $request->validate([
-            'first_name' => 'required|string|max:100',
-            'last_name'  => 'required|string|max:100',
-            'email'      => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
-            'position'   => 'nullable|string|max:100',
-            'role_id'    => 'nullable|exists:roles,id',
-            'password'   => 'nullable|string|min:8|confirmed',
+            'first_name'   => 'required|string|max:100',
+            'last_name'    => 'required|string|max:100',
+            'email'        => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'role_id'      => 'nullable|exists:roles,id',
+            'school_level' => 'nullable|in:grade_school,junior_high',
+            'password'     => 'nullable|string|min:8|confirmed',
         ]);
 
         $user->first_name = $data['first_name'];
         $user->last_name  = $data['last_name'];
         $user->name       = trim($data['first_name'] . ' ' . $data['last_name']);
         $user->email      = $data['email'];
-        $user->position   = $data['position'] ?? $user->position;
+
+        if (array_key_exists('school_level', $data)) {
+            $user->school_level = $data['school_level'] ?: null;
+        }
 
         // Update role (preventing escalation to principal)
-        if (!empty($data['role_id'])) {
+        if (! empty($data['role_id'])) {
             $newRole = Role::find((int) $data['role_id']);
             if ($newRole && $newRole->name !== 'principal') {
                 $user->role_id = $newRole->id;
-                // Auto-update school_level based on new role
-                if (str_contains($newRole->name, 'junior_high')) {
-                    $user->school_level = 'junior_high';
-                } elseif (str_contains($newRole->name, 'grade_school')) {
-                    $user->school_level = 'grade_school';
+                if (empty($data['school_level'])) {
+                    if (str_contains($newRole->name, 'junior_high')) {
+                        $user->school_level = 'junior_high';
+                    } elseif (str_contains($newRole->name, 'grade_school')) {
+                        $user->school_level = 'grade_school';
+                    }
                 }
             }
         }
@@ -562,12 +564,20 @@ class PrincipalController extends Controller
         }
 
         try {
+            $schedule = DB::connection($conn)->table('class_schedules')->where('id', $id)->first();
+            if (! $schedule) {
+                return response()->json(['success' => false, 'message' => 'Schedule not found.'], 404);
+            }
+
             DB::connection($conn)->table('class_schedules')->where('id', $id)->update([
                 'principal_approved'    => true,
                 'principal_approved_at' => now(),
                 'principal_approved_by' => Auth::id(),
             ]);
-            return response()->json(['success' => true, 'message' => 'Schedule approved by principal.']);
+
+            \App\Support\PrincipalScheduleNotificationSupport::afterApprove($conn, $schedule);
+
+            return response()->json(['success' => true, 'message' => 'Schedule approved. Admin and teacher have been notified.']);
         } catch (\Exception $e) {
             Log::error("Principal approveSchedule [{$conn}] #{$id}: " . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Approval failed.'], 500);
@@ -582,13 +592,20 @@ class PrincipalController extends Controller
         }
 
         try {
-            // Reject at Principal level: reset principal_approved and leave admin_approved intact
+            $schedule = DB::connection($conn)->table('class_schedules')->where('id', $id)->first();
+            if (! $schedule) {
+                return response()->json(['success' => false, 'message' => 'Schedule not found.'], 404);
+            }
+
             DB::connection($conn)->table('class_schedules')->where('id', $id)->update([
                 'principal_approved'    => false,
                 'principal_approved_at' => null,
                 'principal_approved_by' => null,
             ]);
-            return response()->json(['success' => true, 'message' => 'Schedule rejected by principal.']);
+
+            \App\Support\PrincipalScheduleNotificationSupport::afterReject($conn, $schedule);
+
+            return response()->json(['success' => true, 'message' => 'Schedule rejected. School admin has been notified.']);
         } catch (\Exception $e) {
             Log::error("Principal rejectSchedule [{$conn}] #{$id}: " . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Rejection failed.'], 500);

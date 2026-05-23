@@ -23,17 +23,6 @@
     </div>
 </div>
 
-@if(session('success'))
-    <div style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);color:#166534;padding:0.875rem 1rem;border-radius:0.5rem;margin-bottom:1.25rem;font-size:0.875rem;">
-        {{ session('success') }}
-    </div>
-@endif
-@if(session('error'))
-    <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#991b1b;padding:0.875rem 1rem;border-radius:0.5rem;margin-bottom:1.25rem;font-size:0.875rem;">
-        {{ session('error') }}
-    </div>
-@endif
-
 <div style="display:grid;grid-template-columns:1fr 1.6fr;gap:1.75rem;align-items:start;">
 
     {{-- Submit new request --}}

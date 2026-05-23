@@ -175,6 +175,7 @@
         const savedTheme = localStorage.getItem('theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
     </script>
+    @include('partials.spup-toast')
     @include('partials.spup-responsive-script')
     @stack('scripts')
 </body>

@@ -25,7 +25,8 @@
 
 .str-panel {
     background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
+    border: 1px solid rgba(45, 122, 80, 0.22);
+    border-left: 4px solid var(--green-primary, #2d7a50);
     border-radius: 0.75rem;
     box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.08));
     overflow: hidden;
@@ -33,14 +34,14 @@
 }
 .str-panel-header {
     padding: 1rem 1.25rem;
-    background: linear-gradient(135deg, rgba(45, 122, 80, 0.08) 0%, rgba(45, 122, 80, 0.02) 100%);
-    border-bottom: 1px solid var(--border-color);
+    background: linear-gradient(135deg, rgba(45, 122, 80, 0.14) 0%, rgba(45, 122, 80, 0.04) 100%);
+    border-bottom: 1px solid rgba(45, 122, 80, 0.18);
 }
 .str-panel-header .str-section-title {
     margin: 0;
     font-size: 1.05rem;
     font-weight: 700;
-    color: var(--text-primary);
+    color: var(--green-primary, #2d7a50);
 }
 .str-panel-header .str-section-desc {
     margin: 0.35rem 0 0;
@@ -145,14 +146,14 @@ html[data-theme="dark"] .str-data-table .str-day-line {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--text-secondary);
-    border-bottom: 1px solid var(--border-color);
+    color: var(--green-primary, #2d7a50);
+    border-bottom: 1px solid rgba(45, 122, 80, 0.2);
     white-space: nowrap;
     vertical-align: middle;
 }
 
 .str-data-table thead tr {
-    background: linear-gradient(180deg, rgba(45, 122, 80, 0.12) 0%, var(--bg-primary) 100%);
+    background: linear-gradient(180deg, rgba(45, 122, 80, 0.18) 0%, rgba(45, 122, 80, 0.06) 100%);
 }
 
 .str-data-table tbody td {
@@ -177,15 +178,37 @@ html[data-theme="dark"] .str-data-table .str-day-line {
     border-bottom: none;
 }
 
-/* Column widths */
+/* Column widths — Notes centered between Preferred Day & Time and Submitted */
 .str-col-teacher { width: 11%; }
 .str-col-subject { width: 11%; }
-.str-col-grade   { width: 12%; }
-.str-col-time    { width: 14%; }
-.str-col-notes   { width: 17%; }
-.str-col-date    { width: 8%; }
+.str-col-grade   { width: 11%; }
+.str-col-time    { width: 16%; }
+.str-col-notes   { width: 14%; text-align: center; }
+.str-col-date    { width: 10%; text-align: right; }
 .str-col-status  { width: 8%; }
 .str-col-actions { width: 19%; min-width: 260px; }
+
+.str-data-table thead th.str-col-notes {
+    text-align: center;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+}
+.str-data-table tbody td.str-col-notes {
+    text-align: center;
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+}
+.str-data-table tbody td.str-col-notes .str-notes-text,
+.str-data-table tbody td.str-col-notes .str-notes-reason {
+    display: inline-block;
+    max-width: 100%;
+    text-align: center;
+    margin: 0 auto;
+}
+.str-data-table thead th.str-col-date,
+.str-data-table tbody td.str-col-date {
+    text-align: right;
+}
 
 .str-teacher-requests-table .str-cell-daytime,
 .str-teacher-requests-table .str-cell-notes,
@@ -219,15 +242,38 @@ html[data-theme="dark"] .str-data-table .str-day-line {
     color: var(--text-primary);
 }
 
+.str-teacher-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    min-width: 0;
+}
+.str-teacher-cell-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.5rem;
+    width: 100%;
+}
 .str-teacher-name {
     font-weight: 600;
     color: var(--text-primary);
-    word-break: break-word;
+    line-height: 1.35;
+    word-break: normal;
 }
-.str-teacher-meta {
-    font-size: 0.73rem;
-    color: var(--text-secondary);
-    margin-top: 0.15rem;
+.str-teacher-meta,
+.str-school-level-badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #065f46;
+    background: #d1fae5;
+    padding: 0.15rem 0.55rem;
+    border-radius: 9999px;
+    white-space: nowrap;
+    line-height: 1.4;
+    margin-top: 0;
 }
 .str-cell-subject {
     font-weight: 500;
@@ -269,40 +315,44 @@ html[data-theme="dark"] .str-data-table .str-day-line {
     font-weight: 700;
     text-transform: capitalize;
 }
-.str-data-table .status-pending  { background: rgba(239, 68, 68, 0.12); color: #ef4444; }
-.str-data-table .status-approved { background: rgba(22, 163, 74, 0.12); color: #16a34a; }
-.str-data-table .status-rejected { background: rgba(107, 114, 128, 0.12); color: #6b7280; }
+.str-data-table .status-pending  { background: rgba(245, 158, 11, 0.15); color: #b45309; border: 1px solid rgba(245, 158, 11, 0.35); }
+.str-data-table .status-approved { background: rgba(45, 122, 80, 0.15); color: #2d7a50; border: 1px solid rgba(45, 122, 80, 0.35); }
+.str-data-table .status-rejected { background: rgba(107, 114, 128, 0.12); color: #6b7280; border: 1px solid rgba(107, 114, 128, 0.25); }
 
 /* Compact side-by-side approve / reject */
-.str-actions-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
-    width: 100%;
+.str-actions-inline {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.45rem;
+    flex-wrap: nowrap;
 }
-.str-action-panel {
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 0.5rem;
-    padding: 0.55rem;
-    min-width: 0;
+.str-action-form {
+    margin: 0;
+    display: inline-flex;
 }
-.str-action-panel--reject {
-    border-color: rgba(239, 68, 68, 0.25);
+.str-actions-inline .str-btn-approve,
+.str-actions-inline .str-btn-reject {
+    width: auto;
+    min-width: 5.5rem;
+    padding: 0.4rem 0.85rem;
+    font-size: 0.75rem;
+    white-space: nowrap;
 }
-.str-action-panel--approve {
-    border-color: rgba(22, 163, 74, 0.25);
+
+.schedule-actions-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.4rem;
+    flex-wrap: nowrap;
 }
-.str-action-panel-title {
-    font-size: 0.62rem;
-    font-weight: 700;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin: 0 0 0.4rem;
+.schedule-actions-row .action-btn {
+    margin: 0;
+    flex-shrink: 0;
 }
-.str-action-panel--approve .str-action-panel-title { color: #16a34a; }
-.str-action-panel--reject .str-action-panel-title  { color: #ef4444; }
 
 .str-action-panel form {
     display: flex;
@@ -336,10 +386,10 @@ html[data-theme="dark"] .str-data-table .str-day-line {
     transition: background 0.15s, transform 0.1s;
 }
 .str-btn-approve {
-    background: #16a34a;
+    background: var(--green-primary, #2d7a50);
     color: #fff;
 }
-.str-btn-approve:hover { background: #15803d; }
+.str-btn-approve:hover { background: #1a5336; }
 .str-btn-reject {
     background: #ef4444;
     color: #fff;

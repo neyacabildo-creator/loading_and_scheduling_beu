@@ -88,6 +88,24 @@
         .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--green-primary); box-shadow: 0 0 0 3px rgba(45,122,80,0.1); }
         .form-actions { display: flex; gap: 1rem; margin-top: 1.5rem; }
         .form-actions button { flex: 1; }
+        .fl-add-subject-btn {
+            margin-top: 0.5rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.55rem 1rem;
+            background: var(--green-primary);
+            color: #fff;
+            border: none;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.8125rem;
+            font-family: inherit;
+            transition: background 0.2s;
+        }
+        .fl-add-subject-btn:hover { background: var(--green-dark); }
     </style>
 
 
@@ -226,7 +244,7 @@
             <form id="addFacultyLoadForm">
                 <div class="form-group">
                     <label>Grade Level *</label>
-                    <select id="addFacultyGradeLevel" required onchange="jhRenderSubjectRows()">
+                    <select id="addFacultyGradeLevel" required>
                         <option value="">-- Select Grade Level --</option>
                         <option value="Grade 7">Grade 7</option>
                         <option value="Grade 8">Grade 8</option>
@@ -236,7 +254,7 @@
                 </div>
                 <div class="form-group">
                     <label>Faculty *</label>
-                    <select id="addFacultyTeacherId" required onchange="jhFetchFacultySchedules(); jhUpdateDesignationGuard(this.value)">
+                    <select id="addFacultyTeacherId" required onchange="jhFetchFacultySchedules()">
                         <option value="">-- Select Teacher --</option>
                         @foreach($teachers as $teacher)
                             @php $isShared = in_array((string)$teacher->id, $sharedTeacherUserIds ?? []); @endphp
@@ -245,57 +263,18 @@
                     </select>
                 </div>
 
-                {{-- ── Designation Load Guard ─────────────────────────── --}}
-                <div id="jhDesignationGuard" style="display:none; margin-bottom:1rem;">
-                    <div style="background:var(--bg-primary);border:1px solid var(--border-color);border-radius:0.5rem;padding:0.875rem;">
-                        <div style="font-size:0.75rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.6rem;">⚡ Designation Load Check</div>
-                        <div id="jhDesigLoading" style="font-size:0.82rem;color:var(--text-secondary);text-align:center;padding:0.5rem 0;">Fetching designation info…</div>
-                        <div id="jhDesigContent" style="display:none;">
-                            <div style="margin-bottom:0.6rem;">
-                                <span style="font-size:0.72rem;color:var(--text-secondary);">Designation:</span>
-                                <span id="jhDesigType" style="display:inline-block;margin-left:0.4rem;padding:0.15rem 0.55rem;border-radius:9999px;font-size:0.72rem;font-weight:700;background:rgba(45,122,80,0.12);color:#2d7a50;"></span>
-                            </div>
-                            {{-- JH Classes bar --}}
-                            <div style="margin-bottom:0.35rem;">
-                                <div style="display:flex;justify-content:space-between;font-size:0.75rem;margin-bottom:0.2rem;">
-                                    <span style="color:var(--text-secondary);">JH Classes</span>
-                                    <span id="jhDesigClsText" style="font-weight:600;color:var(--text-primary);"></span>
-                                </div>
-                                <div style="height:6px;background:var(--border-color);border-radius:9999px;">
-                                    <div id="jhDesigClsBar" style="height:100%;border-radius:9999px;transition:width 0.4s;"></div>
-                                </div>
-                            </div>
-                            {{-- JH Hours bar --}}
-                            <div style="margin-bottom:0.35rem;">
-                                <div style="display:flex;justify-content:space-between;font-size:0.75rem;margin-bottom:0.2rem;">
-                                    <span style="color:var(--text-secondary);">JH Hours / Week</span>
-                                    <span id="jhDesigHrsText" style="font-weight:600;color:var(--text-primary);"></span>
-                                </div>
-                                <div style="height:6px;background:var(--border-color);border-radius:9999px;">
-                                    <div id="jhDesigHrsBar" style="height:100%;border-radius:9999px;transition:width 0.4s;"></div>
-                                </div>
-                            </div>
-                            {{-- GS cross-division section --}}
-                            <div id="jhGsDivider" style="margin-top:0.6rem;padding-top:0.6rem;border-top:1px dashed var(--border-color);">
-                                <div style="font-size:0.72rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.4rem;">Grade School Cross-Check</div>
-                                <div id="jhGsLoadContent" style="font-size:0.8rem;color:var(--text-secondary);">—</div>
-                            </div>
-                            {{-- Warning banner --}}
-                            <div id="jhDesigWarning" style="display:none;margin-top:0.5rem;padding:0.45rem 0.7rem;border-radius:0.375rem;font-size:0.78rem;font-weight:600;"></div>
-                        </div>
-                    </div>
-                </div>
-
                 <div class="form-group">
-                    <label>Classes Assigned *</label>
-                    <input type="number" id="addFacultyClasses" required min="0" placeholder="Number of classes" oninput="jhRenderSubjectRows()">
-                </div>
-                <div class="form-group">
-                    <label>Subjects <span style="font-size:0.78rem;font-weight:400;color:var(--text-secondary);">(one per class)</span></label>
+                    <label>Subjects *</label>
                     <div id="jhAddSubjectList">
-                        <p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Enter Classes Assigned above to pick subjects.</p>
+                        <p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a grade level, then add each subject this teacher handles.</p>
                     </div>
+                    <button type="button" id="jhAddSubjectBtn" class="fl-add-subject-btn" onclick="jhAddSubjectRow()">+ Add Subject</button>
                     <script id="jh-subjects-data" type="application/json">{!! json_encode($subjects) !!}</script>
+                </div>
+                <div class="form-group">
+                    <label>Classes Assigned <span style="font-size:0.78rem;font-weight:400;color:var(--text-secondary);">(auto — ongoing now)</span></label>
+                    <input type="number" id="addFacultyClasses" required min="0" value="0" readonly style="background:var(--bg-tertiary);cursor:not-allowed;">
+                    <small style="color:var(--text-secondary);font-size:0.75rem;margin-top:0.25rem;display:block;">Counted from this teacher&apos;s approved schedules that are in session right now (today&apos;s day and time).</small>
                 </div>
                 <div class="form-group">
                     <label>Load Hours <span style="font-size:0.78rem;font-weight:400;color:var(--text-secondary);">(auto-calculated)</span></label>
@@ -347,12 +326,14 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Subjects <span style="font-size:0.78rem;font-weight:400;color:var(--text-secondary);">(one per class)</span></label>
-                    <div id="jhEditSubjectList"><p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Enter Classes Assigned below to pick subjects.</p></div>
+                    <label>Subjects *</label>
+                    <div id="jhEditSubjectList"><p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Add each subject this teacher handles.</p></div>
+                    <button type="button" class="fl-add-subject-btn" onclick="jhAddEditSubjectRow()">+ Add Subject</button>
                 </div>
                 <div class="form-group">
-                    <label>Classes Assigned</label>
-                    <input type="number" id="editFacultyClasses" min="0" required oninput="jhOnEditLoadFieldChange()">
+                    <label>Classes Assigned <span style="font-size:0.78rem;font-weight:400;color:var(--text-secondary);">(auto — ongoing now)</span></label>
+                    <input type="number" id="editFacultyClasses" min="0" value="0" readonly style="background:var(--bg-tertiary);cursor:not-allowed;">
+                    <small style="color:var(--text-secondary);font-size:0.75rem;margin-top:0.25rem;display:block;">Auto-count from ongoing approved schedules for this teacher and grade.</small>
                 </div>
                 <div class="form-group">
                     <label>Load Hours <span style="font-size:.75rem;font-weight:400;color:var(--text-secondary);">(auto-computed from approved schedules)</span></label>
@@ -376,6 +357,7 @@
         </div>
     </div>
 
+    <script src="{{ asset('js/admin-faculty-load-form.js') }}"></script>
     <script>
         const masterScheduleBaseUrl = '{{ url("admin/master-schedule") }}';
         let allFacultyLoads = [];
@@ -596,10 +578,15 @@
                 alert('Teacher information is missing. Please reload and try again.');
                 return;
             }
+            const editSubjects = jhCollectEditSubjects();
+            if (!editSubjects.length) {
+                alert('Please add at least one subject.');
+                return;
+            }
             const data = {
                 faculty_id:       parseInt(facultyId),
                 grade_level:      document.getElementById('editFacultyGradeLevel').value,
-                subject:          jhCollectEditSubjects().join(', '),
+                subject:          editSubjects.join(', '),
                 classes_assigned: parseInt(document.getElementById('editFacultyClasses').value) || 0,
                 load_hours:       parseFloat(document.getElementById('editFacultyHours').value) || 0,
                 status:           document.getElementById('editFacultyStatus')?.value || 'available',
@@ -645,14 +632,14 @@
         let jhEditLoadSnapshot = { subjects: [] };
 
         function jhGetEditSubjectPreserve() {
-            const fromDom = jhCollectEditSubjects();
+            const fromDom = typeof jhCollectEditSubjects === 'function' ? jhCollectEditSubjects() : [];
             const snap = jhEditLoadSnapshot.subjects || [];
-            const n = parseInt(document.getElementById('editFacultyClasses')?.value, 10) || 0;
+            const n = Math.max(fromDom.length, snap.length, 1);
             const out = [];
             for (let i = 0; i < n; i++) {
                 out.push(fromDom[i] || snap[i] || '');
             }
-            return out;
+            return out.filter((s, i, arr) => s || i < fromDom.length || i < snap.length);
         }
 
         function jhOnEditLoadFieldChange() {
@@ -663,43 +650,28 @@
             return JH_GRADE_SUBJECTS[gradeLevel] || JH_ALL_SUBJECTS;
         }
 
-        const JH_EDIT_SEL_STYLE = 'width:100%;padding:0.55rem;border:1px solid var(--border-color);border-radius:0.375rem;background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;';
-
-        function jhRenderEditSubjectRows(preselected) {
-            const n = parseInt(document.getElementById('editFacultyClasses').value) || 0;
-            const container = document.getElementById('jhEditSubjectList');
-            if (!container) return;
-            if (n === 0) {
-                container.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Enter Classes Assigned above to pick subjects.</p>';
-                return;
-            }
-            const gradeLevel = document.getElementById('editFacultyGradeLevel').value;
-            const subjects = jhSubjectsForGrade(gradeLevel);
-            const optionsHtml = '<option value="">-- Select Subject --</option>' +
-                subjects.map(s => `<option value="${s}">${s}</option>`).join('');
-            let html = '';
-            for (let i = 0; i < n; i++) {
-                html += `<div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem;">
-                    <span style="min-width:1.5rem;font-size:0.8rem;color:var(--text-secondary);">${i + 1}.</span>
-                    <select class="jh-edit-subject-row" style="${JH_EDIT_SEL_STYLE}" data-idx="${i}">${optionsHtml}</select>
-                </div>`;
-            }
-            container.innerHTML = html;
-            if (preselected && preselected.length) {
-                container.querySelectorAll('.jh-edit-subject-row').forEach(function(sel, i) {
-                    if (preselected[i]) sel.value = preselected[i];
-                });
-            }
-            container.querySelectorAll('.jh-edit-subject-row').forEach(sel => {
-                sel.addEventListener('change', jhRecalculateEditHours);
-            });
-            jhRecalculateEditHours();
-        }
-
-        function jhCollectEditSubjects() {
-            return Array.from(document.querySelectorAll('.jh-edit-subject-row'))
-                .map(s => s.value.trim()).filter(Boolean);
-        }
+        AdminFacultyLoadForm.init({
+            rowClass: 'jh-subject-row',
+            editRowClass: 'jh-edit-subject-row',
+            listAddId: 'jhAddSubjectList',
+            listEditId: 'jhEditSubjectList',
+            classesAddId: 'addFacultyClasses',
+            classesEditId: 'editFacultyClasses',
+            gradeAddId: 'addFacultyGradeLevel',
+            gradeEditId: 'editFacultyGradeLevel',
+            globalAddSubject: 'jhAddSubjectRow',
+            globalAddEditSubject: 'jhAddEditSubjectRow',
+            globalRenderAdd: 'jhRenderSubjectRows',
+            globalRenderEdit: 'jhRenderEditSubjectRows',
+            globalRecalcOngoing: 'jhRecalculateOngoingClasses',
+            globalCollectAdd: 'jhCollectSubjects',
+            globalCollectEdit: 'jhCollectEditSubjects',
+            subjectsForGrade: jhSubjectsForGrade,
+            getScheduleCache: function () { return jhFacultySchedulesCache; },
+            getEditScheduleCache: function () { return jhEditFacultySchedulesCache; },
+            onRecalculateAddHours: function () { jhRecalculateAddHours(true); },
+            onRecalculateEditHours: jhRecalculateEditHours
+        });
 
         function jhNormalizeSubject(v) {
             return String(v || '').trim().toLowerCase();
@@ -730,9 +702,13 @@
             return parseFloat((totalMins / 60).toFixed(2));
         }
 
-        function jhRecalculateAddHours() {
+        function jhRecalculateAddHours(skipValidation) {
             const gradeLevel = document.getElementById('addFacultyGradeLevel')?.value || '';
-            const subjects = jhCollectSubjects();
+            const subjects = typeof jhCollectSubjects === 'function' ? jhCollectSubjects() : [];
+            if (!skipValidation && !subjects.length) {
+                document.getElementById('addFacultyHours').value = 0;
+                return;
+            }
             const totalHours = jhComputeHoursFromSchedules(jhFacultySchedulesCache, gradeLevel, subjects);
             document.getElementById('addFacultyHours').value = totalHours || 0;
         }
@@ -780,53 +756,13 @@
             return (h || 0) * 60 + (m || 0);
         }
 
-        function jhRenderSubjectRows(preselected) {
-            const n = parseInt(document.getElementById('addFacultyClasses').value) || 0;
-            const container = document.getElementById('jhAddSubjectList');
-            if (!container) return;
-            if (n === 0) {
-                container.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Enter Classes Assigned above to pick subjects.</p>';
-                return;
-            }
-            const gradeLevel = document.getElementById('addFacultyGradeLevel').value;
-            const subjects = jhSubjectsForGrade(gradeLevel);
-            const optionsHtml = '<option value="">-- Select Subject --</option>' +
-                subjects.map(s => `<option value="${s}">${s}</option>`).join('');
-            const selStyle = 'width:100%;padding:0.55rem;border:1px solid var(--border-color);border-radius:0.375rem;background:var(--bg-secondary);color:var(--text-primary);';
-            let html = '';
-            for (let i = 0; i < n; i++) {
-                html += `<div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem;">
-                    <span style="min-width:1.5rem;font-size:0.8rem;color:var(--text-secondary);">${i + 1}.</span>
-                    <select class="jh-subject-row" style="${selStyle}" data-idx="${i}">
-                        ${optionsHtml}
-                    </select>
-                </div>`;
-            }
-            container.innerHTML = html;
-            if (preselected) {
-                container.querySelectorAll('.jh-subject-row').forEach((sel, i) => {
-                    if (preselected[i]) sel.value = preselected[i];
-                });
-            }
-            container.querySelectorAll('.jh-subject-row').forEach(sel => {
-                sel.addEventListener('change', jhRecalculateAddHours);
-            });
-            jhRecalculateAddHours();
-        }
-
-        function jhCollectSubjects() {
-            return Array.from(document.querySelectorAll('.jh-subject-row'))
-                .map(s => s.value.trim())
-                .filter(Boolean);
-        }
-
         function jhFetchFacultySchedules() {
             const facultyId = document.getElementById('addFacultyTeacherId').value;
             if (!facultyId) {
                 document.getElementById('addFacultyHours').value = '';
-                document.getElementById('addFacultyClasses').value = '';
+                document.getElementById('addFacultyClasses').value = '0';
                 document.getElementById('jhAddSubjectList').innerHTML =
-                    '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a teacher to auto-load subjects.</p>';
+                    '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a teacher and grade level, then add subjects.</p>';
                 return;
             }
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
@@ -837,7 +773,7 @@
             .then(res => {
                 jhFacultySchedulesCache = (res.data || []).filter(s => s.admin_approved);
                 jhRecalculateAddHours();
-                // Classes assigned is entered manually by the user — do not auto-fill
+                jhRecalculateOngoingClasses(false);
             })
             .catch(() => {
                 jhFacultySchedulesCache = [];
@@ -860,6 +796,7 @@
             .then(res => {
                 jhEditFacultySchedulesCache = res.data || res || [];
                 jhRecalculateEditHours();
+                jhRecalculateOngoingClasses(true);
             })
             .catch(() => {
                 jhEditFacultySchedulesCache = [];
@@ -872,9 +809,9 @@
             jhFacultySchedulesCache = [];
             document.getElementById('addFacultyHours').value = '';
             document.getElementById('jhAddSubjectList').innerHTML =
-                '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Enter Classes Assigned above to pick subjects.</p>';
+                '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a grade level, then add each subject.</p>';
+            document.getElementById('addFacultyClasses').value = '0';
             // Hide designation guard until a teacher is selected
-            document.getElementById('jhDesignationGuard').style.display = 'none';
             // Reload teachers fresh from DB so newly-created users appear
             const sel = document.getElementById('addFacultyTeacherId');
             sel.innerHTML = '<option value="">Loading teachers…</option>';
@@ -908,6 +845,10 @@
                 return;
             }
             const subjects = jhCollectSubjects();
+            if (!subjects.length) {
+                alert('Please add at least one subject.');
+                return;
+            }
             const data = {
                 faculty_id:       parseInt(facultyId),
                 grade_level:      document.getElementById('addFacultyGradeLevel').value,
@@ -995,84 +936,6 @@
             const modal = document.getElementById('scheduleCardModal');
             if (modal) modal.addEventListener('click', e => { if (e.target === modal) closeScheduleCard(); });
         });
-
-        // ── Designation Load Guard ──────────────────────────────────────────
-        function jhUpdateDesignationGuard(userId) {
-            const guard   = document.getElementById('jhDesignationGuard');
-            const loading = document.getElementById('jhDesigLoading');
-            const content = document.getElementById('jhDesigContent');
-            const warning = document.getElementById('jhDesigWarning');
-
-            if (!userId) { guard.style.display = 'none'; return; }
-
-            guard.style.display = 'block';
-            loading.style.display = 'block';
-            content.style.display = 'none';
-            warning.style.display = 'none';
-
-            fetch(`/api/teacher-cross-load/${userId}`, {
-                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' }
-            })
-            .then(r => r.json())
-            .then(d => {
-                if (!d.success) throw new Error('Failed');
-
-                loading.style.display = 'none';
-                content.style.display = 'block';
-
-                // Designation type badge
-                const desigMap = { regular:'Regular', coordinator:'Coordinator', dept_head:'Dept. Head', shared:'Shared', part_time:'Part-Time' };
-                document.getElementById('jhDesigType').textContent = desigMap[d.designation] || d.designation;
-
-                // JH Classes bar
-                const clsPct = d.max_classes > 0 ? Math.min(100, Math.round(d.jh_classes / d.max_classes * 100)) : 0;
-                const clsColor = clsPct >= 100 ? '#ef4444' : clsPct >= 80 ? '#f59e0b' : '#22c55e';
-                document.getElementById('jhDesigClsText').textContent = `${d.jh_classes} / ${d.max_classes}`;
-                document.getElementById('jhDesigClsBar').style.cssText = `width:${clsPct}%;background:${clsColor};`;
-
-                // JH Hours bar
-                const hrsPct = d.max_load_hours > 0 ? Math.min(100, Math.round(d.jh_hours / d.max_load_hours * 100)) : 0;
-                const hrsColor = hrsPct >= 100 ? '#ef4444' : hrsPct >= 80 ? '#f59e0b' : '#22c55e';
-                document.getElementById('jhDesigHrsText').textContent = `${d.jh_hours.toFixed(1)} / ${d.max_load_hours} hrs`;
-                document.getElementById('jhDesigHrsBar').style.cssText = `width:${hrsPct}%;background:${hrsColor};`;
-
-                // GS cross-check
-                const gsEl = document.getElementById('jhGsLoadContent');
-                if (d.gs_classes > 0 || d.gs_hours > 0) {
-                    const gsPct = d.max_load_hours > 0 ? Math.min(100, Math.round(d.gs_hours / d.max_load_hours * 100)) : 0;
-                    const gsColor = gsPct >= 100 ? '#ef4444' : gsPct >= 80 ? '#f59e0b' : '#22c55e';
-                    gsEl.innerHTML = `<div style="font-size:0.78rem;margin-bottom:0.3rem;color:var(--text-primary);">GS: <strong>${d.gs_classes} classes</strong> &bull; <strong style="color:${gsColor};">${d.gs_hours.toFixed(1)} hrs</strong></div>`
-                        + `<div style="height:5px;background:var(--border-color);border-radius:9999px;"><div style="width:${gsPct}%;height:100%;border-radius:9999px;background:${gsColor};"></div></div>`
-                        + `<div style="font-size:0.72rem;color:var(--text-secondary);margin-top:0.2rem;">Total combined: ${d.total_hours.toFixed(1)} hrs / week</div>`;
-                } else {
-                    gsEl.innerHTML = `<span style="font-size:0.78rem;color:var(--text-secondary);">Not assigned in Grade School.</span>`;
-                }
-
-                // Warning
-                const total = d.total_hours;
-                if (d.jh_classes >= d.max_classes) {
-                    warning.style.display = 'block';
-                    warning.style.cssText += 'background:rgba(239,68,68,.1);color:#b91c1c;border:1px solid rgba(239,68,68,.3);';
-                    warning.textContent = `⚠ This teacher has already reached their class limit (${d.max_classes} classes).`;
-                } else if (total > d.max_load_hours) {
-                    warning.style.display = 'block';
-                    warning.style.cssText += 'background:rgba(239,68,68,.1);color:#b91c1c;border:1px solid rgba(239,68,68,.3);';
-                    warning.textContent = `⚠ Combined JH + GS hours (${total.toFixed(1)} hrs) exceed the designation limit (${d.max_load_hours} hrs).`;
-                } else if (d.jh_classes >= d.max_classes - 1 || total > d.max_load_hours * 0.8) {
-                    warning.style.display = 'block';
-                    warning.style.cssText += 'background:rgba(245,158,11,.1);color:#92400e;border:1px solid rgba(245,158,11,.3);';
-                    warning.textContent = `⚡ This teacher is near their designation limit. Review before assigning more load.`;
-                } else {
-                    warning.style.display = 'none';
-                }
-            })
-            .catch(() => {
-                loading.style.display = 'none';
-                content.style.display = 'block';
-                document.getElementById('jhDesigType').textContent = 'Unknown';
-                document.getElementById('jhGsLoadContent').textContent = 'Could not retrieve cross-division data.';
-            });
-        }
 
         // ── Shared Teachers Panel ──────────────────────────────────────────
         let jhSpLoaded = false;

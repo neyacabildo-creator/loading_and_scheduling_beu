@@ -93,8 +93,23 @@ class TeacherLeaveRequestSupport
         $dateTo = Carbon::parse($validated['date_to'])->startOfDay();
         $totalDays = max(1, $dateFrom->diffInDays($dateTo) + 1);
 
+        $dupMsg = DuplicateSubmissionSupport::pendingLeaveRequestMessage(
+            $connection,
+            (int) Auth::id(),
+            $dateFrom->toDateString(),
+            $dateTo->toDateString()
+        );
+        if ($dupMsg !== null) {
+            return ['success' => false, 'message' => $dupMsg];
+        }
+
         $notes = trim((string) ($validated['proposed_changes'] ?? ''));
         $adminNotes = $notes !== '' ? $notes : null;
+
+        $user = Auth::user();
+        $teacherName = $user
+            ? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: ($user->name ?? 'Teacher')
+            : 'Teacher';
 
         $id = DB::connection($connection)->table(self::TABLE)->insertGetId([
             'teacher_id'          => Auth::id(),
@@ -111,6 +126,15 @@ class TeacherLeaveRequestSupport
             'created_at'          => now(),
             'updated_at'          => now(),
         ]);
+
+        AdminPortalNotificationSupport::notifyNewTeacherRequest(
+            $connection,
+            $teacherName,
+            'leave / absence request',
+            self::TABLE,
+            (int) $id,
+            (int) Auth::id()
+        );
 
         return [
             'success' => true,

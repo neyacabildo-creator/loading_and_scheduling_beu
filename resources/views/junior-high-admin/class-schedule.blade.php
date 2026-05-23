@@ -31,6 +31,8 @@
         .schedule-event { padding: 0.25rem 0.5rem; background: linear-gradient(135deg, rgba(45,122,80,0.8) 0%, rgba(45,122,80,0.6) 100%); color: white; border-radius: 0.25rem; font-size: 0.65rem; margin-bottom: 0.25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .schedule-event.pending { background: linear-gradient(135deg, rgba(234,179,8,0.8) 0%, rgba(234,179,8,0.6) 100%); }
         .schedule-event.completed { background: linear-gradient(135deg, rgba(150,150,150,0.8) 0%, rgba(150,150,150,0.6) 100%); }
+        .action-buttons, .schedule-actions-row { display: flex; flex-direction: row; align-items: center; gap: 0.4rem; flex-wrap: nowrap; }
+        .action-buttons .action-btn, .schedule-actions-row .action-btn { margin: 0; flex-shrink: 0; }
         
         /* Dark Mode Calendar Styles - Force Apply */
         html[data-theme="dark"] .calendar-day { background: #3a3a3a !important; color: #e0e0e0 !important; border-color: #404040 !important; }
@@ -564,10 +566,9 @@
                                 <td>${timeStart} - ${timeEnd}</td>
                                 <td><span class="badge badge-active">${schedule.status || 'active'}</span></td>
                                 <td>
-                                    <div class="action-buttons">
+                                    <div class="schedule-actions-row">
                                         <button class="action-btn edit" onclick="openEditModal(${schedule.id})">Edit</button>
                                         <button class="action-btn delete" onclick="adminQuickDeleteSchedule(${schedule.id}, this, { url: '/api/admin/schedules/${schedule.id}', onRollback: function(){ loadPendingSchedules(); loadApprovedSchedules(); } })">Delete</button>
-                                        <button class="action-btn" style="background: rgba(45, 122, 80, 0.15); color: var(--green-primary);" onclick="viewHistory(${schedule.id})">History</button>
                                     </div>
                                 </td>
                             </tr>
@@ -1031,30 +1032,6 @@
             })
             .catch(error => {
                 alert('Error updating schedule: ' + error.message);
-                console.error(error);
-            });
-        }
-
-        // View change history
-        function viewHistory(scheduleId) {
-            fetch(`/api/admin/schedules/${scheduleId}/history`, {
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                }
-            })
-            .then(response => {
-                if (!response.ok) throw new Error('Network response was not ok');
-                return response.json();
-            })
-            .then(data => {
-                const log = data.change_log;
-                if (!log || !log.length) { alert('No changes recorded'); return; }
-                const entries = Array.isArray(log) ? log : (typeof log === 'string' ? JSON.parse(log) : []);
-                const text = entries.map(e => `[${e.at || ''}] ${(e.action || 'change').toUpperCase()} by ${e.by || 'Unknown'}${e.reason ? '\nReason: ' + e.reason : ''}${e.changes ? '\nFields: ' + Object.keys(e.changes).join(', ') : ''}`).join('\n\n');
-                alert('Schedule History:\n\n' + (text || 'No changes recorded'));
-            })
-            .catch(error => {
-                alert('Error fetching history: ' + error.message);
                 console.error(error);
             });
         }

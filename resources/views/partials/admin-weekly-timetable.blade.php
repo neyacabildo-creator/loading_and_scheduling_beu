@@ -17,6 +17,11 @@
     <div class="calendar-header">
         <h2 class="calendar-title">Weekly Timetable</h2>
         <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+            <label style="display:flex;align-items:center;gap:0.4rem;font-size:.78rem;font-weight:600;color:var(--text-secondary);">
+                Date:
+                <input type="date" id="{{ $pfx }}DashTTDate"
+                    style="padding:0.4rem 0.55rem;border:1px solid var(--border-color);border-radius:.375rem;background:var(--bg-secondary);color:var(--text-primary);font-size:.78rem;font-weight:500;cursor:pointer;">
+            </label>
             <div style="display:flex;align-items:center;gap:0.25rem;">
                 <button type="button" onclick="{{ $pfx }}DashTTPrevDay()" style="padding:0.35rem 0.6rem;border:1px solid var(--border-color);border-radius:.375rem;background:var(--bg-secondary);color:var(--text-primary);cursor:pointer;font-size:.85rem;">&#8249;</button>
                 <button type="button" class="{{ $dayClass }} active" data-day="Monday" onclick="{{ $pfx }}DashTTSetDay(this,'Monday')">Mon</button>
@@ -60,4 +65,4 @@ window.__DASH_TIMETABLE_CONFIG__ = {
     grades: @json($grades),
 };
 </script>
-<script src="{{ asset('js/admin-dashboard-timetable.js') }}"></script>
+<script src="{{ asset('js/admin-dashboard-timetable.js') }}?v=3"></script>

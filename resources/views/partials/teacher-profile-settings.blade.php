@@ -166,20 +166,6 @@
     <p>Manage your profile photo and account password.</p>
 </div>
 
-@if(session('success'))
-    <div class="profile-alert profile-alert-success">{{ session('success') }}</div>
-@endif
-
-@if($errors->any())
-    <div class="profile-alert profile-alert-error">
-        <ul style="margin:0;padding-left:1.1rem;">
-            @foreach($errors->all() as $error)
-                <li>{{ $error }}</li>
-            @endforeach
-        </ul>
-    </div>
-@endif
-
 <div class="profile-grid">
     <div class="profile-card">
         <h2 class="profile-card-title">Account</h2>

@@ -85,12 +85,6 @@
         <div class="header-right"></div>
     </div>
 
-    @if(session('success'))
-        <div style="background: rgba(45,122,80,0.15); border: 1px solid var(--green-primary); color: var(--green-primary); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem;">
-            {{ session('success') }}
-        </div>
-    @endif
-
     <!-- Upcoming Schedules Panel -->
     <div id="rooms-sections-main">
         <div class="upcoming-panel" id="jhUpcomingPanel">

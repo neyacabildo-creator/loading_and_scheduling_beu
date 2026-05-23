@@ -40,17 +40,6 @@
     </div>
 </div>
 
-@if(session('success'))
-<div style="background:rgba(45,122,80,.15);border:1px solid var(--green-primary);color:var(--green-primary);padding:1rem;border-radius:.5rem;margin-bottom:1.5rem;font-weight:500;">
-    ✓ {{ session('success') }}
-</div>
-@endif
-@if(session('error'))
-<div style="background:rgba(200,50,50,.1);border:1px solid #c83232;color:#c83232;padding:1rem;border-radius:.5rem;margin-bottom:1.5rem;font-weight:500;">
-    {{ session('error') }}
-</div>
-@endif
-
 <form action="{{ route('admin.schedule.store') }}" method="POST" id="sfForm">
     @csrf
 

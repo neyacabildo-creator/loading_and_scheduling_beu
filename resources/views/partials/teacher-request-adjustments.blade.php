@@ -37,7 +37,6 @@
     .toast{position:fixed;top:1.25rem;right:1.25rem;padding:.85rem 1.25rem;border-radius:.5rem;font-size:.875rem;font-weight:600;z-index:9999;display:none}
     .toast-success{background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7}
     .toast-error{background:#ffebee;color:#c62828;border:1px solid #ef9a9a}
-    .success-banner{background:#e8f5e9;border-left:4px solid #388e3c;padding:1rem;border-radius:.5rem;margin-bottom:1.5rem;color:#2e7d32;display:none}
     .empty-state{text-align:center;padding:2.5rem;color:var(--text-secondary)}
 </style>
 
@@ -46,8 +45,6 @@
     <h1 style="color:white;font-size:1.75rem;font-weight:800;margin:0 0 .3rem;">Request Schedule Adjustments</h1>
     <p style="color:rgba(255,255,255,.75);font-size:.875rem;margin:0;">Submit schedule change requests to the administration</p>
 </div>
-
-<div id="success-banner" class="success-banner">Your request has been submitted successfully.</div>
 
 <div class="tabs">
     <div class="tab active" data-tab="new" onclick="switchTab('new')">Schedule Adjustment</div>
@@ -314,8 +311,7 @@ async function submitRequest(e) {
         form.reset();
         adjSlotTouched = false;
         loadAdjustmentSchedules();
-        document.getElementById('success-banner').style.display = 'block';
-        setTimeout(() => document.getElementById('success-banner').style.display = 'none', 4000);
+        showToast(json.message || 'Your request has been submitted successfully.', 'success');
     } catch (err) {
         showToast(err.message, 'error');
     }
@@ -374,12 +370,7 @@ async function submitLeaveRequest(e) {
         const json = await res.json();
         if (!res.ok || !json.success) throw new Error(json.message ?? 'Could not submit request');
         form.reset();
-        document.getElementById('success-banner').style.display = 'block';
-        document.getElementById('success-banner').textContent = json.message || 'Your absence/leave request has been submitted.';
-        setTimeout(() => {
-            document.getElementById('success-banner').style.display = 'none';
-            document.getElementById('success-banner').textContent = 'Your request has been submitted successfully.';
-        }, 4000);
+        showToast(json.message || 'Your absence/leave request has been submitted.', 'success');
     } catch (err) {
         showToast(err.message, 'error');
     }
@@ -407,10 +398,17 @@ function renderRequests(data) {
 }
 
 function showToast(msg, type) {
+    if (window.spupToast) {
+        if (type === 'error') window.spupToast.error(msg);
+        else if (type === 'warning') window.spupToast.warning(msg);
+        else window.spupToast.success(msg);
+        return;
+    }
     const t = document.getElementById('toast');
+    if (!t) return;
     t.className = 'toast toast-' + type;
     t.textContent = msg;
     t.style.display = 'block';
-    setTimeout(() => t.style.display = 'none', 3000);
+    setTimeout(() => { t.style.display = 'none'; }, 3000);
 }
 </script>

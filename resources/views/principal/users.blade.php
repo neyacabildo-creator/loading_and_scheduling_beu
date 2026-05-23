@@ -4,6 +4,18 @@
 @section('title', 'All Users')
 
 @section('content')
+<style>
+.principal-user-actions {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.4rem;
+}
+.principal-user-actions form { margin: 0; display: inline-flex; }
+.principal-user-actions .btn { margin: 0; white-space: nowrap; flex-shrink: 0; }
+</style>
 <div class="header">
     <div class="header-left">
         <div>
@@ -18,13 +30,6 @@
         </button>
     </div>
 </div>
-
-@if(session('success'))
-    <div class="alert alert-success">{{ session('success') }}</div>
-@endif
-@if(session('error'))
-    <div class="alert alert-error">{{ session('error') }}</div>
-@endif
 
 {{-- Create User Form (collapsible) --}}
 <div id="create-user-form" style="display:none;">
@@ -96,23 +101,6 @@
                             <option value="junior_high"  {{ old('school_level') === 'junior_high'  ? 'selected' : '' }}>Junior High</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Position / Title</label>
-                        <select name="position" class="form-control">
-                            <option value="">— select position —</option>
-                            <option value="Teacher" {{ old('position') === 'Teacher' ? 'selected' : '' }}>Teacher</option>
-                            <option value="Head Teacher" {{ old('position') === 'Head Teacher' ? 'selected' : '' }}>Head Teacher</option>
-                            <option value="Master Teacher I" {{ old('position') === 'Master Teacher I' ? 'selected' : '' }}>Master Teacher I</option>
-                            <option value="Master Teacher II" {{ old('position') === 'Master Teacher II' ? 'selected' : '' }}>Master Teacher II</option>
-                            <option value="Master Teacher III" {{ old('position') === 'Master Teacher III' ? 'selected' : '' }}>Master Teacher III</option>
-                            <option value="Subject Area Coordinator" {{ old('position') === 'Subject Area Coordinator' ? 'selected' : '' }}>Subject Area Coordinator</option>
-                            <option value="Department Head" {{ old('position') === 'Department Head' ? 'selected' : '' }}>Department Head</option>
-                            <option value="School Principal" {{ old('position') === 'School Principal' ? 'selected' : '' }}>School Principal</option>
-                            <option value="Assistant Principal" {{ old('position') === 'Assistant Principal' ? 'selected' : '' }}>Assistant Principal</option>
-                            <option value="School Secretary" {{ old('position') === 'School Secretary' ? 'selected' : '' }}>School Secretary</option>
-                            <option value="Administrative Staff" {{ old('position') === 'Administrative Staff' ? 'selected' : '' }}>Administrative Staff</option>
-                        </select>
-                    </div>
                 </div>
                 <button type="submit" class="btn btn-primary">Create User</button>
             </form>
@@ -131,7 +119,6 @@
                     <th>Password</th>
                     <th>Role</th>
                     <th>School Level</th>
-                    <th>Position</th>
                     <th>Status</th>
                     <th>Actions</th>
                 </tr>
@@ -165,16 +152,15 @@
                     <td style="font-size:0.8rem;">
                         {{ $user->school_level ? ucfirst(str_replace('_',' ', $user->school_level)) : '—' }}
                     </td>
-                    <td style="font-size:0.8rem;color:var(--text-secondary);">{{ $user->position ?? '—' }}</td>
                     <td>
                         <span class="badge {{ $user->is_active ? 'badge-active' : 'badge-inactive' }}">
                             {{ $user->is_active ? 'Active' : 'Inactive' }}
                         </span>
                     </td>
-                    <td style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;">
-                        {{-- Edit button (opens modal) --}}
+                    <td>
+                        <div class="principal-user-actions">
                         <button type="button" class="btn btn-outline btn-sm"
-                            onclick="openEditModal({{ $user->id }}, '{{ addslashes($user->first_name) }}', '{{ addslashes($user->last_name) }}', '{{ addslashes($user->email) }}', '{{ addslashes($user->position ?? '') }}', {{ $user->role_id ?? 'null' }})">
+                            onclick="openEditModal({{ $user->id }}, '{{ addslashes($user->first_name) }}', '{{ addslashes($user->last_name) }}', '{{ addslashes($user->email) }}', {{ $user->role_id ?? 'null' }}, '{{ $user->school_level ?? '' }}', '{{ addslashes($user->role?->name ?? '') }}')">
                             Edit
                         </button>
 
@@ -204,11 +190,12 @@
                         @else
                             <span style="font-size:0.75rem;color:var(--text-secondary);">You</span>
                         @endif
+                        </div>
                     </td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="8" style="text-align:center;padding:2rem;color:var(--text-secondary);">No users found.</td>
+                    <td colspan="7" style="text-align:center;padding:2rem;color:var(--text-secondary);">No users found.</td>
                 </tr>
                 @endforelse
             </tbody>
@@ -246,30 +233,24 @@
             </div>
             <div class="form-group" style="margin-bottom:1rem;">
                 <label class="form-label">Role</label>
+                <input type="text" id="edit_role_readonly" class="form-control" readonly
+                    style="display:none;background:var(--bg-tertiary,#f3f4f6);color:var(--text-secondary);">
                 <select name="role_id" id="edit_role_id" class="form-control" required>
                     <option value="">— select role —</option>
                     @foreach($roles->where('name', '!=', 'principal') as $role)
                         <option value="{{ $role->id }}">{{ $role->display_name ?? ucfirst(str_replace('_', ' ', $role->name)) }}</option>
                     @endforeach
                 </select>
-                <small style="color:var(--text-secondary);font-size:0.75rem;">Principal role cannot be assigned through this form.</small>
+                <small id="edit_role_hint" style="color:var(--text-secondary);font-size:0.75rem;">Principal role cannot be assigned through this form.</small>
             </div>
             <div class="form-group" style="margin-bottom:1rem;">
-                <label class="form-label">Position / Title</label>
-                <select name="position" id="edit_position" class="form-control">
-                    <option value="">— select position —</option>
-                    <option value="Teacher">Teacher</option>
-                    <option value="Head Teacher">Head Teacher</option>
-                    <option value="Master Teacher I">Master Teacher I</option>
-                    <option value="Master Teacher II">Master Teacher II</option>
-                    <option value="Master Teacher III">Master Teacher III</option>
-                    <option value="Subject Area Coordinator">Subject Area Coordinator</option>
-                    <option value="Department Head">Department Head</option>
-                    <option value="School Principal">School Principal</option>
-                    <option value="Assistant Principal">Assistant Principal</option>
-                    <option value="School Secretary">School Secretary</option>
-                    <option value="Administrative Staff">Administrative Staff</option>
+                <label class="form-label">School Level</label>
+                <select name="school_level" id="edit_school_level" class="form-control">
+                    <option value="">— not applicable / institution-wide —</option>
+                    <option value="grade_school">Grade School</option>
+                    <option value="junior_high">Junior High</option>
                 </select>
+                <small style="color:var(--text-secondary);font-size:0.75rem;">Required for teachers and admins; optional for principal accounts.</small>
             </div>
             <div style="background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.25);border-radius:.5rem;padding:.85rem 1rem;margin-bottom:1rem;font-size:.82rem;color:#92400e;">
                 ⚠ Leave password fields blank to keep the current password.
@@ -303,12 +284,33 @@
 </div>
 
 <script>
-function openEditModal(id, firstName, lastName, email, position, roleId) {
+function openEditModal(id, firstName, lastName, email, roleId, schoolLevel, roleName) {
     document.getElementById('edit_first_name').value = firstName;
     document.getElementById('edit_last_name').value  = lastName;
     document.getElementById('edit_email').value      = email;
-    document.getElementById('edit_position').value   = position || '';
-    document.getElementById('edit_role_id').value    = roleId || '';
+    document.getElementById('edit_school_level').value = schoolLevel || '';
+
+    const roleSel = document.getElementById('edit_role_id');
+    const roleReadonly = document.getElementById('edit_role_readonly');
+    const roleHint = document.getElementById('edit_role_hint');
+    const isPrincipal = roleName === 'principal';
+
+    if (isPrincipal) {
+        roleSel.style.display = 'none';
+        roleSel.removeAttribute('required');
+        roleSel.removeAttribute('name');
+        roleReadonly.style.display = 'block';
+        roleReadonly.value = 'Principal';
+        if (roleHint) roleHint.textContent = 'Principal role cannot be changed here.';
+    } else {
+        roleSel.style.display = '';
+        roleSel.setAttribute('required', 'required');
+        roleSel.setAttribute('name', 'role_id');
+        roleReadonly.style.display = 'none';
+        roleSel.value = roleId && roleId !== 'null' ? String(roleId) : '';
+        if (roleHint) roleHint.textContent = 'Principal role cannot be assigned through this form.';
+    }
+
     document.getElementById('edit-user-form').action = '/principal/users/' + id;
     // Clear password fields
     // Clear password fields and reset eye icons

@@ -27,10 +27,23 @@
                 <tr data-status="{{ $lr->status }}">
                     <td class="str-col-teacher">
                         @if($lr->user ?? null)
-                            <div class="str-teacher-name">{{ trim(($lr->user->first_name ?? '') . ' ' . ($lr->user->last_name ?? '')) ?: ($lr->user->name ?? '—') }}</div>
-                            @if(!empty($lr->presence))
-                                <span class="str-presence-badge str-presence-{{ $lr->presence['status'] ?? 'on_leave' }}">{{ $lr->presence['label'] ?? 'On Leave' }}</span>
-                            @endif
+                            @php
+                                $leaveTeacher = trim(($lr->user->first_name ?? '') . ' ' . ($lr->user->last_name ?? '')) ?: ($lr->user->name ?? '—');
+                                $leaveSchool = ($lr->user->school_level ?? null)
+                                    ? ucfirst(str_replace('_', ' ', $lr->user->school_level))
+                                    : '';
+                            @endphp
+                            <div class="str-teacher-cell">
+                                <div class="str-teacher-cell-top">
+                                    <span class="str-teacher-name">{{ $leaveTeacher }}</span>
+                                    @if($leaveSchool !== '')
+                                        <span class="str-school-level-badge">{{ $leaveSchool }}</span>
+                                    @endif
+                                </div>
+                                @if(!empty($lr->presence))
+                                    <span class="str-presence-badge str-presence-{{ $lr->presence['status'] ?? 'on_leave' }}">{{ $lr->presence['label'] ?? 'On Leave' }}</span>
+                                @endif
+                            </div>
                         @else
                             <span style="color:var(--text-secondary);">—</span>
                         @endif

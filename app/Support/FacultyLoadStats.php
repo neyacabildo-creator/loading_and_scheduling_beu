@@ -43,6 +43,33 @@ class FacultyLoadStats
         return round($totalMins / 60, 2);
     }
 
+    /**
+     * Count approved schedules that are in session right now (today + current time).
+     */
+    public static function countOngoingClasses(int $facultyId, ?string $gradeLevel = null): int
+    {
+        if ($facultyId <= 0) {
+            return 0;
+        }
+
+        $query = ClassSchedule::where('faculty_id', $facultyId)
+            ->where('admin_approved', true)
+            ->whereIn('status', ['active', 'approved']);
+
+        if (! empty($gradeLevel)) {
+            $query->where('grade_level', $gradeLevel);
+        }
+
+        $currentDay  = now()->format('l');
+        $currentTime = now()->format('H:i');
+
+        return $query->get(['day_of_week', 'start_time', 'end_time'])->filter(function ($s) use ($currentDay, $currentTime) {
+            return strcasecmp($s->day_of_week ?? '', $currentDay) === 0
+                && substr((string) $s->start_time, 0, 5) <= $currentTime
+                && substr((string) $s->end_time, 0, 5) > $currentTime;
+        })->count();
+    }
+
     public static function resolveStatus(int $facultyId): string
     {
         if ($facultyId <= 0) {

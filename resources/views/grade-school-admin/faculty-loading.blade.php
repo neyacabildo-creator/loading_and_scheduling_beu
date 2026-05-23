@@ -27,6 +27,24 @@
         .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--green-primary); box-shadow: 0 0 0 3px rgba(45,122,80,0.1); }
         .form-actions { display: flex; gap: 1rem; margin-top: 1.5rem; }
         .form-actions button { flex: 1; }
+        .fl-add-subject-btn {
+            margin-top: 0.5rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.55rem 1rem;
+            background: var(--green-primary);
+            color: #fff;
+            border: none;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.8125rem;
+            font-family: inherit;
+            transition: background 0.2s;
+        }
+        .fl-add-subject-btn:hover { background: var(--green-dark); }
         .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
         .badge-active { background: rgba(16,185,129,0.1); color: #10b981; }
         .badge-danger { background: rgba(239,68,68,0.1); color: #ef4444; }
@@ -173,7 +191,7 @@
             <form id="addFacultyLoadForm">
                 <div class="form-group">
                     <label>Grade Level *</label>
-                    <select id="addFacultyGradeLevel" required style="width:100%;padding:0.65rem;border:1px solid var(--border-color);border-radius:0.375rem;background:var(--bg-secondary);color:var(--text-primary);" onchange="gsRenderSubjectRows()">
+                    <select id="addFacultyGradeLevel" required style="width:100%;padding:0.65rem;border:1px solid var(--border-color);border-radius:0.375rem;background:var(--bg-secondary);color:var(--text-primary);">
                         <option value="">-- Select Grade Level --</option>
                         <option value="Grade 1">Grade 1</option>
                         <option value="Grade 2">Grade 2</option>
@@ -185,7 +203,7 @@
                 </div>
                 <div class="form-group">
                     <label>Faculty *</label>
-                    <select id="addFacultyId" required onchange="gsFetchFacultySchedules(); gsUpdateDesignationGuard(this.value)" style="width:100%;padding:0.65rem;border:1px solid var(--border-color);border-radius:0.375rem;background:var(--bg-secondary);color:var(--text-primary);">
+                    <select id="addFacultyId" required onchange="gsFetchFacultySchedules()" style="width:100%;padding:0.65rem;border:1px solid var(--border-color);border-radius:0.375rem;background:var(--bg-secondary);color:var(--text-primary);">
                         <option value="">-- Select Teacher --</option>
                         @foreach($teachers as $teacher)
                             @php $isShared = in_array((string)$teacher->id, $sharedTeacherUserIds ?? []); @endphp
@@ -194,54 +212,18 @@
                     </select>
                 </div>
 
-                {{-- ── Designation Load Guard ─────────────────────────── --}}
-                <div id="gsDesignationGuard" style="display:none; margin-bottom:1rem;">
-                    <div style="background:var(--bg-primary);border:1px solid var(--border-color);border-radius:0.5rem;padding:0.875rem;">
-                        <div style="font-size:0.75rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.6rem;">⚡ Designation Load Check</div>
-                        <div id="gsDesigLoading" style="font-size:0.82rem;color:var(--text-secondary);text-align:center;padding:0.5rem 0;">Fetching designation info…</div>
-                        <div id="gsDesigContent" style="display:none;">
-                            <div style="margin-bottom:0.6rem;">
-                                <span style="font-size:0.72rem;color:var(--text-secondary);">Designation:</span>
-                                <span id="gsDesigType" style="display:inline-block;margin-left:0.4rem;padding:0.15rem 0.55rem;border-radius:9999px;font-size:0.72rem;font-weight:700;background:rgba(168,85,247,0.12);color:#7e22ce;"></span>
-                            </div>
-                            <div style="margin-bottom:0.35rem;">
-                                <div style="display:flex;justify-content:space-between;font-size:0.75rem;margin-bottom:0.2rem;">
-                                    <span style="color:var(--text-secondary);">GS Classes</span>
-                                    <span id="gsDesigClsText" style="font-weight:600;color:var(--text-primary);"></span>
-                                </div>
-                                <div style="height:6px;background:var(--border-color);border-radius:9999px;">
-                                    <div id="gsDesigClsBar" style="height:100%;border-radius:9999px;transition:width 0.4s;"></div>
-                                </div>
-                            </div>
-                            <div style="margin-bottom:0.35rem;">
-                                <div style="display:flex;justify-content:space-between;font-size:0.75rem;margin-bottom:0.2rem;">
-                                    <span style="color:var(--text-secondary);">GS Hours / Week</span>
-                                    <span id="gsDesigHrsText" style="font-weight:600;color:var(--text-primary);"></span>
-                                </div>
-                                <div style="height:6px;background:var(--border-color);border-radius:9999px;">
-                                    <div id="gsDesigHrsBar" style="height:100%;border-radius:9999px;transition:width 0.4s;"></div>
-                                </div>
-                            </div>
-                            <div style="margin-top:0.6rem;padding-top:0.6rem;border-top:1px dashed var(--border-color);">
-                                <div style="font-size:0.72rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.4rem;">Junior High Cross-Check</div>
-                                <div id="gsJhLoadContent" style="font-size:0.8rem;color:var(--text-secondary);">—</div>
-                            </div>
-                            <div id="gsDesigWarning" style="display:none;margin-top:0.5rem;padding:0.45rem 0.7rem;border-radius:0.375rem;font-size:0.78rem;font-weight:600;"></div>
-                        </div>
-                    </div>
-                </div>
-
                 <div class="form-group">
-                    <label>Classes Assigned *</label>
-                    <input type="number" id="addFacultyClasses" required min="0" placeholder="Number of classes" oninput="gsRenderSubjectRows()">
-                    <small style="color:var(--text-secondary);font-size:0.75rem;margin-top:0.25rem;display:block;">Enter how many classes this teacher handles.</small>
-                </div>
-                <div class="form-group">
-                    <label>Subjects <span style="font-size:0.78rem;font-weight:400;color:var(--text-secondary);">(one per class)</span></label>
+                    <label>Subjects *</label>
                     <div id="gsAddSubjectList">
-                        <p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a teacher and set Classes Assigned to pick subjects.</p>
+                        <p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a grade level, then add each subject this teacher handles.</p>
                     </div>
+                    <button type="button" class="fl-add-subject-btn" onclick="gsAddSubjectRow()">+ Add Subject</button>
                     <script id="gs-subjects-data" type="application/json">{!! json_encode($subjects) !!}</script>
+                </div>
+                <div class="form-group">
+                    <label>Classes Assigned <span style="font-size:0.78rem;font-weight:400;color:var(--text-secondary);">(auto — ongoing now)</span></label>
+                    <input type="number" id="addFacultyClasses" required min="0" value="0" readonly style="width:100%;padding:0.65rem;border:1px solid var(--border-color);border-radius:0.375rem;background:var(--bg-tertiary);cursor:not-allowed;">
+                    <small style="color:var(--text-secondary);font-size:0.75rem;margin-top:0.25rem;display:block;">Counted from this teacher&apos;s approved schedules that are in session right now.</small>
                 </div>
                 <div class="form-group">
                     <label>Load Hours <span style="font-size:0.78rem;font-weight:400;color:var(--text-secondary);">(auto-calculated)</span></label>
@@ -295,12 +277,14 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Subjects <span style="font-size:0.78rem;font-weight:400;color:var(--text-secondary);">(one per class)</span></label>
-                    <div id="gsEditSubjectList"><p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Enter Classes Assigned below to pick subjects.</p></div>
+                    <label>Subjects *</label>
+                    <div id="gsEditSubjectList"><p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Add each subject this teacher handles.</p></div>
+                    <button type="button" class="fl-add-subject-btn" onclick="gsAddEditSubjectRow()">+ Add Subject</button>
                 </div>
                 <div class="form-group">
-                    <label>Classes Assigned</label>
-                    <input type="number" id="editFacultyClasses" min="0" required oninput="gsOnEditLoadFieldChange()">
+                    <label>Classes Assigned <span style="font-size:0.78rem;font-weight:400;color:var(--text-secondary);">(auto — ongoing now)</span></label>
+                    <input type="number" id="editFacultyClasses" min="0" value="0" readonly style="width:100%;padding:0.65rem;border:1px solid var(--border-color);border-radius:0.375rem;background:var(--bg-tertiary);cursor:not-allowed;">
+                    <small style="color:var(--text-secondary);font-size:0.75rem;margin-top:0.25rem;display:block;">Auto-count from ongoing approved schedules for this teacher and grade.</small>
                 </div>
                 <div class="form-group">
                     <label>Load Hours <span style="font-size:.75rem;font-weight:400;color:var(--text-secondary);">(auto-computed from approved schedules)</span></label>
@@ -324,6 +308,7 @@
         </div>
     </div>
 
+    <script src="{{ asset('js/admin-faculty-load-form.js') }}"></script>
     <script>
         const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
         const masterScheduleBaseUrl = '{{ url("grade-school-admin/master-schedule") }}';
@@ -503,41 +488,39 @@
             return GS_GRADE_SUBJECTS[gradeLevel] || GS_ALL_SUBJECTS;
         }
 
-        function gsRenderEditSubjectRows(preselected) {
-            const n = parseInt(document.getElementById('editFacultyClasses').value) || 0;
-            const container = document.getElementById('gsEditSubjectList');
-            if (!container) return;
-            if (n === 0) {
-                container.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Enter Classes Assigned above to pick subjects.</p>';
-                return;
-            }
-            const gradeLevel = document.getElementById('editFacultyGradeLevel').value;
-            const subjects = gsSubjectsForGrade(gradeLevel);
-            const optionsHtml = '<option value="">-- Select Subject --</option>' +
-                subjects.map(s => `<option value="${s}">${s}</option>`).join('');
-            let html = '';
-            for (let i = 0; i < n; i++) {
-                html += `<div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem;">
-                    <span style="min-width:1.5rem;font-size:0.8rem;color:var(--text-secondary);">${i + 1}.</span>
-                    <select class="gs-edit-subject-row" style="${GS_EDIT_SEL_STYLE}" data-idx="${i}">${optionsHtml}</select>
-                </div>`;
-            }
-            container.innerHTML = html;
-            if (preselected && preselected.length) {
-                container.querySelectorAll('.gs-edit-subject-row').forEach(function(sel, i) {
-                    if (preselected[i]) sel.value = preselected[i];
-                });
-            }
-            container.querySelectorAll('.gs-edit-subject-row').forEach(sel => {
-                sel.addEventListener('change', gsRecalculateEditHours);
-            });
-            gsRecalculateEditHours();
+        AdminFacultyLoadForm.init({
+            rowClass: 'gs-subject-row',
+            editRowClass: 'gs-edit-subject-row',
+            listAddId: 'gsAddSubjectList',
+            listEditId: 'gsEditSubjectList',
+            classesAddId: 'addFacultyClasses',
+            classesEditId: 'editFacultyClasses',
+            gradeAddId: 'addFacultyGradeLevel',
+            gradeEditId: 'editFacultyGradeLevel',
+            globalAddSubject: 'gsAddSubjectRow',
+            globalAddEditSubject: 'gsAddEditSubjectRow',
+            globalRenderAdd: 'gsRenderSubjectRows',
+            globalRenderEdit: 'gsRenderEditSubjectRows',
+            globalRecalcOngoing: 'gsRecalculateOngoingClasses',
+            globalCollectAdd: 'gsCollectSubjects',
+            globalCollectEdit: 'gsCollectEditSubjects',
+            subjectsForGrade: gsSubjectsForGrade,
+            getScheduleCache: function () { return gsFacultySchedulesCache; },
+            getEditScheduleCache: function () { return gsEditFacultySchedulesCache; },
+            onRecalculateAddHours: function () { gsRecalculateAddHours(); },
+            onRecalculateEditHours: gsRecalculateEditHours
+        });
+
+        let gsEditLoadSnapshot = { subjects: [] };
+
+        function gsOnEditLoadFieldChange() {
+            const fromDom = typeof gsCollectEditSubjects === 'function' ? gsCollectEditSubjects() : [];
+            const snap = gsEditLoadSnapshot.subjects || [];
+            const merged = fromDom.length ? fromDom : snap;
+            gsRenderEditSubjectRows(merged.length ? merged : ['']);
+            gsRecalculateOngoingClasses(true);
         }
 
-        function gsCollectEditSubjects() {
-            return Array.from(document.querySelectorAll('.gs-edit-subject-row'))
-                .map(s => s.value.trim()).filter(Boolean);
-}
         function gsNormalizeSubject(v) {
             return String(v || '').trim().toLowerCase();
         }
@@ -617,55 +600,13 @@
             return (h || 0) * 60 + (m || 0);
         }
 
-        function gsRenderSubjectRows(preselected) {
-            const n = parseInt(document.getElementById('addFacultyClasses').value) || 0;
-            const container = document.getElementById('gsAddSubjectList');
-            if (!container) return;
-            if (n === 0) {
-                container.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Enter Classes Assigned above to pick subjects.</p>';
-                return;
-            }
-            const gradeLevel = document.getElementById('addFacultyGradeLevel').value;
-            const subjects = gsSubjectsForGrade(gradeLevel);
-            const optionsHtml = '<option value="">-- Select Subject --</option>' +
-                subjects.map(s => `<option value="${s}">${s}</option>`).join('');
-            const sel = `width:100%;padding:0.55rem;border:1px solid var(--border-color);border-radius:0.375rem;background:var(--bg-secondary);color:var(--text-primary);`;
-            let html = '';
-            for (let i = 0; i < n; i++) {
-                const preVal = (preselected && preselected[i]) ? preselected[i] : '';
-                html += `<div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem;">
-                    <span style="min-width:1.5rem;font-size:0.8rem;color:var(--text-secondary);">${i + 1}.</span>
-                    <select class="gs-subject-row" style="${sel}" data-idx="${i}">
-                        ${optionsHtml}
-                    </select>
-                </div>`;
-            }
-            container.innerHTML = html;
-            // Set pre-selected values
-            if (preselected) {
-                container.querySelectorAll('.gs-subject-row').forEach((sel, i) => {
-                    if (preselected[i]) sel.value = preselected[i];
-                });
-            }
-            container.querySelectorAll('.gs-subject-row').forEach(sel => {
-                sel.addEventListener('change', gsRecalculateAddHours);
-            });
-            gsRecalculateAddHours();
-        }
-
-        function gsCollectSubjects() {
-            return Array.from(document.querySelectorAll('.gs-subject-row'))
-                .map(s => s.value.trim())
-                .filter(Boolean);
-        }
-
         function gsFetchFacultySchedules() {
             const facultyId = document.getElementById('addFacultyId').value;
             if (!facultyId) {
                 document.getElementById('addFacultyHours').value = '';
-                document.getElementById('addFacultyClasses').value = '';
+                document.getElementById('addFacultyClasses').value = '0';
                 document.getElementById('gsAddSubjectList').innerHTML =
-                    '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a teacher to auto-load subjects.</p>';
+                    '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a teacher and grade level, then add subjects.</p>';
                 return;
             }
             fetch(`/api/grade-school-admin/schedules?faculty_id=${facultyId}`, {
@@ -675,7 +616,7 @@
             .then(res => {
                 gsFacultySchedulesCache = (res.data || []).filter(s => s.admin_approved);
                 gsRecalculateAddHours();
-                // Classes assigned is entered manually by the user — do not auto-fill
+                gsRecalculateOngoingClasses(false);
             })
             .catch(() => {
                 gsFacultySchedulesCache = [];
@@ -697,6 +638,7 @@
             .then(res => {
                 gsEditFacultySchedulesCache = res.data || res || [];
                 gsRecalculateEditHours();
+                gsRecalculateOngoingClasses(true);
             })
             .catch(() => {
                 gsEditFacultySchedulesCache = [];
@@ -710,9 +652,9 @@
             gsFacultySchedulesCache = [];
             document.getElementById('addFacultyHours').value = '';
             document.getElementById('gsAddSubjectList').innerHTML =
-                '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Enter Classes Assigned above to pick subjects.</p>';
+                '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a grade level, then add each subject.</p>';
+            document.getElementById('addFacultyClasses').value = '0';
             // Hide designation guard until a teacher is selected
-            document.getElementById('gsDesignationGuard').style.display = 'none';
             // Reload teachers fresh from DB so newly-created users appear
             const sel = document.getElementById('addFacultyId');
             sel.innerHTML = '<option value="">Loading teachers…</option>';
@@ -741,6 +683,10 @@
         document.getElementById('addFacultyLoadForm')?.addEventListener('submit', function (e) {
             e.preventDefault();
             const subjects = gsCollectSubjects();
+            if (!subjects.length) {
+                alert('Please add at least one subject.');
+                return;
+            }
             const data = {
                 faculty_id:       document.getElementById('addFacultyId').value,
                 grade_level:      document.getElementById('addFacultyGradeLevel').value,
@@ -776,6 +722,7 @@
             document.getElementById('editFacultyLoadId').value  = id;
             document.getElementById('editFacultyGradeLevel').value  = load.grade_level || ''; 
             document.getElementById('editFacultyClasses').value = load.classes_assigned ?? 0;
+            gsRecalculateOngoingClasses(true);
             document.getElementById('editFacultyHours').value   = load.load_hours ?? 0;
             // Render dynamic subject rows pre-populated with saved subjects
             const preselectedSubjects = load.subject ? load.subject.split(',').map(s => s.trim()) : [];
@@ -800,10 +747,15 @@
                 alert('\u2717 Teacher information is missing. Please reload and try again.');
                 return;
             }
+            const editSubjects = gsCollectEditSubjects();
+            if (!editSubjects.length) {
+                alert('Please add at least one subject.');
+                return;
+            }
             const data = {
                 faculty_id:       parseInt(facultyId),
                 grade_level:      document.getElementById('editFacultyGradeLevel').value,
-                subject:          gsCollectEditSubjects().join(', '),
+                subject:          editSubjects.join(', '),
                 classes_assigned: parseInt(document.getElementById('editFacultyClasses').value) || 0,
                 load_hours:       parseFloat(document.getElementById('editFacultyHours').value) || 0,
                 status:           document.getElementById('editFacultyStatus')?.value || 'available',
@@ -883,79 +835,6 @@
             const modal = document.getElementById('scheduleCardModal');
             if (modal) modal.addEventListener('click', e => { if (e.target === modal) closeScheduleCard(); });
         });
-
-        // ── Designation Load Guard ──────────────────────────────────────────
-        function gsUpdateDesignationGuard(userId) {
-            const guard   = document.getElementById('gsDesignationGuard');
-            const loading = document.getElementById('gsDesigLoading');
-            const content = document.getElementById('gsDesigContent');
-            const warning = document.getElementById('gsDesigWarning');
-
-            if (!userId) { guard.style.display = 'none'; return; }
-
-            guard.style.display = 'block';
-            loading.style.display = 'block';
-            content.style.display = 'none';
-            warning.style.display = 'none';
-
-            fetch(`/api/teacher-cross-load/${userId}`, {
-                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' }
-            })
-            .then(r => r.json())
-            .then(d => {
-                if (!d.success) throw new Error('Failed');
-
-                loading.style.display = 'none';
-                content.style.display = 'block';
-
-                const desigMap = { regular:'Regular', coordinator:'Coordinator', dept_head:'Dept. Head', shared:'Shared', part_time:'Part-Time' };
-                document.getElementById('gsDesigType').textContent = desigMap[d.designation] || d.designation;
-
-                const clsPct = d.max_classes > 0 ? Math.min(100, Math.round(d.gs_classes / d.max_classes * 100)) : 0;
-                const clsColor = clsPct >= 100 ? '#ef4444' : clsPct >= 80 ? '#f59e0b' : '#22c55e';
-                document.getElementById('gsDesigClsText').textContent = `${d.gs_classes} / ${d.max_classes}`;
-                document.getElementById('gsDesigClsBar').style.cssText = `width:${clsPct}%;background:${clsColor};`;
-
-                const hrsPct = d.max_load_hours > 0 ? Math.min(100, Math.round(d.gs_hours / d.max_load_hours * 100)) : 0;
-                const hrsColor = hrsPct >= 100 ? '#ef4444' : hrsPct >= 80 ? '#f59e0b' : '#22c55e';
-                document.getElementById('gsDesigHrsText').textContent = `${d.gs_hours.toFixed(1)} / ${d.max_load_hours} hrs`;
-                document.getElementById('gsDesigHrsBar').style.cssText = `width:${hrsPct}%;background:${hrsColor};`;
-
-                const jhEl = document.getElementById('gsJhLoadContent');
-                if (d.jh_classes > 0 || d.jh_hours > 0) {
-                    const jhPct = d.max_load_hours > 0 ? Math.min(100, Math.round(d.jh_hours / d.max_load_hours * 100)) : 0;
-                    const jhColor = jhPct >= 100 ? '#ef4444' : jhPct >= 80 ? '#f59e0b' : '#22c55e';
-                    jhEl.innerHTML = `<div style="font-size:0.78rem;margin-bottom:0.3rem;color:var(--text-primary);">JH: <strong>${d.jh_classes} classes</strong> &bull; <strong style="color:${jhColor};">${d.jh_hours.toFixed(1)} hrs</strong></div>`
-                        + `<div style="height:5px;background:var(--border-color);border-radius:9999px;"><div style="width:${jhPct}%;height:100%;border-radius:9999px;background:${jhColor};"></div></div>`
-                        + `<div style="font-size:0.72rem;color:var(--text-secondary);margin-top:0.2rem;">Total combined: ${d.total_hours.toFixed(1)} hrs / week</div>`;
-                } else {
-                    jhEl.innerHTML = `<span style="font-size:0.78rem;color:var(--text-secondary);">Not assigned in Junior High.</span>`;
-                }
-
-                const total = d.total_hours;
-                if (d.gs_classes >= d.max_classes) {
-                    warning.style.display = 'block';
-                    warning.style.cssText += 'background:rgba(239,68,68,.1);color:#b91c1c;border:1px solid rgba(239,68,68,.3);';
-                    warning.textContent = `⚠ This teacher has already reached their class limit (${d.max_classes} classes).`;
-                } else if (total > d.max_load_hours) {
-                    warning.style.display = 'block';
-                    warning.style.cssText += 'background:rgba(239,68,68,.1);color:#b91c1c;border:1px solid rgba(239,68,68,.3);';
-                    warning.textContent = `⚠ Combined GS + JH hours (${total.toFixed(1)} hrs) exceed the designation limit (${d.max_load_hours} hrs).`;
-                } else if (d.gs_classes >= d.max_classes - 1 || total > d.max_load_hours * 0.8) {
-                    warning.style.display = 'block';
-                    warning.style.cssText += 'background:rgba(245,158,11,.1);color:#92400e;border:1px solid rgba(245,158,11,.3);';
-                    warning.textContent = `⚡ This teacher is near their designation limit. Review before assigning more load.`;
-                } else {
-                    warning.style.display = 'none';
-                }
-            })
-            .catch(() => {
-                loading.style.display = 'none';
-                content.style.display = 'block';
-                document.getElementById('gsDesigType').textContent = 'Unknown';
-                document.getElementById('gsJhLoadContent').textContent = 'Could not retrieve cross-division data.';
-            });
-        }
 
         // ── Shared Teachers Panel ──────────────────────────────────────────
         let gsSpLoaded = false;

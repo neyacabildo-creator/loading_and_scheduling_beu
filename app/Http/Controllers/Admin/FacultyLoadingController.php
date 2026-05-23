@@ -116,7 +116,7 @@ class FacultyLoadingController extends Controller
             ],
             'subject' => 'nullable|string|max:255',
             'grade_level' => 'nullable|string|max:50',
-            'classes_assigned' => 'required|integer|min:0',
+            'classes_assigned' => 'nullable|integer|min:0',
             'load_hours' => 'required|numeric|min:0',
             'status' => 'required|in:available,unavailable,not_available',
         ]);
@@ -124,14 +124,14 @@ class FacultyLoadingController extends Controller
         $teacher = User::find($validated['faculty_id']);
         $validated['teacher_name'] = $teacher ? trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name : null;
 
-        // Duplicate check: same teacher + grade_level + subject
-        $existing = FacultyLoad::where('faculty_id', $validated['faculty_id'])
-            ->where('grade_level', $validated['grade_level'] ?? null)
-            ->where('subject', $validated['subject'] ?? null)
-            ->first();
-        if ($existing) {
-            return redirect()->back()->withInput()
-                ->with('error', 'A faculty load for this teacher with the same grade level and subject already exists.');
+        $dupMsg = \App\Support\DuplicateSubmissionSupport::facultyLoadDuplicateMessage(
+            (int) $validated['faculty_id'],
+            $validated['teacher_name'] ?? null,
+            $validated['grade_level'] ?? null,
+            $validated['subject'] ?? null
+        );
+        if ($dupMsg !== null) {
+            return redirect()->back()->withInput()->with('error', $dupMsg);
         }
 
         try {
@@ -147,6 +147,10 @@ class FacultyLoadingController extends Controller
             (int) $validated['faculty_id'],
             $validated['grade_level'] ?? null,
             $validated['subject'] ?? null
+        );
+        $validated['classes_assigned'] = \App\Support\FacultyLoadStats::countOngoingClasses(
+            (int) $validated['faculty_id'],
+            $validated['grade_level'] ?? null
         );
         $validated['status'] = $this->computeAvailabilityStatus((int) $validated['faculty_id']);
 
@@ -202,13 +206,25 @@ class FacultyLoadingController extends Controller
             ],
             'subject' => 'nullable|string|max:255',
             'grade_level' => 'nullable|string|max:50',
-            'classes_assigned' => 'required|integer|min:0',
+            'classes_assigned' => 'nullable|integer|min:0',
             'load_hours' => 'required|numeric|min:0',
             'status' => 'required|in:available,unavailable,not_available',
         ]);
 
         $teacher = User::find($validated['faculty_id']);
         $validated['teacher_name'] = $teacher ? trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name : null;
+
+        $dupMsg = \App\Support\DuplicateSubmissionSupport::facultyLoadDuplicateMessage(
+            (int) $validated['faculty_id'],
+            $validated['teacher_name'] ?? null,
+            $validated['grade_level'] ?? null,
+            $validated['subject'] ?? null,
+            (int) $facultyLoad->id
+        );
+        if ($dupMsg !== null) {
+            return redirect()->back()->withInput()->with('error', $dupMsg);
+        }
+
         if (($validated['status'] ?? null) === 'unavailable') {
             $validated['status'] = 'not_available';
         }
@@ -216,6 +232,10 @@ class FacultyLoadingController extends Controller
             (int) $validated['faculty_id'],
             $validated['grade_level'] ?? null,
             $validated['subject'] ?? null
+        );
+        $validated['classes_assigned'] = \App\Support\FacultyLoadStats::countOngoingClasses(
+            (int) $validated['faculty_id'],
+            $validated['grade_level'] ?? null
         );
         $validated['status'] = $this->computeAvailabilityStatus((int) $validated['faculty_id']);
 

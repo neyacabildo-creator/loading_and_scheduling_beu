@@ -21,13 +21,6 @@
     </div>
 </div>
 
-@if(session('success'))
-    <div class="flash-success str-flash-success">
-        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        {{ session('success') }}
-    </div>
-@endif
-
 @php
     $absentToday = $absentToday ?? ['regular' => [], 'shared' => []];
     $absentRegular = $absentToday['regular'] ?? [];

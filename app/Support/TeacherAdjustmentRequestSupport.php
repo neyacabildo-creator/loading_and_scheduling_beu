@@ -130,6 +130,20 @@ class TeacherAdjustmentRequestSupport
 
         $proposed = self::buildProposedPayload($request, $validated['proposed_changes'] ?? null);
 
+        $dupMsg = DuplicateSubmissionSupport::pendingTeacherAdjustmentMessage($connection, (int) Auth::id(), [
+            'schedule_id'          => $validated['schedule_id'] ?? null,
+            'request_type'         => $validated['request_type'],
+            'subject'              => $proposed['subject'] ?? $validated['subject'] ?? null,
+            'grade_level'          => $proposed['grade_level'] ?? $validated['grade_level'] ?? null,
+            'section_name'         => $proposed['section_name'] ?? $validated['section_name'] ?? null,
+            'day_of_week'          => $proposed['day_of_week'] ?? $validated['day_of_week'] ?? null,
+            'preferred_start_time' => $proposed['preferred_start_time'] ?? $validated['preferred_start_time'] ?? null,
+            'preferred_end_time'   => $proposed['preferred_end_time'] ?? $validated['preferred_end_time'] ?? null,
+        ]);
+        if ($dupMsg !== null) {
+            return ['success' => false, 'message' => $dupMsg];
+        }
+
         $scheduleId = $validated['schedule_id'] ?? null;
         if ($scheduleId === '' || $scheduleId === 0) {
             $scheduleId = null;
@@ -159,6 +173,15 @@ class TeacherAdjustmentRequestSupport
         ];
 
         $id = DB::connection($connection)->table(self::TABLE)->insertGetId($insert);
+
+        AdminPortalNotificationSupport::notifyNewTeacherRequest(
+            $connection,
+            $teacherName,
+            'schedule adjustment request',
+            self::TABLE,
+            (int) $id,
+            (int) Auth::id()
+        );
 
         return [
             'success' => true,

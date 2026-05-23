@@ -41,16 +41,6 @@
     <div class="header-right"></div>
 </div>
 
-@if(session('success'))
-<div style="background:rgba(45,122,80,.15);border:1px solid var(--green-primary);color:var(--green-primary);padding:1rem;border-radius:.5rem;margin-bottom:1.5rem;font-weight:500;">
-    ✓ {{ session('success') }}
-</div>
-@endif
-@if(session('error'))
-<div style="background:rgba(200,50,50,.1);border:1px solid #c83232;color:#c83232;padding:1rem;border-radius:.5rem;margin-bottom:1.5rem;font-weight:500;">
-    {{ session('error') }}
-</div>
-@endif
 @if($errors->any())
 <div style="background:rgba(239,68,68,.1);border:1px solid #ef4444;color:#b91c1c;padding:1rem 1.25rem;border-radius:.5rem;margin-bottom:1.5rem;font-size:.875rem;">
     <strong>Please fix the following:</strong>

@@ -329,6 +329,7 @@ Route::middleware('auth')->group(function () {
         // Master Weekly Schedule — JH Admin
         Route::get('admin/master-schedule/{teacherId}', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'manageJH'])->name('admin.master-schedule.manage');
         Route::get('admin/master-schedule/{teacherId}/card', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'cardViewJH'])->name('admin.master-schedule.card');
+        Route::get('admin/master-schedule/{teacherId}/download', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'downloadJH'])->name('admin.master-schedule.download');
         Route::post('admin/master-schedule/{teacherId}', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'save'])->name('admin.master-schedule.save');
         Route::delete('admin/master-schedule/{teacherId}', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'clear'])->name('admin.master-schedule.clear');
         
@@ -349,14 +350,9 @@ Route::middleware('auth')->group(function () {
 
         Route::get('admin/print-export', [\App\Http\Controllers\AdminController::class, 'printExportSchedule'])->name('admin.print-export');
 
-        Route::get('admin/reports', function () {
-            return view('junior-high-admin.reports.index');
-        })->name('admin.reports');
-
-        Route::get('admin/reports/history', [\App\Http\Controllers\AdminController::class, 'reportHistory'])
-            ->name('admin.reports.history');
-        Route::get('admin/reports/generate/{type}', [\App\Http\Controllers\AdminController::class, 'generateInstitutionReport'])
-            ->name('admin.reports.generate');
+        Route::redirect('admin/reports', '/admin/print-export', 301)->name('admin.reports');
+        Route::redirect('admin/reports/history', '/admin/print-export', 301)->name('admin.reports.history');
+        Route::redirect('admin/reports/generate/{type}', '/admin/print-export', 301)->name('admin.reports.generate');
 
         Route::get('admin/users', function () {
             $users = \App\Models\User::where('school_level', 'junior_high')
@@ -732,6 +728,9 @@ Route::middleware('auth')->group(function () {
         // Faculty load availability status
         Route::get('api/admin/faculty-load-status', [ScheduleController::class, 'getFacultyLoadStatus'])->name('admin.faculty-load-status');
 
+        Route::get('api/admin/notifications', [\App\Http\Controllers\AdminNotificationController::class, 'index']);
+        Route::post('api/admin/notifications/read', [\App\Http\Controllers\AdminNotificationController::class, 'markRead']);
+
         // Rooms API endpoints
         Route::get('api/rooms', [RoomController::class, 'index']);
         Route::post('api/rooms', [RoomController::class, 'store']);
@@ -810,6 +809,7 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolAdmin::class, 'scho
     // Master Weekly Schedule — GS Admin
     Route::get('grade-school-admin/master-schedule/{teacherId}', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'manageGS'])->name('grade-school-admin.master-schedule.manage');
     Route::get('grade-school-admin/master-schedule/{teacherId}/card', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'cardViewGS'])->name('grade-school-admin.master-schedule.card');
+    Route::get('grade-school-admin/master-schedule/{teacherId}/download', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'downloadGS'])->name('grade-school-admin.master-schedule.download');
     Route::post('grade-school-admin/master-schedule/{teacherId}', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'save'])->name('grade-school-admin.master-schedule.save');
     Route::delete('grade-school-admin/master-schedule/{teacherId}', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'clear'])->name('grade-school-admin.master-schedule.clear');
 
@@ -843,18 +843,9 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolAdmin::class, 'scho
         \App\Http\Controllers\GradeSchoolAdminController::class, 'scheduleApproval'
     ])->name('grade-school-admin.schedule-approval.index');
 
-    // Grade School Admin Reports
-    Route::get('grade-school-admin/reports', [
-        \App\Http\Controllers\GradeSchoolAdminController::class, 'reports'
-    ])->name('grade-school-admin.reports.index');
-
-    Route::get('grade-school-admin/reports/history', [
-        \App\Http\Controllers\GradeSchoolAdminController::class, 'reportHistory'
-    ])->name('grade-school-admin.reports.history');
-
-    Route::get('grade-school-admin/reports/generate/{type}', [
-        \App\Http\Controllers\GradeSchoolAdminController::class, 'generateInstitutionReport'
-    ])->name('grade-school-admin.reports.generate');
+    Route::redirect('grade-school-admin/reports', '/grade-school-admin/print-export', 301)->name('grade-school-admin.reports.index');
+    Route::redirect('grade-school-admin/reports/history', '/grade-school-admin/print-export', 301)->name('grade-school-admin.reports.history');
+    Route::redirect('grade-school-admin/reports/generate/{type}', '/grade-school-admin/print-export', 301)->name('grade-school-admin.reports.generate');
 
     // Grade School Admin Rooms & Sections
     Route::get('grade-school-admin/rooms-sections', [
@@ -1000,6 +991,9 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolAdmin::class, 'scho
 
     // Grade School Admin API Routes
     Route::prefix('api/grade-school-admin')->group(function () {
+        Route::get('/notifications', [\App\Http\Controllers\AdminNotificationController::class, 'index']);
+        Route::post('/notifications/read', [\App\Http\Controllers\AdminNotificationController::class, 'markRead']);
+
         // Schedules
         Route::get('/schedules', [
             \App\Http\Controllers\GradeSchoolAdminController::class, 'getSchedules'

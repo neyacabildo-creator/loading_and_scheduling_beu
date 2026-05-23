@@ -138,22 +138,25 @@ class FacultyLoadController extends Controller
             'department' => 'nullable|string|max:255',
             'subject' => 'nullable|string|max:255',
             'grade_level' => 'nullable|string|max:50',
-            'classes_assigned' => 'required|integer|min:0',
+            'classes_assigned' => 'nullable|integer|min:0',
             'load_hours' => 'required|numeric|min:0',
             'status' => 'required|in:active,inactive,available,unavailable,not_available',
             'notes' => 'nullable|string|max:1000',
         ]);
 
-        $existingLoad = FacultyLoad::where('faculty_id', $validated['faculty_id'])
-            ->where('grade_level', $validated['grade_level'] ?? null)
-            ->where('subject', $validated['subject'] ?? null)
-            ->first();
-        if ($existingLoad) {
-            $message = 'A faculty load for this teacher with the same grade level and subject already exists.';
+        $teacher = User::find($validated['faculty_id']);
+        $teacherName = $teacher ? trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name : null;
+        $dupMsg = \App\Support\DuplicateSubmissionSupport::facultyLoadDuplicateMessage(
+            (int) $validated['faculty_id'],
+            $teacherName,
+            $validated['grade_level'] ?? null,
+            $validated['subject'] ?? null
+        );
+        if ($dupMsg !== null) {
             if ($request->wantsJson() || $request->ajax()) {
-                return response()->json(['success' => false, 'message' => $message], 409);
+                return response()->json(['success' => false, 'message' => $dupMsg], 409);
             }
-            return redirect()->route('admin.faculty-loading')->with('error', $message);
+            return redirect()->route('admin.faculty-loading')->with('error', $dupMsg);
         }
 
         try {
@@ -176,6 +179,10 @@ class FacultyLoadController extends Controller
             (int) $validated['faculty_id'],
             $validated['grade_level'] ?? null,
             $validated['subject'] ?? null
+        );
+        $validated['classes_assigned'] = FacultyLoadStats::countOngoingClasses(
+            (int) $validated['faculty_id'],
+            $validated['grade_level'] ?? null
         );
         $validated['status'] = FacultyLoadStats::resolveStatus((int) $validated['faculty_id']);
 
@@ -275,6 +282,10 @@ class FacultyLoadController extends Controller
                 (int) $validated['faculty_id'],
                 $validated['grade_level'] ?? null,
                 $validated['subject'] ?? null
+            );
+            $validated['classes_assigned'] = FacultyLoadStats::countOngoingClasses(
+                (int) $validated['faculty_id'],
+                $validated['grade_level'] ?? null
             );
             $validated['status'] = FacultyLoadStats::resolveStatus((int) $validated['faculty_id']);
 

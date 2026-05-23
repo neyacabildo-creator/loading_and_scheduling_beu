@@ -32,12 +32,22 @@
                             $teacherDisplay = ($tsr->user ?? null)
                                 ? (trim(($tsr->user->first_name ?? '') . ' ' . ($tsr->user->last_name ?? '')) ?: ($tsr->user->name ?? ''))
                                 : trim((string) ($tsr->teacher_name ?? ''));
+                            $schoolLevelLabel = ($tsr->user && !empty($tsr->user->school_level))
+                                ? ucfirst(str_replace('_', ' ', $tsr->user->school_level))
+                                : '';
                         @endphp
                         @if($teacherDisplay !== '')
-                            <div class="str-teacher-name">{{ $teacherDisplay }}</div>
-                            @if(!empty($tsr->presence))
-                                <span class="str-presence-badge str-presence-{{ $tsr->presence['status'] ?? 'on_leave' }}" title="Active {{ $tsr->presence['date_from'] ?? '' }} – {{ $tsr->presence['date_to'] ?? '' }}">{{ $tsr->presence['label'] ?? 'On Leave' }}</span>
-                            @endif
+                            <div class="str-teacher-cell">
+                                <div class="str-teacher-cell-top">
+                                    <span class="str-teacher-name">{{ $teacherDisplay }}</span>
+                                    @if($schoolLevelLabel !== '')
+                                        <span class="str-school-level-badge">{{ $schoolLevelLabel }}</span>
+                                    @endif
+                                </div>
+                                @if(!empty($tsr->presence))
+                                    <span class="str-presence-badge str-presence-{{ $tsr->presence['status'] ?? 'on_leave' }}" title="Active {{ $tsr->presence['date_from'] ?? '' }} – {{ $tsr->presence['date_to'] ?? '' }}">{{ $tsr->presence['label'] ?? 'On Leave' }}</span>
+                                @endif
+                            </div>
                         @else
                             <span style="color:var(--text-secondary);">—</span>
                         @endif

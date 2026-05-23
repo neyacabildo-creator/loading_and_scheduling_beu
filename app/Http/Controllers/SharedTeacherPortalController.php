@@ -169,7 +169,37 @@ class SharedTeacherPortalController extends Controller
                 $insert['schedule_id'] = $validated['schedule_id'] ?? null;
             }
 
-            DB::connection($conn)->table(self::TBL)->insertGetId($insert);
+            $dupMsg = \App\Support\DuplicateSubmissionSupport::pendingSharedTeacherRequestMessage(
+                $conn,
+                (int) $user->id,
+                [
+                    'school_level'         => $schoolLevel,
+                    'schedule_id'          => $validated['schedule_id'] ?? null,
+                    'subject'              => $validated['subject'],
+                    'grade_level'          => $validated['grade_level'] ?? null,
+                    'section_name'         => $validated['section_name'] ?? null,
+                    'day_of_week'          => $validated['day_of_week'] ?? null,
+                    'preferred_start_time' => $validated['preferred_start_time'] ?? null,
+                    'preferred_end_time'   => $validated['preferred_end_time'] ?? null,
+                    'description'          => $validated['notes'] ?? null,
+                ]
+            );
+            if ($dupMsg !== null) {
+                return redirect()->route('shared-teacher.requests')
+                    ->withInput()
+                    ->with('error', $dupMsg);
+            }
+
+            $requestId = DB::connection($conn)->table(self::TBL)->insertGetId($insert);
+
+            \App\Support\AdminPortalNotificationSupport::notifyNewTeacherRequest(
+                $conn,
+                (string) ($insert['teacher_name'] ?? 'Shared teacher'),
+                'shared teacher schedule request',
+                self::TBL,
+                (int) $requestId,
+                (int) $user->id
+            );
 
             return redirect()->route('shared-teacher.requests')
                 ->with('success', 'Your schedule request has been submitted.');
@@ -228,11 +258,18 @@ class SharedTeacherPortalController extends Controller
             ->get();
 
         $requests = $allRequests->filter(fn ($r) => in_array((int) $r->faculty_id, $sharedTeacherIds, true))->values();
+        $sharedPresenceMap = \App\Support\TeacherPresenceSupport::activeStatusMapForTeachers('mysql_gs', $sharedTeacherIds);
+        $requests = $requests->map(function ($r) use ($sharedPresenceMap) {
+            $r->presence = $sharedPresenceMap[(int) $r->faculty_id] ?? null;
+
+            return $r;
+        });
         $reviewers = $this->loadReviewers($requests);
         $teacherScheduleRequests = $this->loadTeacherAdjustmentRequests('mysql_gs', 'mysql_gs_teacher', $sharedTeacherIds);
         $teacherLeaveRequests = \App\Support\TeacherLeaveRequestSupport::listForAdmin('mysql_gs', $sharedTeacherIds);
+        $absentToday = $this->collectAbsentTodaySummary('mysql_gs', $sharedTeacherIds);
 
-        return view('grade-school-admin.shared-teacher-requests', compact('requests', 'reviewers', 'teacherScheduleRequests', 'teacherLeaveRequests'));
+        return view('grade-school-admin.shared-teacher-requests', compact('requests', 'reviewers', 'teacherScheduleRequests', 'teacherLeaveRequests', 'absentToday'));
     }
 
     public function adminGsApprove(Request $request, int $id)

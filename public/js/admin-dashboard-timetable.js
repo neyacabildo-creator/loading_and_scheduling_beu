@@ -1,6 +1,5 @@
 /**
  * Admin dashboard weekly timetable (JH + GS).
- * Expects window.__DASH_TIMETABLE_CONFIG__ set before this script loads.
  */
 (function () {
     'use strict';
@@ -15,8 +14,10 @@
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     let currentDay = 'Monday';
     let currentGrade = grades[0] || '7';
+    let selectedDate = isoDate(new Date());
     let allSchedules = [];
 
     function normalizeSchedule(s) {
@@ -77,20 +78,94 @@
     function bodyId() { return prefix + 'DashTimetableBody'; }
     function filterId() { return prefix + 'DashTTFilter'; }
     function bannerId() { return prefix + 'DashConflictBanner'; }
-    function dateId() { return prefix + 'DashTTDateLabel'; }
+    function dateLabelId() { return prefix + 'DashTTDateLabel'; }
+    function dateInputId() { return prefix + 'DashTTDate'; }
 
-    function getWeekDate(dayName) {
-        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const today = new Date();
-        const diff = dayNames.indexOf(dayName) - today.getDay();
-        const target = new Date(today);
-        target.setDate(today.getDate() + diff);
-        return target.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    function parseIso(iso) {
+        const parts = String(iso).substring(0, 10).split('-');
+        return new Date(
+            parseInt(parts[0], 10),
+            parseInt(parts[1], 10) - 1,
+            parseInt(parts[2], 10)
+        );
+    }
+
+    function formatDateLabel(d) {
+        return d.toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric',
+        });
+    }
+
+    function isoDate(d) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return y + '-' + m + '-' + day;
+    }
+
+    function getMondayOfWeek(d) {
+        const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const diff = (monday.getDay() + 6) % 7;
+        monday.setDate(monday.getDate() - diff);
+        return monday;
+    }
+
+    function dateForWeekday(dayName, refDate) {
+        const monday = getMondayOfWeek(refDate);
+        const idx = days.indexOf(dayName);
+        const target = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate());
+        if (idx >= 0) target.setDate(monday.getDate() + idx);
+        return target;
+    }
+
+    function readDateFromInput() {
+        const inp = document.getElementById(dateInputId());
+        if (inp && inp.value) {
+            return String(inp.value).substring(0, 10);
+        }
+        return selectedDate;
+    }
+
+    function syncDateInput() {
+        const inp = document.getElementById(dateInputId());
+        if (inp) inp.value = selectedDate;
+    }
+
+    function syncDayButtons() {
+        const ref = parseIso(selectedDate);
+        const todayIso = isoDate(new Date());
+        document.querySelectorAll('.' + prefix + 'd-day-btn').forEach(function (b) {
+            const dayName = b.dataset.day;
+            const isActive = days.includes(currentDay) && dayName === currentDay;
+            b.classList.toggle('active', isActive);
+            if (days.includes(dayName)) {
+                const btnIso = isoDate(dateForWeekday(dayName, ref));
+                b.classList.toggle('today-marker', btnIso === todayIso);
+            } else {
+                b.classList.remove('today-marker');
+            }
+        });
     }
 
     function updateDateLabel() {
-        const el = document.getElementById(dateId());
-        if (el) el.textContent = getWeekDate(currentDay);
+        const el = document.getElementById(dateLabelId());
+        if (!el) return;
+        const d = parseIso(selectedDate);
+        el.textContent = formatDateLabel(d);
+    }
+
+    function applySelectedDate(val) {
+        if (!val) return;
+        selectedDate = String(val).substring(0, 10);
+        const d = parseIso(selectedDate);
+        currentDay = dayNames[d.getDay()] || currentDay;
+        syncDateInput();
+        syncDayButtons();
+        updateDateLabel();
+        renderTimetable();
     }
 
     function renderTimetable() {
@@ -99,12 +174,20 @@
         if (!thead || !tbody) return;
 
         const filter = (document.getElementById(filterId())?.value || '').toLowerCase().trim();
-        const day = currentDay;
-        let schedules = allSchedules.filter(s => (s.day_of_week || '').toLowerCase() === day.toLowerCase());
+        const day = days.includes(currentDay) ? currentDay : currentDay;
+        const selectedIso = selectedDate;
+
+        let schedules = allSchedules.filter(function (s) {
+            return (s.day_of_week || '').toLowerCase() === day.toLowerCase();
+        });
+        schedules = schedules.filter(function (s) {
+            if (!s.schedule_date) return true;
+            return String(s.schedule_date).substring(0, 10) === selectedIso;
+        });
         if (filter) {
-            schedules = schedules.filter(s => matchesTeacherFilter(s, filter));
+            schedules = schedules.filter(function (s) { return matchesTeacherFilter(s, filter); });
         }
-        schedules = schedules.filter(s => {
+        schedules = schedules.filter(function (s) {
             const gl = String(s.grade_level || '').toLowerCase();
             return gl.includes('grade ' + currentGrade) || gl === currentGrade;
         });
@@ -112,16 +195,18 @@
         const rawSections = [...new Set(schedules.map(s => s.section_name || s.grade_section || '').filter(Boolean))];
         const fixedSections = sectionsMap[currentGrade] || [];
         const sections = [...fixedSections];
-        rawSections.forEach(rs => {
-            if (!sections.some(fs => fs.toLowerCase() === rs.toLowerCase())) sections.push(rs);
+        rawSections.forEach(function (rs) {
+            if (!sections.some(function (fs) { return fs.toLowerCase() === rs.toLowerCase(); })) {
+                sections.push(rs);
+            }
         });
 
         const conflictIds = new Set();
         const byFaculty = {};
-        schedules.forEach(s => {
+        schedules.forEach(function (s) {
             if (s.faculty_id) (byFaculty[s.faculty_id] = byFaculty[s.faculty_id] || []).push(s);
         });
-        Object.values(byFaculty).forEach(arr => {
+        Object.values(byFaculty).forEach(function (arr) {
             for (let i = 0; i < arr.length; i++) {
                 for (let j = i + 1; j < arr.length; j++) {
                     const a = arr[i], b = arr[j];
@@ -143,13 +228,13 @@
         }
 
         let headHtml = '<tr><th style="width:80px;padding:.6rem .5rem;background:var(--bg-tertiary);border:1px solid var(--border-color);font-size:.75rem;text-align:center;font-weight:600;color:var(--text-secondary);">Time</th>';
-        sections.forEach(sec => {
+        sections.forEach(function (sec) {
             headHtml += '<th style="padding:.6rem;background:linear-gradient(135deg,rgba(45,122,80,.12),rgba(45,122,80,.04));border:1px solid var(--border-color);font-size:.78rem;font-weight:700;color:var(--text-primary);text-align:center;min-width:110px;"><span style="font-size:.7rem;color:var(--text-secondary);">Grade ' + currentGrade + '</span><br>' + sec + '</th>';
         });
         thead.innerHTML = headHtml + '</tr>';
 
         let html = '';
-        slots.forEach(slot => {
+        slots.forEach(function (slot) {
             if (slot.isBreak) {
                 html += '<tr><td style="padding:.4rem;border:1px solid var(--border-color);text-align:center;font-size:.68rem;color:#92400e;background:rgba(245,158,11,.07);font-weight:700;">' + slot.label + '</td><td colspan="' + sections.length + '" style="border:1px solid var(--border-color);background:rgba(245,158,11,.07);text-align:center;font-size:.72rem;color:#92400e;font-weight:700;">&#10022; ' + slot.label + ' BREAK &#10022;</td></tr>';
                 return;
@@ -157,14 +242,16 @@
             const slotS = timeToMins(slot.start);
             const slotE = timeToMins(slot.end);
             let row = '<tr><td style="padding:.4rem .5rem;border:1px solid var(--border-color);text-align:center;font-size:.72rem;color:var(--text-secondary);background:var(--bg-tertiary);white-space:pre;font-weight:500;">' + slot.label + '</td>';
-            sections.forEach(sec => {
-                const cell = schedules.filter(s => {
+            sections.forEach(function (sec) {
+                const cell = schedules.filter(function (s) {
                     const secS = (s.section_name || s.grade_section || '').toLowerCase().trim();
                     const secC = sec.toLowerCase().trim();
-                    return (secS === secC || secS.includes(secC) || secC.includes(secS)) && timeToMins(s.start_time) < slotE && timeToMins(s.end_time) > slotS;
+                    return (secS === secC || secS.includes(secC) || secC.includes(secS))
+                        && timeToMins(s.start_time) < slotE
+                        && timeToMins(s.end_time) > slotS;
                 });
                 if (cell.length) {
-                    const pills = cell.map(s => {
+                    const pills = cell.map(function (s) {
                         const name = (s.faculty?.name || 'Unknown').replace(/</g, '&lt;');
                         const subj = (s.subject || '').replace(/</g, '&lt;');
                         const isConflict = conflictIds.has(s.id);
@@ -184,25 +271,27 @@
     }
 
     function setDay(day) {
+        if (!days.includes(day)) return;
         currentDay = day;
-        document.querySelectorAll('.' + prefix + 'd-day-btn').forEach(b => b.classList.toggle('active', b.dataset.day === day));
-        renderTimetable();
-        updateDateLabel();
+        const ref = parseIso(readDateFromInput());
+        selectedDate = isoDate(dateForWeekday(day, ref));
+        applySelectedDate(selectedDate);
     }
 
-    function prevDay() {
-        const idx = days.indexOf(currentDay);
-        setDay(days[(idx - 1 + days.length) % days.length]);
+    function shiftDate(daysDelta) {
+        const d = parseIso(readDateFromInput());
+        d.setDate(d.getDate() + daysDelta);
+        applySelectedDate(isoDate(d));
     }
 
-    function nextDay() {
-        const idx = days.indexOf(currentDay);
-        setDay(days[(idx + 1) % days.length]);
-    }
+    function prevDay() { shiftDate(-1); }
+    function nextDay() { shiftDate(1); }
 
     function setGrade(grade) {
         currentGrade = grade;
-        document.querySelectorAll('.' + prefix + 'd-grade-btn').forEach(b => b.classList.toggle('active', b.dataset.grade === grade));
+        document.querySelectorAll('.' + prefix + 'd-grade-btn').forEach(function (b) {
+            b.classList.toggle('active', b.dataset.grade === grade);
+        });
         renderTimetable();
     }
 
@@ -212,39 +301,49 @@
             return;
         }
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 20000);
+        const timeoutId = setTimeout(function () { controller.abort(); }, 20000);
         fetch(apiUrl, {
             headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
             credentials: 'same-origin',
             signal: controller.signal,
         })
-            .then(r => (r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))))
-            .then(data => {
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+            .then(function (data) {
                 setSchedules(data.data || data || []);
             })
-            .catch(err => {
+            .catch(function (err) {
                 console.error('Timetable load error:', err);
                 if (!allSchedules.length && Array.isArray(cfg.initial)) {
                     setSchedules(cfg.initial);
                 }
             })
-            .finally(() => {
+            .finally(function () {
                 clearTimeout(timeoutId);
                 renderTimetable();
             });
     }
 
+    function bindDateInput() {
+        const inp = document.getElementById(dateInputId());
+        if (!inp || inp.dataset.ttBound === '1') return;
+        inp.dataset.ttBound = '1';
+        inp.addEventListener('input', function () { applySelectedDate(inp.value); });
+        inp.addEventListener('change', function () { applySelectedDate(inp.value); });
+    }
+
     function init() {
         setSchedules(cfg.initial || []);
-        const todayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date().getDay()];
+        const today = new Date();
+        selectedDate = isoDate(today);
+        const todayName = dayNames[today.getDay()];
         if (days.includes(todayName)) currentDay = todayName;
-        document.querySelectorAll('.' + prefix + 'd-day-btn').forEach(b => {
-            if (b.dataset.day === todayName) b.classList.add('today-marker');
-            b.classList.toggle('active', b.dataset.day === currentDay);
-        });
-        document.querySelectorAll('.' + prefix + 'd-grade-btn').forEach(b => {
+
+        bindDateInput();
+        syncDateInput();
+        document.querySelectorAll('.' + prefix + 'd-grade-btn').forEach(function (b) {
             b.classList.toggle('active', b.dataset.grade === currentGrade);
         });
+        syncDayButtons();
         updateDateLabel();
         renderTimetable();
         loadFromApi();
@@ -253,9 +352,10 @@
     window.__dashTimetable = {
         render: renderTimetable,
         reload: loadFromApi,
-        setSchedules,
-        removeById,
+        setSchedules: setSchedules,
+        removeById: removeById,
         getAll: function () { return allSchedules.slice(); },
+        applyDate: applySelectedDate,
     };
 
     window.addEventListener('scheduleRemoved', function (e) {
@@ -266,6 +366,7 @@
         window.jhDashTTSetDay = function (btn, day) { setDay(day); };
         window.jhDashTTPrevDay = prevDay;
         window.jhDashTTNextDay = nextDay;
+        window.jhDashTTOnDateChange = applySelectedDate;
         window.jhDashSetGrade = function (btn, grade) { setGrade(grade); };
         window.jhDashRenderTimetable = renderTimetable;
         window.loadSchedules = loadFromApi;
@@ -273,10 +374,15 @@
         window.gsDashTTSetDay = function (btn, day) { setDay(day); };
         window.gsDashTTPrevDay = prevDay;
         window.gsDashTTNextDay = nextDay;
+        window.gsDashTTOnDateChange = applySelectedDate;
         window.gsDashSetGrade = function (btn, grade) { setGrade(grade); };
         window.gsRenderTimetable = renderTimetable;
         window.loadSchedules = loadFromApi;
     }
 
-    init();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
 })();

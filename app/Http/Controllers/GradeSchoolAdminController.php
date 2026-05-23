@@ -435,6 +435,20 @@ class GradeSchoolAdminController extends Controller
             ScheduleUpdateHelper::mergeNormalizedInput($request);
             $validated = $request->validate(ScheduleUpdateHelper::validationRules());
 
+            $facultyId = (int) ($validated['faculty_id'] ?? $schedule->faculty_id);
+            $dupMsg = \App\Support\DuplicateSubmissionSupport::scheduleDuplicateMessage(
+                $facultyId,
+                (string) ($validated['day_of_week'] ?? $schedule->day_of_week),
+                (string) ($validated['start_time'] ?? $schedule->start_time),
+                (string) ($validated['section_name'] ?? $schedule->section_name),
+                (string) ($validated['subject'] ?? $schedule->subject),
+                isset($validated['grade_level']) ? (string) $validated['grade_level'] : (string) $schedule->grade_level,
+                (int) $schedule->id
+            );
+            if ($dupMsg !== null) {
+                return response()->json(['success' => false, 'message' => $dupMsg], 409);
+            }
+
             $changes = ScheduleAudit::collectChanges($schedule, $validated);
             $validated['version'] = (int) $schedule->version + 1;
             $validated['last_modified_by_admin'] = now();
@@ -859,7 +873,7 @@ class GradeSchoolAdminController extends Controller
                 ],
                 'subject'          => 'nullable|string|max:255',
                 'grade_level'      => 'nullable|string|max:50',
-                'classes_assigned' => 'required|integer|min:0',
+                'classes_assigned' => 'nullable|integer|min:0',
                 'load_hours'       => 'required|numeric|min:0',
                 'status'           => 'required|in:available,unavailable,not_available',
                 'notes'            => 'nullable|string|max:1000',
@@ -868,13 +882,14 @@ class GradeSchoolAdminController extends Controller
             $teacher = User::find($validated['faculty_id']);
             $validated['teacher_name'] = $teacher ? (trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name) : null;
 
-            // Duplicate check: same teacher + grade_level + subject
-            $existingLoad = FacultyLoad::where('faculty_id', $validated['faculty_id'])
-                ->where('grade_level', $validated['grade_level'] ?? null)
-                ->where('subject', $validated['subject'] ?? null)
-                ->first();
-            if ($existingLoad) {
-                return response()->json(['success' => false, 'message' => 'A faculty load for this teacher with the same grade level and subject already exists.'], 409);
+            $dupMsg = \App\Support\DuplicateSubmissionSupport::facultyLoadDuplicateMessage(
+                (int) $validated['faculty_id'],
+                $validated['teacher_name'] ?? null,
+                $validated['grade_level'] ?? null,
+                $validated['subject'] ?? null
+            );
+            if ($dupMsg !== null) {
+                return response()->json(['success' => false, 'message' => $dupMsg], 409);
             }
 
             try {
@@ -891,6 +906,10 @@ class GradeSchoolAdminController extends Controller
                 (int) $validated['faculty_id'],
                 $validated['grade_level'] ?? null,
                 $validated['subject'] ?? null
+            );
+            $validated['classes_assigned'] = \App\Support\FacultyLoadStats::countOngoingClasses(
+                (int) $validated['faculty_id'],
+                $validated['grade_level'] ?? null
             );
             $validated['status'] = $this->computeAvailabilityStatus((int) $validated['faculty_id']);
 
@@ -944,6 +963,17 @@ class GradeSchoolAdminController extends Controller
                 $validated['teacher_name'] = $teacher ? trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name : null;
             }
 
+            $dupMsg = \App\Support\DuplicateSubmissionSupport::facultyLoadDuplicateMessage(
+                (int) ($validated['faculty_id'] ?? $load->faculty_id),
+                $validated['teacher_name'] ?? $load->teacher_name,
+                $validated['grade_level'] ?? $load->grade_level,
+                $validated['subject'] ?? $load->subject,
+                (int) $load->id
+            );
+            if ($dupMsg !== null) {
+                return response()->json(['success' => false, 'message' => $dupMsg], 409);
+            }
+
             if (($validated['status'] ?? null) === 'unavailable') {
                 $validated['status'] = 'not_available';
             }
@@ -962,6 +992,10 @@ class GradeSchoolAdminController extends Controller
                     (int) $validated['faculty_id'],
                     $validated['grade_level'] ?? null,
                     $validated['subject'] ?? null
+                );
+                $validated['classes_assigned'] = \App\Support\FacultyLoadStats::countOngoingClasses(
+                    (int) $validated['faculty_id'],
+                    $validated['grade_level'] ?? null
                 );
                 $validated['status'] = \App\Support\FacultyLoadStats::resolveStatus((int) $validated['faculty_id']);
             }

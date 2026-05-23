@@ -38,6 +38,8 @@
     .mws-toolbar .t-btn-save:hover { background: #14392a; }
     .mws-toolbar .t-btn-print  { color: #1a4731; border-color: #1a4731; }
     .mws-toolbar .t-btn-print:hover { background: #1a4731; color: #fff; }
+    .mws-toolbar .t-btn-download { color: #0369a1; border-color: #0369a1; }
+    .mws-toolbar .t-btn-download:hover { background: #0369a1; color: #fff; }
     .mws-toolbar .t-btn-clear  { color: #dc2626; border-color: #dc2626; }
     .mws-toolbar .t-btn-clear:hover { background: #dc2626; color: #fff; }
     .mws-toolbar .t-btn-back   { color: var(--text-secondary, #6b7280); }
@@ -172,11 +174,6 @@
     }
 </style>
 
-{{-- Success alert --}}
-@if(session('success'))
-    <div class="mws-alert">{{ session('success') }}</div>
-@endif
-
 {{-- ===== TOOLBAR (screen only) ===== --}}
 <div class="mws-toolbar">
     <div class="mws-toolbar-left">
@@ -196,6 +193,12 @@
             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
             Print
         </button>
+        @if(!empty($downloadRoute))
+        <button type="button" class="t-btn-download" onclick="mwsDownloadSchedule()">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Download
+        </button>
+        @endif
         <button type="button" class="t-btn-clear"
             onclick="if(confirm('Clear ALL cells for this teacher and school year?')) document.getElementById('mwsClearForm').submit()">
             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
@@ -424,5 +427,14 @@ function switchSchoolYear(year) {
             calcTotalUnits(subjectSel.value);
         }
     }
+    window.mwsDownloadSchedule = function () {
+        @if(!empty($downloadRoute))
+        var url = @json(route($downloadRoute, ['teacherId' => $teacher->id]));
+        var params = new URLSearchParams({ school_year: @json($schoolYear) });
+        var sem = document.querySelector('[name="semester"]');
+        if (sem && sem.value) params.set('semester', sem.value);
+        window.location.href = url + '?' + params.toString();
+        @endif
+    };
 }());
 </script>

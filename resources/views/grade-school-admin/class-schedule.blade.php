@@ -64,6 +64,8 @@
         .action-btn.delete:hover { background: #c83232; color: white; }
         .action-btn.reject { background: transparent; color: #c83232; border: 1px solid #c83232; }
         .action-btn.reject:hover { background: #c83232; color: white; }
+        .action-buttons, .schedule-actions-row { display: flex; flex-direction: row; align-items: center; gap: 0.4rem; flex-wrap: nowrap; }
+        .action-buttons .action-btn, .schedule-actions-row .action-btn { margin: 0; flex-shrink: 0; }
         .action-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; }
     </style>
 
@@ -528,10 +530,9 @@
                             }${(s.grade_level||s.section_name) ? '<br><span style="font-size:.68rem;color:var(--text-secondary);">' + (s.grade_level ? s.grade_level + (s.section_name ? ' – '+s.section_name : '') : s.section_name) + '</span>' : ''}</td>
                             <td><span class="badge badge-active">${s.status || 'active'}</span></td>
                             <td>
-                                <div class="action-buttons">
+                                <div class="schedule-actions-row">
                                     <button class="action-btn edit" onclick="gsOpenEditModal(${s.id})">Edit</button>
                                     <button class="action-btn delete" onclick="gsQuickDeleteSchedule(${s.id}, this)">Delete</button>
-                                    <button class="action-btn" style="background: rgba(45, 122, 80, 0.15); color: var(--green-primary);" onclick="gsViewHistory(${s.id})">History</button>
                                 </div>
                             </td>
                         </tr>`;
@@ -910,32 +911,6 @@
                 gsLoadApprovedSchedules();
             })
             .catch(err => alert('Error updating schedule: ' + err.message));
-        }
-
-        function gsViewHistory(scheduleId) {
-            const token = document.querySelector('meta[name="csrf-token"]')?.content;
-            fetch(`/api/grade-school-admin/schedules/${scheduleId}/history`, {
-                headers: {
-                    'X-CSRF-TOKEN': token,
-                    'Accept': 'application/json'
-                },
-                credentials: 'same-origin'
-            })
-            .then(response => {
-                if (!response.ok) throw new Error('Network response was not ok');
-                return response.json();
-            })
-            .then(data => {
-                const log = data.change_log;
-                if (!log || !log.length) { alert('No changes recorded'); return; }
-                const entries = Array.isArray(log) ? log : (typeof log === 'string' ? JSON.parse(log) : []);
-                const text = entries.map(entry => `[${entry.at || ''}] ${(entry.action || 'change').toUpperCase()} by ${entry.by || 'Unknown'}${entry.reason ? '\nReason: ' + entry.reason : ''}${entry.details ? '\nDetails: ' + entry.details : ''}${entry.changes ? '\nFields: ' + Object.keys(entry.changes).join(', ') : ''}`).join('\n\n');
-                alert('Schedule History:\n\n' + (text || 'No changes recorded'));
-            })
-            .catch(error => {
-                alert('Error fetching history: ' + error.message);
-                console.error(error);
-            });
         }
 
         // Close modals on overlay click

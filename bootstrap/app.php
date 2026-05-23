@@ -14,6 +14,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // Apply security headers to every response
         $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
 
+        // Rate limit web requests (configured in AppServiceProvider)
+        $middleware->web(append: [
+            \Illuminate\Routing\Middleware\ThrottleRequests::class.':web',
+        ]);
+
         // Reject deactivated accounts on every authenticated request
         $middleware->appendToGroup('web', \App\Http\Middleware\CheckUserActive::class);
 

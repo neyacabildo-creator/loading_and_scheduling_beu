@@ -672,6 +672,26 @@ class ScheduleController extends Controller
 
         ScheduleAudit::setAuditUser((new ClassSchedule)->getConnectionName(), Auth::user()?->name);
 
+        $facultyId = (int) ($validated['faculty_id'] ?? $schedule->faculty_id);
+        $dayOfWeek = $validated['day_of_week'] ?? $schedule->day_of_week;
+        $startTime = $validated['start_time'] ?? $schedule->start_time;
+        $sectionName = $validated['section_name'] ?? $schedule->section_name;
+        $subject = $validated['subject'] ?? $schedule->subject;
+        $gradeLevel = $validated['grade_level'] ?? $schedule->grade_level;
+
+        $dupMsg = \App\Support\DuplicateSubmissionSupport::scheduleDuplicateMessage(
+            $facultyId,
+            (string) $dayOfWeek,
+            (string) $startTime,
+            (string) $sectionName,
+            (string) $subject,
+            $gradeLevel ? (string) $gradeLevel : null,
+            (int) $schedule->id
+        );
+        if ($dupMsg !== null) {
+            return response()->json(['success' => false, 'message' => $dupMsg], 409);
+        }
+
         // Store original data for change log
         $changes = ScheduleAudit::collectChanges($schedule, $validated);
         

@@ -338,12 +338,6 @@
             <!-- Backup & Recovery -->
             <div id="backup" class="tab-content" style="display: none;">
 
-                @if(session('success'))
-                    <div style="background:#d1fae5;border:1px solid #6ee7b7;color:#065f46;padding:0.75rem 1rem;border-radius:0.5rem;margin-bottom:1.25rem;">
-                        &#10003; {{ session('success') }}
-                    </div>
-                @endif
-
                 @if($errors->has('backup_file'))
                     <div style="background:#fee2e2;border:1px solid #fca5a5;color:#991b1b;padding:0.75rem 1rem;border-radius:0.5rem;margin-bottom:1.25rem;">
                         &#9888; {{ $errors->first('backup_file') }}
@@ -418,12 +412,6 @@
 
             <!-- My Profile Tab -->
             <div id="profile" class="tab-content">
-
-                @if(session('success'))
-                    <div style="background:#d1fae5;border:1px solid #6ee7b7;color:#065f46;padding:0.75rem 1rem;border-radius:0.5rem;margin-bottom:1rem;">
-                        {{ session('success') }}
-                    </div>
-                @endif
 
                 <!-- Profile Photo Section -->
                 <div class="setting-section">

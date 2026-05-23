@@ -25,7 +25,10 @@
         .btn-edit:hover { background: #1d4ed8; color: white; }
         .btn-delete { background: rgba(200,50,50,0.12); color: #c83232; }
         .btn-delete:hover { background: #c83232; color: white; }
-        .avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #2d7a50 0%, #1a5336 100%); color: white; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.75rem; margin-right: 0.75rem; }
+        .avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #2d7a50 0%, #1a5336 100%); color: white; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.75rem; flex-shrink: 0; }
+        .ua-teacher-cell { display: flex; align-items: center; gap: 0.75rem; min-width: 140px; }
+        .ua-teacher-cell strong { white-space: nowrap; line-height: 1.3; }
+        .ua-school-badge { display: inline-block; background: #d1fae5; color: #065f46; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; white-space: nowrap; line-height: 1.4; }
         .pwd-cell { display: flex; align-items: center; gap: 0.35rem; max-width: 200px; }
         .pwd-mask { font-family: ui-monospace, monospace; font-size: 0.8rem; color: #7a7a6e; letter-spacing: 0.05em; }
         .pwd-plain { font-family: ui-monospace, monospace; font-size: 0.8rem; color: #2d3436; word-break: break-all; }
@@ -280,11 +283,11 @@
                     ? `<div class="pwd-cell"><span class="pwd-mask" id="pwd-mask-${t.id}">••••••••</span><span class="pwd-plain" id="pwd-plain-${t.id}" style="display:none;">${escapeHtml(t.plain_password)}</span><button type="button" class="pwd-toggle-btn" onclick="toggleUserPassword(${t.id})" id="pwd-btn-${t.id}">Show</button></div>`
                     : `<span class="pwd-unavailable" title="Re-save password in Edit to store a retrievable copy">Not stored</span>`;
                 return `<tr id="teacher-row-${t.id}">
-                    <td><span class="avatar">${initials}</span><strong>${displayName}</strong></td>
+                    <td><div class="ua-teacher-cell"><span class="avatar">${initials}</span><strong>${displayName}</strong></div></td>
                     <td>${t.email}</td>
                     <td>${pwdCell}</td>
                     <td>${roleName}</td>
-                    <td><span style="background:#d1fae5;color:#065f46;padding:0.25rem 0.75rem;border-radius:9999px;font-size:0.75rem;font-weight:500;">Junior High</span></td>
+                    <td><span class="ua-school-badge">Junior High</span></td>
                     <td><span id="status-badge-${t.id}" class="status-badge ${statusClass}">${statusText}</span></td>
                     <td style="white-space:nowrap;">
                         <button class="action-btn btn-edit" onclick="openEditModal(${t.id})" style="margin-right:0.35rem;">Edit</button>

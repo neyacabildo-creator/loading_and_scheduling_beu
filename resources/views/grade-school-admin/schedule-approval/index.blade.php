@@ -83,13 +83,6 @@
         </div>
     </div>
 
-    @if(session('success'))
-        <div class="alert alert-success">{{ session('success') }}</div>
-    @endif
-    @if(session('error'))
-        <div class="alert alert-error">{{ session('error') }}</div>
-    @endif
-
     <div class="table-card">
         <div class="table-header">
             <div class="table-title">All Class Schedules</div>

@@ -5,8 +5,9 @@
 
 @section('content')
     @include('master-weekly-schedule._grid', [
-        'saveRoute'  => 'admin.master-schedule.save',
-        'clearRoute' => 'admin.master-schedule.clear',
-        'backRoute'  => 'admin.faculty-loading',
+        'saveRoute'      => 'admin.master-schedule.save',
+        'clearRoute'     => 'admin.master-schedule.clear',
+        'backRoute'      => 'admin.faculty-loading',
+        'downloadRoute'  => 'admin.master-schedule.download',
     ])
 @endsection

@@ -30,13 +30,17 @@
                 @foreach($requests as $req)
                 <tr data-status="{{ $req->status }}">
                     <td class="str-col-teacher">
-                        <div class="str-teacher-name">{{ $req->teacher_name ?? '—' }}</div>
-                        @if(!empty($req->presence))
-                            <span class="str-presence-badge str-presence-{{ $req->presence['status'] ?? 'on_leave' }}">{{ $req->presence['label'] ?? 'On Leave' }}</span>
-                        @endif
-                        @if(!empty($req->school_level))
-                            <div class="str-teacher-meta">{{ ucfirst(str_replace('_', ' ', $req->school_level)) }}</div>
-                        @endif
+                        <div class="str-teacher-cell">
+                            <div class="str-teacher-cell-top">
+                                <span class="str-teacher-name">{{ $req->teacher_name ?? '—' }}</span>
+                                @if(!empty($req->school_level))
+                                    <span class="str-school-level-badge">{{ ucfirst(str_replace('_', ' ', $req->school_level)) }}</span>
+                                @endif
+                            </div>
+                            @if(!empty($req->presence))
+                                <span class="str-presence-badge str-presence-{{ $req->presence['status'] ?? 'on_leave' }}">{{ $req->presence['label'] ?? 'On Leave' }}</span>
+                            @endif
+                        </div>
                     </td>
                     <td class="str-col-subject str-cell-subject" style="font-weight:500;">{{ $req->subject ?? '—' }}</td>
                     <td class="str-col-grade">

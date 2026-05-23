@@ -361,7 +361,7 @@
                 <span>Rooms &amp; Sections</span>
             </a>
 
-            <a href="{{ route('admin.shared-teacher-requests') }}" class="nav-item {{ request()->routeIs('admin.shared-teacher-requests*', 'admin.teacher-schedule-requests*') ? 'active' : '' }}" style="position:relative;">
+            <a href="{{ route('admin.shared-teacher-requests') }}" class="nav-item {{ request()->routeIs('admin.shared-teacher-requests*', 'admin.teacher-schedule-requests*', 'admin.teacher-leave-requests*') ? 'active' : '' }}" style="position:relative;">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
                 <span>All Requests</span>
                 @php
@@ -372,6 +372,10 @@
                             $stPendingJh += \Illuminate\Support\Facades\DB::connection('mysql_jh')
                                 ->table('teacher_requests')->where('status', 'pending')->count();
                         }
+                        if (\Illuminate\Support\Facades\Schema::connection('mysql_jh')->hasTable(\App\Support\TeacherLeaveRequestSupport::TABLE)) {
+                            $stPendingJh += \Illuminate\Support\Facades\DB::connection('mysql_jh')
+                                ->table(\App\Support\TeacherLeaveRequestSupport::TABLE)->where('status', 'pending')->count();
+                        }
                     } catch (\Exception $e) {
                         $stPendingJh = 0;
                     }
@@ -381,16 +385,9 @@
                 @endif
             </a>
 
-            <!-- REPORTING & ANALYSIS -->
-            <div style="font-size: 0.75rem; font-weight: 700; color: #f0c040; padding: 1rem 1rem 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.5rem;">Analysis &amp; Reports</div>
+            <!-- REPORTING -->
+            <div style="font-size: 0.75rem; font-weight: 700; color: #f0c040; padding: 1rem 1rem 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.5rem;">Export</div>
 
-
-
-            <a href="{{ route('admin.reports') }}" class="nav-item {{ request()->routeIs('admin.reports*') ? 'active' : '' }}">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                <span>Generate Reports</span>
-            </a>
-            
             <a href="{{ url('/admin/print-export') }}" class="nav-item {{ request()->routeIs('admin.print-export') ? 'active' : '' }}">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                 <span>Export Reports</span>
@@ -598,5 +595,6 @@
             });
         })();
     </script>
+    @include('partials.spup-toast')
 </body>
 </html>

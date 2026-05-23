@@ -41,10 +41,6 @@
     <p style="color:rgba(255,255,255,.75);font-size:.875rem;margin:0;">Share your feedback on schedule clarity, workload fairness, and system usability</p>
 </div>
 
-@if(session('success'))
-    <div class="alert-success">✓ {{ session('success') }}</div>
-@endif
-
 <div class="two-col">
     <!-- Feedback Form -->
     <div class="card">

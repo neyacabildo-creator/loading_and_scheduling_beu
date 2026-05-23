@@ -128,6 +128,76 @@ class MasterWeeklyScheduleController extends Controller
         return $this->buildCardView($request, $teacherId);
     }
 
+    public function downloadJH(Request $request, int $teacherId)
+    {
+        return $this->downloadScheduleFile($request, $teacherId);
+    }
+
+    public function downloadGS(Request $request, int $teacherId)
+    {
+        return $this->downloadScheduleFile($request, $teacherId);
+    }
+
+    private function downloadScheduleFile(Request $request, int $teacherId)
+    {
+        $schoolLevel = FacultyLoadSupport::schoolLevelForConnection();
+        if (! FacultyLoadSupport::facultyIdHasRegisteredAccount($teacherId, $schoolLevel)) {
+            abort(404, 'This teacher does not have a user account in User Accounts.');
+        }
+
+        $teacher = User::findOrFail($teacherId);
+        $schoolYear = $request->input('school_year', '2025-2026');
+        $semester = $request->input('semester', '1st Semester');
+
+        $this->pruneStaleWeeklyRows($teacherId, $schoolYear);
+
+        $existing = MasterWeeklySchedule::where('faculty_id', $teacherId)
+            ->where('school_year', $schoolYear)
+            ->get()
+            ->keyBy(fn ($r) => $r->slot_order . '_' . $r->day_of_week);
+
+        $subjectHandled = $existing->first()?->subject_handled ?? '';
+        $facultyName = strtoupper(trim($teacher->first_name . ' ' . $teacher->last_name));
+        $safeName = preg_replace('/[^A-Za-z0-9_-]+/', '-', trim($teacher->first_name . '-' . $teacher->last_name)) ?: 'teacher';
+        $filename = 'master-schedule-' . $safeName . '-' . str_replace('/', '-', $schoolYear) . '.csv';
+
+        $slots = self::timeSlots();
+        $days = self::days();
+
+        return response()->streamDownload(function () use ($slots, $days, $existing, $facultyName, $schoolYear, $semester, $subjectHandled) {
+            $out = fopen('php://output', 'w');
+            fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($out, ['MASTER LOADING SCHEDULE']);
+            fputcsv($out, ['Name of Faculty', $facultyName]);
+            fputcsv($out, ['School Year', $schoolYear]);
+            fputcsv($out, ['Semester', $semester]);
+            fputcsv($out, ['Subject / Grade Level Handled', $subjectHandled]);
+            fputcsv($out, []);
+            fputcsv($out, array_merge(['TIME'], array_map('strtoupper', $days)));
+
+            foreach ($slots as $slot) {
+                if (in_array($slot['type'], ['lunch', 'homeroom'], true)) {
+                    fputcsv($out, [$slot['label'], $slot['special'] ?? strtoupper($slot['type'])]);
+                    continue;
+                }
+                $row = [$slot['label']];
+                foreach ($days as $day) {
+                    $key = $slot['order'] . '_' . $day;
+                    $cell = $existing->get($key);
+                    $grade = trim((string) ($cell?->grade_section ?? ''));
+                    $sub = trim((string) ($cell?->substitute_teacher ?? ''));
+                    $row[] = $grade !== '' || $sub !== ''
+                        ? trim($grade . ($sub !== '' ? ' | Sub: ' . $sub : ''))
+                        : '';
+                }
+                fputcsv($out, $row);
+            }
+            fclose($out);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
     private function buildCardView(Request $request, int $teacherId)
     {
         $schoolLevel = FacultyLoadSupport::schoolLevelForConnection();

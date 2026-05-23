@@ -38,10 +38,6 @@
         <a href="{{ route('grade-school-admin.schedule.create') }}" style="padding:.55rem 1.2rem;border:1px solid var(--border-color);border-radius:.375rem;background:var(--bg-secondary);color:var(--text-primary);text-decoration:none;font-size:.875rem;font-weight:500;">← Back to Schedule</a>
     </div>
 
-    @if(session('success'))
-    <div style="background:rgba(45,122,80,.12);border:1px solid var(--green-primary);color:var(--green-primary);padding:.9rem 1.2rem;border-radius:.5rem;margin-bottom:1.25rem;font-weight:500;">✓ {{ session('success') }}</div>
-    @endif
-
     {{-- Add Form --}}
     <div class="sht-card">
         <div class="sht-title">Register Shared Teacher</div>

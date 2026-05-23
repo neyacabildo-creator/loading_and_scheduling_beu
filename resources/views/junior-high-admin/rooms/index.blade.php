@@ -41,12 +41,6 @@
         </div>
     </div>
 
-    @if(session('success'))
-        <div style="background: rgba(45,122,80,0.15); border: 1px solid #2d7a50; color: #2d7a50; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem;">
-            {{ session('success') }}
-        </div>
-    @endif
-
     @if($rooms->isEmpty())
         <div style="background: white; border: 1px solid #e8dcc8; border-radius: 0.75rem; padding: 2rem; text-align: center; color: #7a7a6e;">
             <p>No rooms found. <a href="{{ route('admin.rooms.create') }}" style="color: #2d7a50; font-weight: 600;">Create one now</a></p>

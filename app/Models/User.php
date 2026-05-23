@@ -9,6 +9,9 @@ use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
+    /** Users always live on the main app database (not principal/JH/GS DBs). */
+    protected $connection = 'mysql';
+
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
 
@@ -24,7 +27,6 @@ class User extends Authenticatable
         'last_name',
         'email',
         'password',
-        'position',
         'school_level',
         'is_active',
         'profile_photo_path',
