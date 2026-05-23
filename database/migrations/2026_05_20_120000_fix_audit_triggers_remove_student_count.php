@@ -11,27 +11,6 @@ return new class extends Migration
 {
     private array $schoolConns = ['mysql_jh', 'mysql_gs'];
 
-    /** Columns snapshotted in audit_logs JSON for class_schedules. */
-    private array $auditColumns = [
-        'id',
-        'faculty_id',
-        'subject',
-        'grade_level',
-        'section_name',
-        'room_id',
-        'day_of_week',
-        'schedule_date',
-        'start_time',
-        'end_time',
-        'status',
-        'admin_approved',
-        'approved_at',
-        'approved_by',
-        'version',
-        'last_modified_by_admin',
-        'principal_approved',
-    ];
-
     public function up(): void
     {
         foreach ($this->schoolConns as $conn) {
@@ -53,10 +32,46 @@ return new class extends Migration
         }
     }
 
+    /** @return list<string> */
+    private function classScheduleAuditColumns(string $conn): array
+    {
+        $candidates = [
+            'id',
+            'faculty_id',
+            'subject',
+            'grade_level',
+            'section_name',
+            'room_id',
+            'day_of_week',
+            'schedule_date',
+            'start_time',
+            'end_time',
+            'status',
+            'admin_approved',
+            'approved_at',
+            'approved_by',
+            'version',
+            'last_modified_by_admin',
+            'change_log',
+            'principal_approved',
+            'principal_approved_at',
+            'principal_approved_by',
+        ];
+
+        return array_values(array_filter(
+            $candidates,
+            fn (string $col) => Schema::connection($conn)->hasColumn('class_schedules', $col)
+        ));
+    }
+
     private function recreateAuditTriggers(string $conn): void
     {
         $table = 'class_schedules';
-        $cols  = $this->auditColumns;
+        $cols  = $this->classScheduleAuditColumns($conn);
+
+        if ($cols === []) {
+            return;
+        }
 
         $newPairs = implode(', ', array_map(fn ($c) => "'{$c}', NEW.`{$c}`", $cols));
         $oldPairs = implode(', ', array_map(fn ($c) => "'{$c}', OLD.`{$c}`", $cols));
