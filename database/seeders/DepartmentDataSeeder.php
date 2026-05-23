@@ -162,25 +162,31 @@ class DepartmentDataSeeder extends Seeder
         }
 
         // ----------------------------------------------------------------
-        // 6. Ensure rooms exist for both departments
+        // 6. Ensure rooms exist in each school database
         // ----------------------------------------------------------------
         $gradeSchoolRooms = [
-            ['room_number' => 'GS-101', 'building' => 'Grade School - Science Wing',   'capacity' => 40, 'has_laboratory' => true,  'has_projector' => true,  'has_ac' => true,  'status' => 'available', 'school_level' => 'grade_school'],
-            ['room_number' => 'GS-102', 'building' => 'Grade School - Science Wing',   'capacity' => 40, 'has_laboratory' => true,  'has_projector' => true,  'has_ac' => true,  'status' => 'available', 'school_level' => 'grade_school'],
-            ['room_number' => 'GS-201', 'building' => 'Grade School - Academic Block', 'capacity' => 35, 'has_laboratory' => false, 'has_projector' => true,  'has_ac' => true,  'status' => 'available', 'school_level' => 'grade_school'],
-            ['room_number' => 'GS-202', 'building' => 'Grade School - Academic Block', 'capacity' => 35, 'has_laboratory' => false, 'has_projector' => true,  'has_ac' => true,  'status' => 'available', 'school_level' => 'grade_school'],
-            ['room_number' => 'GS-301', 'building' => 'Grade School - Arts Room',      'capacity' => 30, 'has_laboratory' => false, 'has_projector' => false, 'has_ac' => false, 'status' => 'available', 'school_level' => 'grade_school'],
+            ['room_number' => 'GS-101', 'building' => 'Grade School - Science Wing',   'capacity' => 40, 'has_laboratory' => true,  'has_projector' => true,  'has_ac' => true,  'status' => 'available'],
+            ['room_number' => 'GS-102', 'building' => 'Grade School - Science Wing',   'capacity' => 40, 'has_laboratory' => true,  'has_projector' => true,  'has_ac' => true,  'status' => 'available'],
+            ['room_number' => 'GS-201', 'building' => 'Grade School - Academic Block', 'capacity' => 35, 'has_laboratory' => false, 'has_projector' => true,  'has_ac' => true,  'status' => 'available'],
+            ['room_number' => 'GS-202', 'building' => 'Grade School - Academic Block', 'capacity' => 35, 'has_laboratory' => false, 'has_projector' => true,  'has_ac' => true,  'status' => 'available'],
+            ['room_number' => 'GS-301', 'building' => 'Grade School - Arts Room',      'capacity' => 30, 'has_laboratory' => false, 'has_projector' => false, 'has_ac' => false, 'status' => 'available'],
         ];
 
         $juniorHighRooms = [
-            ['room_number' => 'JHS-101', 'building' => 'Junior High - Science Lab',    'capacity' => 50, 'has_laboratory' => true,  'has_projector' => true,  'has_ac' => true,  'status' => 'available', 'school_level' => 'junior_high'],
-            ['room_number' => 'JHS-102', 'building' => 'Junior High - Science Lab',    'capacity' => 50, 'has_laboratory' => true,  'has_projector' => true,  'has_ac' => true,  'status' => 'available', 'school_level' => 'junior_high'],
-            ['room_number' => 'JHS-201', 'building' => 'Junior High - Main Building',  'capacity' => 45, 'has_laboratory' => false, 'has_projector' => true,  'has_ac' => true,  'status' => 'available', 'school_level' => 'junior_high'],
-            ['room_number' => 'JHS-202', 'building' => 'Junior High - Main Building',  'capacity' => 45, 'has_laboratory' => false, 'has_projector' => true,  'has_ac' => true,  'status' => 'available', 'school_level' => 'junior_high'],
-            ['room_number' => 'JHS-301', 'building' => 'Junior High - Computer Lab',   'capacity' => 40, 'has_laboratory' => true,  'has_projector' => true,  'has_ac' => true,  'status' => 'available', 'school_level' => 'junior_high'],
+            ['room_number' => 'JHS-101', 'building' => 'Junior High - Science Lab',    'capacity' => 50, 'has_laboratory' => true,  'has_projector' => true,  'has_ac' => true,  'status' => 'available'],
+            ['room_number' => 'JHS-102', 'building' => 'Junior High - Science Lab',    'capacity' => 50, 'has_laboratory' => true,  'has_projector' => true,  'has_ac' => true,  'status' => 'available'],
+            ['room_number' => 'JHS-201', 'building' => 'Junior High - Main Building',  'capacity' => 45, 'has_laboratory' => false, 'has_projector' => true,  'has_ac' => true,  'status' => 'available'],
+            ['room_number' => 'JHS-202', 'building' => 'Junior High - Main Building',  'capacity' => 45, 'has_laboratory' => false, 'has_projector' => true,  'has_ac' => true,  'status' => 'available'],
+            ['room_number' => 'JHS-301', 'building' => 'Junior High - Computer Lab',   'capacity' => 40, 'has_laboratory' => true,  'has_projector' => true,  'has_ac' => true,  'status' => 'available'],
         ];
 
-        foreach (array_merge($gradeSchoolRooms, $juniorHighRooms) as $room) {
+        config(['database.school_connection' => 'mysql_gs']);
+        foreach ($gradeSchoolRooms as $room) {
+            Room::firstOrCreate(['room_number' => $room['room_number']], $room);
+        }
+
+        config(['database.school_connection' => 'mysql_jh']);
+        foreach ($juniorHighRooms as $room) {
             Room::firstOrCreate(['room_number' => $room['room_number']], $room);
         }
 
@@ -188,34 +194,36 @@ class DepartmentDataSeeder extends Seeder
         // 7. Ensure faculty loads exist for all teachers
         // ----------------------------------------------------------------
         $gsTeacherUsers = User::where('role_id', $gsTeachRole->id)->get();
+        config(['database.school_connection' => 'mysql_gs']);
         foreach ($gsTeacherUsers as $teacher) {
             FacultyLoad::firstOrCreate(
                 ['faculty_id' => $teacher->id],
                 [
-                    'department'       => 'Grade School',
+                    'teacher_name'     => $teacher->name,
                     'classes_assigned' => 4,
                     'load_hours'       => 4.00,
                     'status'           => 'active',
                     'notes'            => 'Grade School faculty load',
-                    'school_level'     => 'grade_school',
                 ]
             );
         }
 
         $jhTeacherUsers = User::where('role_id', $jhTeachRole->id)->get();
+        config(['database.school_connection' => 'mysql_jh']);
         foreach ($jhTeacherUsers as $teacher) {
             FacultyLoad::firstOrCreate(
                 ['faculty_id' => $teacher->id],
                 [
-                    'department'       => 'Junior High School',
+                    'teacher_name'     => $teacher->name,
                     'classes_assigned' => 5,
                     'load_hours'       => 5.00,
                     'status'           => 'active',
                     'notes'            => 'Junior High School faculty load',
-                    'school_level'     => 'junior_high',
                 ]
             );
         }
+
+        config(['database.school_connection' => null]);
 
         $this->command->info('');
         $this->command->info('=== Department Data Seeded Successfully ===');

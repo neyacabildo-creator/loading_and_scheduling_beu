@@ -159,30 +159,7 @@ class AdminSeeder extends Seeder
             );
         }
 
-        // ---------------------------------------------------------------
-        // Default (mysql) rooms — include school_level for shared queries
-        // ---------------------------------------------------------------
-        $gradeSchoolRooms = [
-            ['room_number' => 'GS-101', 'building' => 'Grade School - Science Wing',    'capacity' => 40, 'has_laboratory' => true,  'has_projector' => true, 'has_ac' => true, 'status' => 'available', 'school_level' => 'grade_school'],
-            ['room_number' => 'GS-102', 'building' => 'Grade School - Science Wing',    'capacity' => 40, 'has_laboratory' => true,  'has_projector' => true, 'has_ac' => true, 'status' => 'available', 'school_level' => 'grade_school'],
-            ['room_number' => 'GS-201', 'building' => 'Grade School - Academic Block',  'capacity' => 35, 'has_laboratory' => false, 'has_projector' => true, 'has_ac' => true, 'status' => 'available', 'school_level' => 'grade_school'],
-            ['room_number' => 'GS-202', 'building' => 'Grade School - Academic Block',  'capacity' => 35, 'has_laboratory' => false, 'has_projector' => true, 'has_ac' => true, 'status' => 'available', 'school_level' => 'grade_school'],
-        ];
-        foreach ($gradeSchoolRooms as $room) {
-            Room::firstOrCreate(['room_number' => $room['room_number']], $room);
-        }
-
-        $juniorHighRooms = [
-            ['room_number' => 'JHS-101', 'building' => 'Junior High - Science Lab',      'capacity' => 50, 'has_laboratory' => true,  'has_projector' => true, 'has_ac' => true, 'status' => 'available', 'school_level' => 'junior_high'],
-            ['room_number' => 'JHS-102', 'building' => 'Junior High - Science Lab',      'capacity' => 50, 'has_laboratory' => true,  'has_projector' => true, 'has_ac' => true, 'status' => 'available', 'school_level' => 'junior_high'],
-            ['room_number' => 'JHS-201', 'building' => 'Junior High - Main Building',    'capacity' => 45, 'has_laboratory' => false, 'has_projector' => true, 'has_ac' => true, 'status' => 'available', 'school_level' => 'junior_high'],
-            ['room_number' => 'JHS-202', 'building' => 'Junior High - Main Building',    'capacity' => 45, 'has_laboratory' => false, 'has_projector' => true, 'has_ac' => true, 'status' => 'available', 'school_level' => 'junior_high'],
-        ];
-        foreach ($juniorHighRooms as $room) {
-            Room::firstOrCreate(['room_number' => $room['room_number']], $room);
-        }
-
-        // Shared teacher collections (queried from the default connection)
+        // Shared teacher collections (main DB — users table only)
         $gradeSchoolTeacherUsers = User::where('role_id', $teacherGradeSchoolRole->id)->get();
         $juniorHighTeacherUsers  = User::where('role_id', $teacherJuniorHighRole->id)->get();
         $daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
@@ -209,7 +186,7 @@ class AdminSeeder extends Seeder
                 ['faculty_id' => $teacher->id],
                 [
                     'faculty_id'       => $teacher->id,
-                    'department'       => 'Grade School',
+                    'teacher_name'     => $teacher->name,
                     'classes_assigned' => rand(3, 5),
                     'load_hours'       => number_format(rand(200, 500) / 100, 2),
                     'status'           => rand(0, 10) > 7 ? 'overloaded' : (rand(0, 10) > 5 ? 'part-time' : 'active'),
@@ -222,16 +199,16 @@ class AdminSeeder extends Seeder
         foreach ($gradeSchoolTeacherUsers as $teacher) {
             for ($i = 0; $i < 3; $i++) {
                 ClassSchedule::create([
-                    'faculty_id'    => $teacher->id,
-                    'subject'       => $gsSubjects[array_rand($gsSubjects)],
-                    'grade_section' => 'Grade ' . rand(1, 6) . chr(65 + $i),
-                    'room_id'       => $gsRoomIds ? $gsRoomIds[array_rand($gsRoomIds)] : null,
-                    'day_of_week'   => $daysOfWeek[array_rand($daysOfWeek)],
-                    'start_time'    => '08:00',
-                    'end_time'      => '09:00',
-                    'student_count' => rand(20, 35),
-                    'status'        => 'pending',
-                    'admin_approved'=> false,
+                    'faculty_id'     => $teacher->id,
+                    'subject'        => $gsSubjects[array_rand($gsSubjects)],
+                    'grade_level'    => 'Grade '.rand(1, 6),
+                    'section_name'   => chr(65 + $i),
+                    'room_id'        => $gsRoomIds ? $gsRoomIds[array_rand($gsRoomIds)] : null,
+                    'day_of_week'    => $daysOfWeek[array_rand($daysOfWeek)],
+                    'start_time'     => '08:00',
+                    'end_time'       => '09:00',
+                    'status'         => 'pending',
+                    'admin_approved' => false,
                 ]);
             }
         }
@@ -257,7 +234,7 @@ class AdminSeeder extends Seeder
                 ['faculty_id' => $teacher->id],
                 [
                     'faculty_id'       => $teacher->id,
-                    'department'       => 'Junior High School',
+                    'teacher_name'     => $teacher->name,
                     'classes_assigned' => rand(4, 6),
                     'load_hours'       => number_format(rand(300, 700) / 100, 2),
                     'status'           => rand(0, 10) > 7 ? 'overloaded' : (rand(0, 10) > 5 ? 'part-time' : 'active'),
@@ -270,16 +247,16 @@ class AdminSeeder extends Seeder
         foreach ($juniorHighTeacherUsers as $teacher) {
             for ($i = 0; $i < 3; $i++) {
                 ClassSchedule::create([
-                    'faculty_id'    => $teacher->id,
-                    'subject'       => $jhsSubjects[array_rand($jhsSubjects)],
-                    'grade_section' => 'Grade ' . rand(7, 10) . chr(65 + $i),
-                    'room_id'       => $jhsRoomIds ? $jhsRoomIds[array_rand($jhsRoomIds)] : null,
-                    'day_of_week'   => $daysOfWeek[array_rand($daysOfWeek)],
-                    'start_time'    => '09:30',
-                    'end_time'      => '10:30',
-                    'student_count' => rand(30, 50),
-                    'status'        => 'pending',
-                    'admin_approved'=> false,
+                    'faculty_id'     => $teacher->id,
+                    'subject'        => $jhsSubjects[array_rand($jhsSubjects)],
+                    'grade_level'    => 'Grade '.rand(7, 10),
+                    'section_name'   => chr(65 + $i),
+                    'room_id'        => $jhsRoomIds ? $jhsRoomIds[array_rand($jhsRoomIds)] : null,
+                    'day_of_week'    => $daysOfWeek[array_rand($daysOfWeek)],
+                    'start_time'     => '09:30',
+                    'end_time'       => '10:30',
+                    'status'         => 'pending',
+                    'admin_approved' => false,
                 ]);
             }
         }
