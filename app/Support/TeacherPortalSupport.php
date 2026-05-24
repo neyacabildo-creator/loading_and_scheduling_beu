@@ -3,6 +3,8 @@
 namespace App\Support;
 
 use App\Models\ClassSchedule;
+use App\Models\FacultyLoad;
+use App\Models\MasterWeeklySchedule;
 use App\Models\Room;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -145,44 +147,198 @@ class TeacherPortalSupport
     }
 
     /**
+     * Sync loading rows, then build workload table rows for teacher dashboards.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function workloadRecordsForTeacher(int $facultyId, ?string $connection = null): array
+    {
+        $connection = $connection ?? config('database.school_connection', 'mysql_jh');
+
+        if ($facultyId > 0) {
+            FacultyLoad::query()
+                ->where('faculty_id', $facultyId)
+                ->get()
+                ->each(fn (FacultyLoad $load) => FacultyLoadSupport::refreshTeacherLoadingScheduleRow($load));
+        }
+
+        $facultyLoads = FacultyLoad::where('faculty_id', $facultyId)->get();
+        $classSchedules = self::classSchedulesForTeacherWorkload($facultyId, $connection);
+
+        return self::buildWorkloadSchedules($classSchedules, $facultyLoads, $connection, $facultyId);
+    }
+
+    public static function masterWeeklySchedulesForWorkload(int $facultyId, ?string $connection = null): Collection
+    {
+        $connection = $connection ?? config('database.school_connection', 'mysql_jh');
+
+        if ($facultyId <= 0 || ! Schema::connection($connection)->hasTable('master_weekly_schedules')) {
+            return collect();
+        }
+
+        return MasterWeeklySchedule::on($connection)
+            ->where('faculty_id', $facultyId)
+            ->where(function ($q) {
+                $q->where(function ($inner) {
+                    $inner->whereNotNull('subject_handled')->where('subject_handled', '!=', '');
+                })->orWhere(function ($inner) {
+                    $inner->whereNotNull('grade_level')->where('grade_level', '!=', '');
+                })->orWhere(function ($inner) {
+                    $inner->whereNotNull('grade_section')->where('grade_section', '!=', '');
+                });
+            })
+            ->orderBy('day_of_week')
+            ->orderBy('slot_order')
+            ->get();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function rowFromMasterWeeklySchedule(object $row): array
+    {
+        $subject = trim((string) ($row->subject_handled ?? ''));
+        $gradeLevel = trim((string) ($row->grade_level ?? ''));
+        $sectionName = trim((string) ($row->section_name ?? ''));
+
+        if ($gradeLevel === '' && ! empty($row->grade_section)) {
+            [$parsedGrade, $parsedSection] = ScheduleDisplaySupport::parseGradeSection($row->grade_section);
+            $gradeLevel = $parsedGrade !== '' ? $parsedGrade : trim((string) $row->grade_section);
+            $sectionName = $sectionName !== '' ? $sectionName : $parsedSection;
+        }
+
+        return [
+            'id'               => $row->id ?? null,
+            'source'           => 'master_weekly',
+            'subject'          => $subject,
+            'subject_name'     => $subject,
+            'grade_level'      => $gradeLevel !== '' ? $gradeLevel : null,
+            'section_name'     => $sectionName !== '' ? $sectionName : null,
+            'day_of_week'      => $row->day_of_week ?? null,
+            'start_time'       => $row->time_start ?? null,
+            'end_time'         => $row->time_end ?? null,
+            'units'            => 1,
+            'classes_assigned' => 1,
+            'load_hours'       => self::scheduleDurationHours($row->time_start ?? null, $row->time_end ?? null),
+            'status'           => 'approved',
+            'school_year'      => $row->school_year ?? null,
+        ];
+    }
+
+    /**
      * @param  array<string, mixed>  $row
      */
     public static function workloadDedupeKey(array $row): string
     {
-        return strtolower(implode('|', [
-            trim((string) ($row['subject'] ?? $row['subject_name'] ?? '')),
-            trim((string) ($row['grade_section'] ?? '')),
+        $subject = trim((string) ($row['subject'] ?? $row['subject_name'] ?? ''));
+        if (strcasecmp($subject, 'unassigned') === 0) {
+            $subject = '';
+        }
+
+        $gradeSection = trim((string) ($row['grade_section'] ?? ''));
+        if ($gradeSection === '' && (! empty($row['grade_level']) || ! empty($row['section_name']))) {
+            $gradeSection = self::gradeSectionLabel($row['grade_level'] ?? null, $row['section_name'] ?? null);
+        }
+
+        $base = strtolower(implode('|', [
+            $subject,
+            $gradeSection,
             trim((string) ($row['day_of_week'] ?? '')),
             trim((string) ($row['start_time'] ?? $row['time_start'] ?? '')),
         ]));
+
+        if (trim(str_replace('|', '', $base)) === '') {
+            return ($row['source'] ?? 'row') . ':' . (string) ($row['id'] ?? '0');
+        }
+
+        return ($row['source'] ?? '') . ':' . (string) ($row['id'] ?? '') . '|' . $base;
+    }
+
+    /**
+     * @param  array<string, mixed>  $a
+     * @param  array<string, mixed>  $b
+     * @return array<string, mixed>
+     */
+    public static function mergeWorkloadRows(array $a, array $b): array
+    {
+        $pick = function (string $field) use ($a, $b): mixed {
+            foreach ([$a[$field] ?? null, $b[$field] ?? null] as $value) {
+                if ($value === null || $value === '' || $value === '—') {
+                    continue;
+                }
+                if (is_string($value) && strcasecmp(trim($value), 'unassigned') === 0) {
+                    continue;
+                }
+
+                return $value;
+            }
+
+            return $a[$field] ?? $b[$field] ?? null;
+        };
+
+        $merged = $a;
+        foreach (['subject', 'subject_name', 'subject_code', 'grade_level', 'section_name', 'grade_section', 'day_of_week', 'start_time', 'end_time', 'school_year', 'status'] as $field) {
+            $merged[$field] = $pick($field);
+        }
+
+        $merged['units'] = max(
+            (int) ($a['units'] ?? 0),
+            (int) ($b['units'] ?? 0),
+            (int) ($a['classes_assigned'] ?? 0),
+            (int) ($b['classes_assigned'] ?? 0)
+        );
+        if ($merged['units'] <= 0) {
+            $merged['units'] = 1;
+        }
+        $merged['classes_assigned'] = $merged['units'];
+        $merged['load_hours'] = max((float) ($a['load_hours'] ?? 0), (float) ($b['load_hours'] ?? 0));
+        $merged['id'] = $a['id'] ?? $b['id'] ?? null;
+        $merged['source'] = $pick('source');
+
+        return $merged;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    public static function isSparseWorkloadRow(array $row): bool
+    {
+        $subject = trim((string) ($row['subject'] ?? $row['subject_name'] ?? ''));
+        if ($subject !== '' && strcasecmp($subject, 'unassigned') !== 0) {
+            return false;
+        }
+
+        $grade = trim((string) ($row['grade_level'] ?? ''));
+        $section = trim((string) ($row['section_name'] ?? $row['section'] ?? ''));
+        $day = trim((string) ($row['day_of_week'] ?? ''));
+
+        return $grade === '' && $section === '' && $day === '';
     }
 
     /**
      * @param  \Illuminate\Support\Collection|\Illuminate\Database\Eloquent\Collection  $classSchedules
      * @param  \Illuminate\Support\Collection|\Illuminate\Database\Eloquent\Collection  $facultyLoads
      */
-    public static function buildWorkloadSchedules($classSchedules, $facultyLoads, ?string $connection = null): array
+    public static function buildWorkloadSchedules($classSchedules, $facultyLoads, ?string $connection = null, ?int $facultyId = null): array
     {
         $connection = $connection ?? config('database.school_connection', 'mysql_jh');
         $loads = collect($facultyLoads);
         $allSchedules = collect($classSchedules);
-        $facultyId = (int) ($loads->first()?->faculty_id ?? $allSchedules->first()?->faculty_id ?? 0);
+        $facultyId = (int) ($facultyId ?? $loads->first()?->faculty_id ?? $allSchedules->first()?->faculty_id ?? 0);
+        $masterWeekly = self::masterWeeklySchedulesForWorkload($facultyId, $connection);
         $rows = [];
         $seen = [];
 
         $pushRow = function (array $row) use (&$rows, &$seen): void {
-            $normalized = self::normalizeWorkloadRow($row);
-            $key = self::workloadDedupeKey($normalized);
+            $key = self::workloadDedupeKey($row);
             if (isset($seen[$key])) {
+                $rows[$seen[$key]] = self::mergeWorkloadRows($rows[$seen[$key]], $row);
+
                 return;
             }
-            $seen[$key] = true;
-            $rows[] = $normalized;
+            $seen[$key] = count($rows);
+            $rows[] = $row;
         };
-
-        foreach (self::teacherLoadingSchedulesForWorkload($facultyId, $connection) as $tls) {
-            $pushRow(self::rowFromTeacherLoadingSchedule($tls));
-        }
 
         foreach ($classSchedules as $s) {
             $hours = self::scheduleDurationHours($s->start_time, $s->end_time);
@@ -206,24 +362,37 @@ class TeacherPortalSupport
             ]);
         }
 
+        foreach ($masterWeekly as $mw) {
+            $pushRow(self::rowFromMasterWeeklySchedule($mw));
+        }
+
         foreach ($loads as $load) {
             if (collect($rows)->contains(fn ($row) => self::rowMatchesFacultyLoad($row, $load))) {
                 continue;
             }
 
             $comp = self::complementaryScheduleForLoad($load, $allSchedules);
+            $master = self::complementaryMasterWeeklyForLoad($load, $masterWeekly);
             [$parsedGrade, $parsedSection] = ScheduleDisplaySupport::parseGradeSection($load->grade_level);
             $gradeLevel = $parsedGrade !== '' ? $parsedGrade : trim((string) ($load->grade_level ?? ''));
-            $sectionName = $parsedSection !== '' ? $parsedSection : ($comp?->section_name ?? null);
+            $sectionName = $parsedSection !== '' ? $parsedSection : ($comp?->section_name ?? $master?->section_name ?? null);
             if ($gradeLevel === '' && $comp) {
                 $fromSchedule = ScheduleDisplaySupport::resolveGradeAndSection($comp);
                 $gradeLevel = $fromSchedule['grade_level'] ?: $gradeLevel;
                 $sectionName = $sectionName ?: $fromSchedule['section_name'];
             }
+            if ($gradeLevel === '' && $master) {
+                $fromMaster = self::rowFromMasterWeeklySchedule($master);
+                $gradeLevel = $fromMaster['grade_level'] ?? $gradeLevel;
+                $sectionName = $sectionName ?: ($fromMaster['section_name'] ?? null);
+            }
 
             $hours = (float) ($load->load_hours ?? 0);
             if ($hours <= 0 && $comp) {
                 $hours = self::scheduleDurationHours($comp->start_time, $comp->end_time);
+            }
+            if ($hours <= 0 && $master) {
+                $hours = self::scheduleDurationHours($master->time_start ?? null, $master->time_end ?? null);
             }
 
             $units = (int) ($load->classes_assigned ?? 0);
@@ -235,6 +404,20 @@ class TeacherPortalSupport
             if ($subject === '' && $comp) {
                 $subject = trim((string) ($comp->subject ?? ''));
             }
+            if ($subject === '' && $master) {
+                $subject = trim((string) ($master->subject_handled ?? ''));
+            }
+            if ($subject === '' && ! empty($load->notes)) {
+                $subject = trim((string) $load->notes);
+            }
+            if ($subject === '' && (int) ($load->faculty_id ?? 0) > 0) {
+                $sharedSubjects = SharedTeacherSupport::assignedSubjectsForFaculty($connection, (int) $load->faculty_id);
+                if (count($sharedSubjects) === 1) {
+                    $subject = $sharedSubjects[0];
+                } elseif (count($sharedSubjects) > 1) {
+                    $subject = implode(', ', $sharedSubjects);
+                }
+            }
 
             $pushRow([
                 'id'               => $load->id,
@@ -245,15 +428,24 @@ class TeacherPortalSupport
                 'classes_assigned' => $units,
                 'units'            => $units,
                 'status'           => $load->status ?? 'available',
-                'day_of_week'      => $comp?->day_of_week,
-                'start_time'       => $comp?->start_time,
-                'end_time'         => $comp?->end_time,
+                'day_of_week'      => $comp?->day_of_week ?? $master?->day_of_week,
+                'start_time'       => $comp?->start_time ?? $master?->time_start,
+                'end_time'         => $comp?->end_time ?? $master?->time_end,
                 'grade_level'      => $gradeLevel !== '' ? $gradeLevel : null,
                 'section_name'     => $sectionName,
+                'school_year'      => $master?->school_year,
             ]);
         }
 
-        return array_values($rows);
+        foreach (self::teacherLoadingSchedulesForWorkload($facultyId, $connection) as $tls) {
+            $tlsRow = self::rowFromTeacherLoadingSchedule($tls);
+            if (self::isSparseWorkloadRow($tlsRow) && $loads->isNotEmpty()) {
+                continue;
+            }
+            $pushRow($tlsRow);
+        }
+
+        return array_values(array_map(fn (array $row) => self::normalizeWorkloadRow($row), $rows));
     }
 
     /**
@@ -288,6 +480,10 @@ class TeacherPortalSupport
      */
     public static function rowMatchesFacultyLoad(array $row, $load): bool
     {
+        if (($row['source'] ?? '') === 'faculty_load' && (int) ($row['id'] ?? 0) === (int) ($load->id ?? 0)) {
+            return true;
+        }
+
         if (self::subjectsMatch($row['subject'] ?? '', $load->subject ?? '')) {
             return true;
         }
@@ -313,9 +509,55 @@ class TeacherPortalSupport
      */
     public static function complementaryScheduleForLoad($load, $classSchedules): ?object
     {
-        return collect($classSchedules)->first(function ($schedule) use ($load) {
-            return self::scheduleMatchesFacultyLoad($schedule, $load);
-        });
+        $collection = collect($classSchedules);
+        $matched = $collection->first(fn ($schedule) => self::scheduleMatchesFacultyLoad($schedule, $load));
+        if ($matched) {
+            return $matched;
+        }
+
+        $loadSubject = trim((string) ($load->subject ?? ''));
+        $loadGrade = trim((string) ($load->grade_level ?? ''));
+        if ($loadSubject === '' || $loadGrade === '') {
+            return $collection->sortBy('start_time')->first();
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection  $masterWeekly
+     */
+    public static function complementaryMasterWeeklyForLoad($load, $masterWeekly): ?object
+    {
+        $collection = collect($masterWeekly);
+        $loadSubject = trim((string) ($load->subject ?? ''));
+        $loadGrade = trim((string) ($load->grade_level ?? ''));
+
+        if ($loadSubject !== '') {
+            $bySubject = $collection->first(function ($row) use ($loadSubject) {
+                return self::subjectsMatch($row->subject_handled ?? '', $loadSubject);
+            });
+            if ($bySubject) {
+                return $bySubject;
+            }
+        }
+
+        if ($loadGrade !== '') {
+            [$parsedGrade] = ScheduleDisplaySupport::parseGradeSection($loadGrade);
+            $byGrade = $collection->first(function ($row) use ($loadGrade, $parsedGrade) {
+                $rowGrade = trim((string) ($row->grade_level ?? ''));
+                if ($rowGrade !== '' && strcasecmp($rowGrade, $loadGrade) === 0) {
+                    return true;
+                }
+
+                return $parsedGrade !== '' && strcasecmp($rowGrade, $parsedGrade) === 0;
+            });
+            if ($byGrade) {
+                return $byGrade;
+            }
+        }
+
+        return $collection->sortBy('slot_order')->first();
     }
 
     /**

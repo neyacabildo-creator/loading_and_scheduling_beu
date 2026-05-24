@@ -747,7 +747,7 @@ class FacultyLoadSupport
         }
 
         $oldName = trim((string) $oldSubject) ?: null;
-        $newName = trim((string) $load->subject) ?: 'Unassigned';
+        $newName = trim((string) $load->subject) ?: null;
 
         if ($oldName && strcasecmp($oldName, $newName) !== 0) {
             DB::connection($conn)->table('teacher_loading_schedules')
@@ -764,11 +764,15 @@ class FacultyLoadSupport
         $timeStart = null;
         $timeEnd = null;
         if (\App\Support\TeacherPortalSupport::hasClassSchedulesTable($conn)) {
-            $match = \App\Models\ClassSchedule::on($conn)
+            $schedules = \App\Models\ClassSchedule::on($conn)
                 ->where('faculty_id', $load->faculty_id)
                 ->whereNotIn('status', ['rejected', 'deleted'])
-                ->get()
-                ->first(fn ($s) => \App\Support\TeacherPortalSupport::scheduleMatchesFacultyLoad($s, $load));
+                ->orderBy('start_time')
+                ->get();
+            $match = $schedules->first(fn ($s) => \App\Support\TeacherPortalSupport::scheduleMatchesFacultyLoad($s, $load))
+                ?? (trim((string) $load->subject) === '' || trim((string) $load->grade_level) === ''
+                    ? $schedules->first()
+                    : null);
             if ($match) {
                 $resolved = \App\Support\ScheduleDisplaySupport::resolveGradeAndSection($match);
                 $gradeLevel = $gradeLevel !== '' ? $gradeLevel : ($resolved['grade_level'] ?: '');
@@ -776,7 +780,15 @@ class FacultyLoadSupport
                 $dayOfWeek = $match->day_of_week;
                 $timeStart = $match->start_time;
                 $timeEnd = $match->end_time;
+                $scheduleSubject = trim((string) ($match->subject ?? ''));
+                if ($newName === null && $scheduleSubject !== '') {
+                    $newName = $scheduleSubject;
+                }
             }
+        }
+
+        if ($newName === null || $newName === '') {
+            $newName = 'Unassigned';
         }
 
         DB::connection($conn)->table('teacher_loading_schedules')->updateOrInsert(

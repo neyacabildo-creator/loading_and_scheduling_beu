@@ -112,6 +112,44 @@ function mapFacultyLoadRows(schedules) {
     }));
 }
 
+function isBlankField(value) {
+    const v = String(value ?? '').trim();
+    return v === '' || v === '—' || v.toLowerCase() === 'unassigned';
+}
+
+function pickRicherRow(a, b) {
+    const out = { ...a };
+    ['subject', 'subject_name', 'grade_level', 'section', 'section_name', 'grade_section', 'day_of_week', 'start_time', 'end_time', 'school_year', 'status'].forEach((field) => {
+        if (isBlankField(out[field]) && !isBlankField(b[field])) {
+            out[field] = b[field];
+        }
+    });
+    out.units = Math.max(parseInt(out.units, 10) || 0, parseInt(b.units, 10) || 0);
+    out.load_hours = Math.max(parseFloat(out.load_hours) || 0, parseFloat(b.load_hours) || 0);
+    if (!out.grade_section || out.grade_section === '—') {
+        out.grade_section = gradeSectionLabel(out);
+    }
+    return out;
+}
+
+function mergeWorkloadHistory(primary, fallback) {
+    const merged = [...(primary || [])];
+    const indexByKey = new Map();
+    merged.forEach((row, idx) => {
+        indexByKey.set(`${row.id ?? idx}|${(row.subject || '').toLowerCase()}|${(row.day_of_week || '').toLowerCase()}`, idx);
+    });
+    (fallback || []).forEach((row, idx) => {
+        const key = `${row.id ?? idx}|${(row.subject || '').toLowerCase()}|${(row.day_of_week || '').toLowerCase()}`;
+        if (indexByKey.has(key)) {
+            merged[indexByKey.get(key)] = pickRicherRow(merged[indexByKey.get(key)], row);
+            return;
+        }
+        indexByKey.set(key, merged.length);
+        merged.push(row);
+    });
+    return merged;
+}
+
 async function loadHistory() {
     const tbody = document.getElementById('hist-tbody');
     try {
@@ -119,11 +157,12 @@ async function loadHistory() {
         const json = await res.json();
         if (!res.ok || json.success === false) throw new Error(json.message || 'Request failed');
         allHistory = json.data || [];
-        if (!allHistory.length && facultyLoadFallback) {
+        if (facultyLoadFallback) {
             const fr = await fetch(facultyLoadFallback, { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
             const fj = await fr.json();
             if (fr.ok) {
-                allHistory = mapFacultyLoadRows(fj.schedules || fj.data || []);
+                const fallbackRows = mapFacultyLoadRows(fj.schedules || fj.data || []);
+                allHistory = mergeWorkloadHistory(allHistory, fallbackRows);
             }
         }
         updateStats(allHistory);
