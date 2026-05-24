@@ -105,7 +105,7 @@
         <div class="header-left">
             <h1 class="page-title">Class Schedule Management</h1>
         </div>
-
+        <div class="header-right"></div>
     </div>
 
     <!-- Principal Pending Banner -->

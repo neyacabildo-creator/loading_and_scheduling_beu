@@ -5,7 +5,6 @@
 
 @section('content')
     <style>
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
         .export-section { background: white; padding: 2rem; border-radius: 0.75rem; border: 1px solid #e8dcc8; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
         .section-title { font-size: 1.125rem; font-weight: 600; color: #2d3436; margin-bottom: 1.5rem; }
         .export-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
@@ -56,6 +55,7 @@
         <div class="header-left">
             <h1 class="page-title">Export Reports</h1>
         </div>
+        <div class="header-right"></div>
     </div>
 
     <!-- Generate Report Templates -->

@@ -485,13 +485,21 @@
         }
 
         function mountAdminHeaderActions() {
-            const header = document.querySelector('.header');
-            if (!header || header.querySelector('.admin-header-actions')) {
-                return;
-            }
             const source = document.getElementById('admin-header-actions-source');
             const actions = source ? source.querySelector('.admin-header-actions') : null;
             if (!actions) return;
+
+            let header = document.querySelector('.main-content .header')
+                || document.querySelector('.main-content .pe-header')
+                || document.querySelector('.header')
+                || document.querySelector('.pe-header');
+            if (!header || header.querySelector('.admin-header-actions')) {
+                return;
+            }
+            if (header.classList.contains('pe-header')) {
+                header.classList.remove('pe-header');
+                header.classList.add('header');
+            }
             const right = ensureHeaderRight(header);
             right.insertBefore(actions, right.firstChild);
         }

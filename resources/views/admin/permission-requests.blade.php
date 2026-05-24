@@ -21,6 +21,7 @@
             </p>
         </div>
     </div>
+    <div class="header-right"></div>
 </div>
 
 <div style="display:grid;grid-template-columns:1fr 1.6fr;gap:1.75rem;align-items:start;">

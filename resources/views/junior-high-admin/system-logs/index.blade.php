@@ -4,7 +4,6 @@
 
 @section('content')
     <style>
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; gap: 1rem; }
         .table-card { background: white; border-radius: 0.75rem; border: 1px solid #e8dcc8; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
         .table-header { padding: 1.5rem; border-bottom: 1px solid #e8dcc8; }
         .table-title { font-size: 1.125rem; font-weight: 600; color: #2d3436; }
@@ -44,10 +43,12 @@
     </style>
 
     <div class="header">
-        <div>
+        <div class="header-left">
             <h1 class="page-title">System Logs</h1>
         </div>
-        <div class="helper-text">Showing latest {{ $logs->count() }} entries</div>
+        <div class="header-right">
+            <span class="helper-text">Showing latest {{ $logs->count() }} entries</span>
+        </div>
     </div>
 
     @if (!empty($error))

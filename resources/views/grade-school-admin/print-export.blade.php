@@ -4,57 +4,14 @@
 @section('title', 'Print / Export Schedules')
 
 @section('content')
-<style>
-/* -- Screen styles -------------------------------------------------------- */
-.pe-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;}
-.pe-filter-card{background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:.75rem;padding:1.5rem;margin-bottom:1.5rem;box-shadow:var(--shadow-sm);}
-.pe-filter-row{display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap;}
-.pe-fgroup{display:flex;flex-direction:column;gap:.35rem;}
-.pe-fgroup label{font-size:.78rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;}
-.pe-select,.pe-input{padding:.55rem .85rem;border:1px solid var(--border-color);border-radius:.375rem;background:var(--bg-secondary);color:var(--text-primary);font-size:.875rem;min-width:150px;}
-.pe-select:focus,.pe-input:focus{outline:none;border-color:var(--green-primary);}
-.pe-btn{padding:.6rem 1.4rem;border:none;border-radius:.45rem;cursor:pointer;font-weight:600;font-size:.85rem;transition:all .2s;text-decoration:none;display:inline-flex;align-items:center;gap:.3rem;}
-.pe-btn-primary{background:linear-gradient(135deg,var(--green-primary),#0d3d20);color:#fff;}
-.pe-btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(45,122,80,.3);}
-.pe-btn-secondary{background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text-primary);}
-.pe-btn-secondary:hover{border-color:var(--green-primary);color:var(--green-primary);}
-.pe-action-bar{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;margin-bottom:1.5rem;}
-.pe-empty{background:var(--bg-secondary);border:2px dashed var(--border-color);border-radius:.75rem;padding:3rem;text-align:center;color:var(--text-secondary);}
-/* -- Day block ------------------------------------------------------------ */
-.pe-day-block{margin-bottom:2.5rem;}
-.pe-day-title{font-size:.9rem;font-weight:700;color:var(--green-primary);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.6rem;padding-bottom:.4rem;border-bottom:2px solid var(--green-primary);}
-/* -- Schedule table ------------------------------------------------------- */
-.pe-sched-table{width:100%;border-collapse:collapse;font-size:.8rem;}
-.pe-sched-table th{padding:.5rem .55rem;background:#1a5336;color:#fff;border:1px solid #0d2e1e;text-align:center;font-weight:700;font-size:.75rem;text-transform:uppercase;letter-spacing:.03em;}
-.pe-sched-table td{padding:.38rem .45rem;border:1px solid var(--border-color);text-align:center;vertical-align:middle;font-size:.76rem;}
-.pe-sched-table .time-cell{background:var(--bg-tertiary);font-weight:700;color:var(--text-primary);white-space:nowrap;min-width:70px;font-size:.72rem;}
-.pe-sched-table .break-row td{background:rgba(245,158,11,.08);font-weight:700;color:#92400e;font-size:.71rem;letter-spacing:.06em;}
-.pe-cell-entry{margin:.1rem 0;}
-.pe-cell-subject{font-weight:700;color:var(--text-primary);}
-.pe-cell-teacher{font-size:.7rem;color:var(--text-secondary);}
-.pe-empty-cell{color:#ccc;font-size:.68rem;}
-/* -- Print styles --------------------------------------------------------- */
-@media print {
-    body *{visibility:hidden;}
-    #pe-printable,#pe-printable *{visibility:visible;}
-    #pe-printable{position:absolute;top:0;left:0;width:100%;}
-    .pe-sched-table{font-size:8pt;}
-    .pe-sched-table th{background:#1a5336!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-    .pe-sched-table .break-row td{background:rgba(245,158,11,.08)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-    .pe-print-header{display:block!important;}
-    .pe-day-title{color:#1a5336!important;border-bottom-color:#1a5336!important;}
-    .pe-day-block{page-break-inside:avoid;}
-}
-.pe-print-header{display:none;text-align:center;margin-bottom:1.2rem;}
-.pe-print-header h2{font-size:13pt;font-weight:700;margin:0 0 .25rem 0;text-transform:uppercase;letter-spacing:.05em;}
-.pe-print-header p{font-size:9pt;color:#555;margin:0;}
-</style>
+@include('partials.admin-print-export-styles')
 
-<div class="pe-header">
+<div class="header">
     <div class="header-left">
-        <svg width="22" height="22" fill="none" stroke="#2d7a50" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+        <svg width="22" height="22" fill="none" stroke="var(--green-primary)" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
         <h1 class="page-title">Print / Export Schedules</h1>
     </div>
+    <div class="header-right"></div>
 </div>
 
 {{-- Filter Form --}}
@@ -121,18 +78,12 @@
 
 {{-- Printable Section --}}
 <div id="pe-printable">
-    {{-- Print Header (only visible when printing) --}}
-    <div class="pe-print-header">
-        <h2>Class Schedule &mdash; {{ strtoupper($gradeLevel) }} | Grade School</h2>
-        <p>
-            @if($dayOfWeek){{ strtoupper($dayOfWeek) }} &nbsp;&bull;&nbsp; @endif
-            @if($scheduleDate)
-                Date: {{ \Carbon\Carbon::parse($scheduleDate)->format('F d, Y') }}
-            @else
-                S.Y. {{ now()->year }}&ndash;{{ now()->year + 1 }}
-            @endif
-        </p>
-    </div>
+    @include('partials.admin-print-document-header', [
+        'schoolLabel' => 'Grade School',
+        'gradeLevel' => $gradeLevel,
+        'dayOfWeek' => $dayOfWeek,
+        'scheduleDate' => $scheduleDate,
+    ])
 
     @php
         $displayDays = $dayOfWeek ? [$dayOfWeek] : ['Monday','Tuesday','Wednesday','Thursday','Friday'];

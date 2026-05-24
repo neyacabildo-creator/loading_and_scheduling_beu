@@ -5,7 +5,6 @@
 
 @section('content')
     <style>
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
         .settings-container { display: grid; grid-template-columns: 250px 1fr; gap: 2rem; }
         .settings-nav { display: flex; flex-direction: column; gap: 0.5rem; background: white; padding: 1rem; border-radius: 0.75rem; border: 1px solid #e8dcc8; height: fit-content; position: sticky; top: 2rem; }
         .settings-nav-item { padding: 0.75rem 1rem; border-left: 3px solid transparent; cursor: pointer; border-radius: 0.25rem; font-size: 0.875rem; font-weight: 500; color: #7a7a6e; transition: all 0.2s; }
@@ -83,6 +82,7 @@
         <div class="header-left">
             <h1 class="page-title">System Settings</h1>
         </div>
+        <div class="header-right"></div>
     </div>
 
     <!-- Settings Content -->

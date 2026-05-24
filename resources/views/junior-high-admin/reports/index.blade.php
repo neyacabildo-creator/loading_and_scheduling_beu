@@ -5,7 +5,6 @@
 
 @section('content')
     <style>
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
         .report-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
         .report-card { background: white; padding: 1.5rem; border-radius: 0.75rem; border: 1px solid #e8dcc8; box-shadow: 0 1px 3px rgba(0,0,0,0.08); display: flex; flex-direction: column; }
         .report-icon { width: 50px; height: 50px; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; font-size: 1.5rem; }
@@ -93,6 +92,7 @@
         <div class="header-left">
             <h1 class="page-title">Generate Reports</h1>
         </div>
+        <div class="header-right"></div>
     </div>
 
     <!-- Report Templates -->
