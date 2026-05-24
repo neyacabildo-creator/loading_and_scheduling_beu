@@ -105,12 +105,16 @@ class AdminRequestDisplay
             $detail = null;
         }
 
-        $dateFrom = $row->date_from ?? $parsed['date_from'] ?? null;
+        $isLeave = TeacherPresenceSupport::isAbsenceLeaveType($row->request_type ?? null);
+        $dateFrom = $row->date_from ?? $parsed['date_from'] ?? $parsed['preferred_date'] ?? null;
         $dateTo = $row->date_to ?? $parsed['date_to'] ?? null;
         $leaveDates = '';
-        if ($dateFrom && $dateTo) {
+        $adjustmentDate = '';
+        if ($isLeave && $dateFrom && $dateTo) {
             $leaveDates = \Carbon\Carbon::parse($dateFrom)->format('M d, Y')
                 . ' – ' . \Carbon\Carbon::parse($dateTo)->format('M d, Y');
+        } elseif (! $isLeave && $dateFrom) {
+            $adjustmentDate = \Carbon\Carbon::parse($dateFrom)->format('M d, Y');
         }
 
         return [
@@ -123,7 +127,9 @@ class AdminRequestDisplay
             'has_time'             => $timeRange !== '',
             'leave_dates'          => $leaveDates,
             'has_leave_dates'      => $leaveDates !== '',
-            'is_absence_leave'     => TeacherPresenceSupport::isAbsenceLeaveType($row->request_type ?? null),
+            'adjustment_date'      => $adjustmentDate,
+            'has_adjustment_date'  => $adjustmentDate !== '',
+            'is_absence_leave'     => $isLeave,
             'reason'               => $reason,
             'detail'               => $detail,
             'notes'                => self::notesOnly($reason, $detail),

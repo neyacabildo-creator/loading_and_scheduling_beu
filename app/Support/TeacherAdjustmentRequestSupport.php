@@ -44,6 +44,7 @@ class TeacherAdjustmentRequestSupport
             'grade_level'             => $request->input('grade_level'),
             'section_name'            => $request->input('section_name'),
             'day_of_week'             => $request->input('day_of_week'),
+            'preferred_date'          => $request->input('preferred_date'),
             'preferred_start_time'    => $request->input('preferred_start_time'),
             'preferred_end_time'      => $request->input('preferred_end_time'),
             'substitute_faculty_id'   => $request->input('substitute_faculty_id'),
@@ -261,9 +262,17 @@ class TeacherAdjustmentRequestSupport
             'day_of_week'             => 'nullable|string|max:20',
             'preferred_start_time'    => 'nullable|string|max:20',
             'preferred_end_time'      => 'nullable|string|max:20',
+            'preferred_date'          => 'nullable|date',
             'substitute_faculty_id'   => 'nullable|integer',
             'substitute_teacher_name' => 'nullable|string|max:200',
         ]);
+
+        if (in_array($validated['request_type'], ['time_change', 'room_change', 'teacher_reassignment', 'other'], true)) {
+            $request->validate(['preferred_date' => 'required|date'], [
+                'preferred_date.required' => 'Please select the preferred date for this adjustment.',
+            ]);
+            $validated['preferred_date'] = Carbon::parse($request->input('preferred_date'))->toDateString();
+        }
 
         if (in_array($validated['request_type'], ['time_change', 'room_change', 'teacher_reassignment'], true)) {
             $request->validate([
@@ -357,7 +366,9 @@ class TeacherAdjustmentRequestSupport
             ? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: ($user->name ?? 'Teacher')
             : 'Teacher';
 
-        $insert = [
+        $dateColumns = self::preferredDateColumns($proposed, $validated['preferred_date'] ?? null, $connection);
+
+        $insert = array_merge([
             'faculty_id'           => Auth::id(),
             'teacher_name'         => $teacherName,
             'schedule_id'          => $scheduleId,
@@ -373,7 +384,7 @@ class TeacherAdjustmentRequestSupport
             'status'               => 'pending',
             'created_at'           => now(),
             'updated_at'           => now(),
-        ];
+        ], $dateColumns);
 
         $id = DB::connection($connection)->table(self::TABLE)->insertGetId($insert);
 
@@ -473,6 +484,32 @@ class TeacherAdjustmentRequestSupport
      *
      * @return array<string, mixed>
      */
+    /**
+     * @param  array<string, mixed>|null  $proposed
+     * @return array<string, string>
+     */
+    private static function preferredDateColumns(?array &$proposed, ?string $preferredDate, string $connection): array
+    {
+        if ($preferredDate === null || $preferredDate === '') {
+            return [];
+        }
+
+        if ($proposed === null) {
+            $proposed = [];
+        }
+        $proposed['preferred_date'] = $preferredDate;
+
+        $columns = [];
+        if (Schema::connection($connection)->hasColumn(self::TABLE, 'date_from')) {
+            $columns['date_from'] = $preferredDate;
+        }
+        if (Schema::connection($connection)->hasColumn(self::TABLE, 'date_to')) {
+            $columns['date_to'] = $preferredDate;
+        }
+
+        return $columns;
+    }
+
     public static function displayFieldsForRow(string $connection, object $row): array
     {
         $payload = self::payloadFromRequestRow($row);

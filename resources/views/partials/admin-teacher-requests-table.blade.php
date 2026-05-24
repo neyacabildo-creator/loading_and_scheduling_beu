@@ -58,6 +58,9 @@
                     </td>
                     <td class="str-col-grade str-cell-grade">@if($view['grade_section'] !== ''){{ $view['grade_section'] }}@endif</td>
                     <td class="str-col-time str-cell-daytime">
+                        @if(!empty($view['has_adjustment_date']))
+                            <div class="str-day-line"><strong>Date:</strong> {{ $view['adjustment_date'] }}</div>
+                        @endif
                         @if(!empty($view['has_leave_dates']))
                             <div class="str-day-line">{{ $view['leave_dates'] }}</div>
                         @endif

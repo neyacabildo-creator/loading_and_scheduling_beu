@@ -414,7 +414,7 @@ class SharedTeacherPortalController extends Controller
             ? DB::connection($adminConn)->table('class_schedules')->whereIn('id', $scheduleIds)->get()->keyBy('id')
             : collect();
 
-        return $rows->map(function ($r) use ($users, $schedules, $presenceMap) {
+        return $rows->map(function ($r) use ($users, $schedules, $presenceMap, $adminConn) {
             $facultyId = (int) ($this->rowGet($r, 'faculty_id') ?? $this->rowGet($r, 'requested_by') ?? 0);
             $user = $users->get($facultyId);
             $scheduleId = $this->rowGet($r, 'schedule_id');
@@ -444,6 +444,8 @@ class SharedTeacherPortalController extends Controller
                 'day_of_week'          => $display['day_of_week'] ?? $this->rowGet($r, 'day_of_week'),
                 'preferred_start_time' => $display['preferred_start_time'] ?? $this->rowGet($r, 'preferred_start_time'),
                 'preferred_end_time'   => $display['preferred_end_time'] ?? $this->rowGet($r, 'preferred_end_time'),
+                'date_from'            => $this->rowGet($r, 'date_from'),
+                'date_to'              => $this->rowGet($r, 'date_to'),
                 'reason'               => $this->rowGet($r, 'reason') ?? $this->rowGet($r, 'description'),
                 'description'          => $this->rowGet($r, 'reason') ?? $this->rowGet($r, 'description'),
                 'proposed_changes'     => $this->rowGet($r, 'proposed_changes'),

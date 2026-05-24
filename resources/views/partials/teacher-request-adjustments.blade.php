@@ -143,6 +143,16 @@
 
             <input type="hidden" name="schedule_id" id="adjScheduleId">
 
+            <div id="adjBlockDate" style="display:none;margin-top:1rem;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Preferred Date *</label>
+                    <input type="date" name="preferred_date" id="adjPreferredDate">
+                    <small style="color:var(--text-secondary);font-size:.75rem;display:block;margin-top:.35rem;">
+                        Date when you want this schedule adjustment to take effect.
+                    </small>
+                </div>
+            </div>
+
             <div id="adjBlockReason" class="form-group" style="display:none;margin-top:1rem;">
                 <label>Reason for Adjustment *</label>
                 <textarea name="reason" id="adjReason" placeholder="Explain why an adjustment is needed..." minlength="3"></textarea>
@@ -364,6 +374,10 @@ function adjFillSlotFromSchedule() {
     if (day) day.value = slot.day_of_week || '';
     adjSetPeriodFromTimes(slot.start_time, slot.end_time);
     if (sid) sid.value = slot.id ? String(slot.id) : '';
+    const dateInp = document.getElementById('adjPreferredDate');
+    if (dateInp && slot.schedule_date && !dateInp.value) {
+        dateInp.value = String(slot.schedule_date).slice(0, 10);
+    }
 }
 
 function adjMarkSlotTouched() {
@@ -388,11 +402,13 @@ function adjUpdateFormLayout() {
     const reassign = document.getElementById('adjBlockReassignment');
     const reason = document.getElementById('adjBlockReason');
     const extra = document.getElementById('adjBlockExtra');
+    const dateBlock = document.getElementById('adjBlockDate');
     const subj = document.getElementById('adjSubject');
     const grade = document.getElementById('adjGradeLevel');
     const sub = document.getElementById('adjSubstitute');
     const reasonFld = document.getElementById('adjReason');
     const period = document.getElementById('adjPeriod');
+    const dateFld = document.getElementById('adjPreferredDate');
 
     const showCtx = ['schedule_change', 'room_change', 'teacher_reassignment', 'other'].includes(type);
     const showPrefs = type === 'schedule_change';
@@ -516,6 +532,7 @@ function formatProposed(raw) {
         const parts = [];
         if (p.subject) parts.push('Subject: ' + p.subject);
         if (p.grade_level || p.section_name) parts.push((p.grade_level || '') + (p.section_name ? ' – ' + p.section_name : ''));
+        if (p.preferred_date) parts.push('Date: ' + p.preferred_date);
         if (p.day_of_week) parts.push('Day: ' + p.day_of_week);
         if (p.preferred_start_time) parts.push('Time: ' + p.preferred_start_time + (p.preferred_end_time ? ' – ' + p.preferred_end_time : ''));
         if (p.substitute_teacher_name) parts.push('Substitute: ' + p.substitute_teacher_name);
