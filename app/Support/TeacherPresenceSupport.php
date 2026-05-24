@@ -211,6 +211,12 @@ class TeacherPresenceSupport
                 'date_to'     => $to,
                 'total_days'  => $totalDays,
                 'date_range'  => Carbon::parse($from)->format('M j, Y') . ' – ' . Carbon::parse($to)->format('M j, Y'),
+                'sections_affected_this_week' => ScheduleMonitoringSupport::sectionsAffectedThisWeek(
+                    $connection,
+                    $tid,
+                    $from,
+                    $to
+                ),
             ];
             if (isset($sharedSet[$tid])) {
                 $shared[$tid] = $entry;

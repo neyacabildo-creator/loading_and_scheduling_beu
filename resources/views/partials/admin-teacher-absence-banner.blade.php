@@ -24,6 +24,10 @@
                         @if(!empty($person['total_days']))
                             <em>({{ $person['total_days'] }} {{ $person['total_days'] == 1 ? 'day' : 'days' }})</em>
                         @endif
+                        @php $sections = $person['sections_affected_this_week'] ?? []; @endphp
+                        @if(count($sections) > 0)
+                            <em class="str-leave-sections-hint"> · {{ count($sections) }} section{{ count($sections) === 1 ? '' : 's' }} affected this week</em>
+                        @endif
                     </span>
                 @endforeach
             </div>
@@ -37,7 +41,36 @@
                         @if(!empty($person['total_days']))
                             <em>({{ $person['total_days'] }} {{ $person['total_days'] == 1 ? 'day' : 'days' }})</em>
                         @endif
+                        @php $sections = $person['sections_affected_this_week'] ?? []; @endphp
+                        @if(count($sections) > 0)
+                            <em class="str-leave-sections-hint"> · {{ count($sections) }} section{{ count($sections) === 1 ? '' : 's' }} affected this week</em>
+                        @endif
                     </span>
+                @endforeach
+            </div>
+        @endif
+        @php
+            $allAbsent = array_merge($absentShared, $absentRegular);
+            $withSections = array_filter($allAbsent, fn ($p) => !empty($p['sections_affected_this_week']));
+        @endphp
+        @if(count($withSections) > 0)
+            <div class="str-leave-sections-detail" style="margin-top:.85rem;padding-top:.75rem;border-top:1px dashed var(--border-color);">
+                <strong style="font-size:.8rem;display:block;margin-bottom:.5rem;">Sections affected this week</strong>
+                @foreach($withSections as $person)
+                    @php $sections = $person['sections_affected_this_week'] ?? []; @endphp
+                    @if(count($sections) > 0)
+                        <div style="margin-bottom:.6rem;">
+                            <span style="font-size:.78rem;font-weight:600;color:var(--text-primary);">{{ $person['name'] }}</span>
+                            <ul style="margin:.25rem 0 0 1.1rem;font-size:.76rem;color:var(--text-secondary);line-height:1.5;">
+                                @foreach(array_slice($sections, 0, 6) as $sec)
+                                    <li>{{ $sec['grade_level'] }} {{ $sec['section_name'] }} — {{ $sec['subject'] }} ({{ $sec['day_of_week'] }}, {{ $sec['time'] }})</li>
+                                @endforeach
+                                @if(count($sections) > 6)
+                                    <li><em>+{{ count($sections) - 6 }} more</em></li>
+                                @endif
+                            </ul>
+                        </div>
+                    @endif
                 @endforeach
             </div>
         @endif
