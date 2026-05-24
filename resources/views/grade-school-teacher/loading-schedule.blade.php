@@ -304,6 +304,10 @@
                     </select>
                 </div>
                 <div class="adj-field">
+                    <label>Preferred Date <span style="color:#dc2626;">*</span></label>
+                    <input type="date" id="adj-preferred-date" required>
+                </div>
+                <div class="adj-field">
                     <label>Reason <span style="color:#dc2626;">*</span></label>
                     <textarea id="adj-reason" placeholder="Describe the issue and why an adjustment is needed (min. 10 characters)..."></textarea>
                 </div>
@@ -333,7 +337,8 @@
             subjectName ? 'Subject: ' + subjectName : 'Submit a request to your department administrator.';
         document.getElementById('adj-reason').value = '';
         document.getElementById('adj-proposed').value = '';
-        document.getElementById('adj-type').value = 'time_change';
+        document.getElementById('adj-preferred-date').value = '';
+        document.getElementById('adj-type').value = 'schedule_change';
         document.getElementById('adj-form-wrap').style.display = '';
         document.getElementById('adj-success').style.display = 'none';
         document.getElementById('adj-overlay').classList.add('active');
@@ -344,6 +349,11 @@
     }
     async function submitAdjRequest() {
         const reason = document.getElementById('adj-reason').value.trim();
+        const preferredDate = document.getElementById('adj-preferred-date').value;
+        if (!preferredDate) {
+            alert('Please select the preferred date for this adjustment.');
+            return;
+        }
         if (reason.length < 10) {
             alert('Please provide a reason of at least 10 characters.');
             return;
@@ -361,7 +371,8 @@
                 body: JSON.stringify({
                     schedule_id:      adjScheduleId,
                     request_type:     document.getElementById('adj-type').value,
-                    reason:           document.getElementById('adj-reason').value.trim(),
+                    preferred_date:   preferredDate,
+                    reason:           reason,
                     proposed_changes: document.getElementById('adj-proposed').value.trim() || null,
                 })
             });

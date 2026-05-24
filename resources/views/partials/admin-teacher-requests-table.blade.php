@@ -16,7 +16,7 @@
                     <th class="str-col-teacher">Teacher</th>
                     <th class="str-col-subject">Subject / Type</th>
                     <th class="str-col-grade">Grade / Section</th>
-                    <th class="str-col-time">Preferred Day &amp; Time</th>
+                    <th class="str-col-time">Preferred Date, Day &amp; Time</th>
                     <th class="str-col-notes">Notes</th>
                     <th class="str-col-date">Submitted</th>
                     <th class="str-col-status">Status</th>

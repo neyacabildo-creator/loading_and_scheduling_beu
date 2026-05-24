@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\ClassSchedule;
 use App\Models\User;
 use App\Support\FacultyLoadSupport;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -475,6 +476,9 @@ class TeacherAdjustmentRequestSupport
         if (empty($merged['preferred_end_time']) && ! empty($parsed['end_time'])) {
             $merged['preferred_end_time'] = $parsed['end_time'];
         }
+        if (empty($merged['preferred_date']) && ! empty($row->date_from)) {
+            $merged['preferred_date'] = substr((string) $row->date_from, 0, 10);
+        }
 
         return $merged;
     }
@@ -608,6 +612,11 @@ class TeacherAdjustmentRequestSupport
         }
         if (! empty($payload['preferred_end_time'])) {
             $updates['end_time'] = self::normalizeTimeForDb($payload['preferred_end_time']);
+        }
+
+        $preferredDate = $payload['preferred_date'] ?? ($requestRow->date_from ?? null);
+        if ($preferredDate) {
+            $updates['schedule_date'] = Carbon::parse((string) $preferredDate)->toDateString();
         }
 
         return $updates;

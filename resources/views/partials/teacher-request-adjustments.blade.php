@@ -102,6 +102,16 @@
                 </div>
             </div>
 
+            <div id="adjBlockDate" style="display:none;margin-top:1rem;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Preferred Date *</label>
+                    <input type="date" name="preferred_date" id="adjPreferredDate">
+                    <small style="color:var(--text-secondary);font-size:.75rem;display:block;margin-top:.35rem;">
+                        Date when you want this adjustment to take effect.
+                    </small>
+                </div>
+            </div>
+
             <div id="adjBlockSchedulePrefs" style="display:none;margin-top:1rem;">
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
                     <div class="form-group" style="margin-bottom:0;">
@@ -142,16 +152,6 @@
             </div>
 
             <input type="hidden" name="schedule_id" id="adjScheduleId">
-
-            <div id="adjBlockDate" style="display:none;margin-top:1rem;">
-                <div class="form-group" style="margin-bottom:0;">
-                    <label>Preferred Date *</label>
-                    <input type="date" name="preferred_date" id="adjPreferredDate">
-                    <small style="color:var(--text-secondary);font-size:.75rem;display:block;margin-top:.35rem;">
-                        Date when you want this schedule adjustment to take effect.
-                    </small>
-                </div>
-            </div>
 
             <div id="adjBlockReason" class="form-group" style="display:none;margin-top:1rem;">
                 <label>Reason for Adjustment *</label>
@@ -415,8 +415,10 @@ function adjUpdateFormLayout() {
     const showReassign = type === 'teacher_reassignment';
     const showReason = ['schedule_change', 'room_change', 'teacher_reassignment', 'other'].includes(type);
     const showExtra = type === 'schedule_change' || type === 'other';
+    const showDate = showReason;
 
     if (ctx) ctx.style.display = showCtx ? '' : 'none';
+    if (dateBlock) dateBlock.style.display = showDate ? '' : 'none';
     if (prefs) prefs.style.display = showPrefs ? '' : 'none';
     if (reassign) reassign.style.display = showReassign ? '' : 'none';
     if (reason) reason.style.display = showReason ? '' : 'none';
@@ -427,6 +429,7 @@ function adjUpdateFormLayout() {
     adjSetRequired(sub, showReassign);
     adjSetRequired(reasonFld, showReason);
     adjSetRequired(period, showPrefs);
+    adjSetRequired(dateFld, showDate);
 
     if (showReassign) {
         adjLoadAvailableTeachers();
@@ -524,6 +527,26 @@ function escapeHtml(s) {
     return d.innerHTML;
 }
 
+function adjRequestDateLabel(r) {
+    if (r.date_from) {
+        const d = String(r.date_from).slice(0, 10);
+        try {
+            return new Date(d + 'T12:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        } catch {
+            return d;
+        }
+    }
+    if (!r.proposed_changes) return '';
+    try {
+        const p = JSON.parse(r.proposed_changes);
+        if (p?.preferred_date) {
+            const d = String(p.preferred_date).slice(0, 10);
+            return new Date(d + 'T12:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        }
+    } catch {}
+    return '';
+}
+
 function formatProposed(raw) {
     if (!raw) return '';
     try {
@@ -573,6 +596,12 @@ async function submitRequest(e) {
     if (type !== 'teacher_reassignment') {
         delete body.substitute_faculty_id;
         delete body.substitute_teacher_name;
+    }
+    if (['time_change', 'room_change', 'teacher_reassignment', 'other'].includes(type)) {
+        if (!body.preferred_date) {
+            showToast('Please select the preferred date for this adjustment.', 'error');
+            return;
+        }
     }
     if (!body.schedule_id) delete body.schedule_id;
     if (body.substitute_faculty_id === '') delete body.substitute_faculty_id;
@@ -665,11 +694,11 @@ function renderRequests(data) {
                 <span class="req-type">${escapeHtml(typeLabels[r.request_type] ?? r.leave_type ?? r.request_type)}${r._kind === 'leave' ? ' <span style="font-size:.7rem;opacity:.7;">(Leave)</span>' : ''}</span>
                 <span class="badge badge-${r.status}">${escapeHtml((r.status || 'pending').toUpperCase())}</span>
             </div>
-            ${r.date_from ? `<div class="req-meta"><strong>Dates:</strong> ${escapeHtml(r.date_from)} – ${escapeHtml(r.date_to || '')}${r.total_days ? ' (' + r.total_days + ' day(s))' : ''}</div>` : ''}
+            ${r._kind === 'leave' && r.date_from ? `<div class="req-meta"><strong>Leave dates:</strong> ${escapeHtml(r.date_from)} – ${escapeHtml(r.date_to || '')}${r.total_days ? ' (' + r.total_days + ' day(s))' : ''}</div>` : ''}
+            ${r._kind === 'adjustment' && adjRequestDateLabel(r) ? `<div class="req-meta"><strong>Preferred date:</strong> ${escapeHtml(adjRequestDateLabel(r))}</div>` : ''}
             <div class="req-reason"><strong>Reason:</strong> ${escapeHtml(r.reason)}</div>
             ${r.proposed_changes ? `<div class="req-reason"><strong>Details:</strong> ${formatProposed(r.proposed_changes)}</div>` : ''}
-            ${r.admin_notes && r.status !== 'pending' ? `<div class="req-reason" style="border-color:#f57f17"><strong>Admin:</strong> ${escapeHtml(r.admin_notes)}</div>` : ''}
-            ${r.admin_notes ? `<div class="req-reason" style="border-color:#f57f17"><strong>Admin Notes:</strong> ${escapeHtml(r.admin_notes)}</div>` : ''}
+            ${r.admin_notes && r.status !== 'pending' ? `<div class="req-reason" style="border-color:#f57f17"><strong>Admin notes:</strong> ${escapeHtml(r.admin_notes)}</div>` : ''}
             <p class="req-meta">Submitted: ${r.created_at ? new Date(r.created_at).toLocaleDateString() : '–'}</p>
         </div>
     `).join('');
