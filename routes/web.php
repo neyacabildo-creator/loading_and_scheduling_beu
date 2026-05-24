@@ -209,9 +209,6 @@ Route::middleware('auth')->group(function () {
         
         Route::get('admin/print-export', [\App\Http\Controllers\AdminController::class, 'printExportSchedule'])->name('admin.print-export');
 
-        Route::get('admin/monitoring-alerts', [\App\Http\Controllers\ScheduleMonitoringController::class, 'juniorHigh'])
-            ->name('admin.monitoring-alerts');
-
         Route::redirect('admin/reports', '/admin/print-export', 301)->name('admin.reports');
         Route::redirect('admin/reports/history', '/admin/print-export', 301)->name('admin.reports.history');
         Route::redirect('admin/reports/generate/{type}', '/admin/print-export', 301)->name('admin.reports.generate');
@@ -476,9 +473,6 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolAdmin::class, 'scho
     Route::get('grade-school-admin/class-schedule', [
         \App\Http\Controllers\GradeSchoolAdminController::class, 'classSchedule'
     ])->name('grade-school-admin.class-schedule');
-
-    Route::get('grade-school-admin/monitoring-alerts', [\App\Http\Controllers\ScheduleMonitoringController::class, 'gradeSchool'])
-        ->name('grade-school-admin.monitoring-alerts');
 
     // Grade School Admin Faculty Loading
     Route::get('grade-school-admin/faculty-loading', [
