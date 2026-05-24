@@ -118,6 +118,8 @@
         <a href="{{ route('principal.schedule-approvals') }}" style="color:#854d0e;font-size:0.82rem;font-weight:600;text-decoration:underline;white-space:nowrap;">View &amp; Approve →</a>
     </div>
 
+    @include('partials.admin-class-schedule-dss-chrome', ['dssPrefix' => 'gs'])
+
     <!-- Pending Schedules -->
     <div id="pending-schedules" class="table-card" style="margin-bottom: 2rem;">
         <div class="table-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
@@ -270,6 +272,13 @@
 
         let gsSharedTeacherIds = new Set();
 
+        function gsRefreshDss() {
+            if (!window.AdminScheduleDss) {
+                return { analysis: { conflictIds: new Set(), missingDateIds: new Set(), missingRoomIds: new Set(), summaries: [] } };
+            }
+            return AdminScheduleDss.refreshFromCache(gsScheduleCache, 'gs');
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             // Fetch shared teacher IDs for badge display
             fetch('/api/shared-teachers-panel', {
@@ -392,17 +401,8 @@
             schedules.forEach(s => { const sec=s.section_name||'—'; if(!sectionGradeMap.has(sec)) sectionGradeMap.set(sec, s.grade_level||''); });
             mapGSSections.forEach(sec => { if(!sectionGradeMap.has(sec)) sectionGradeMap.set(sec, gsCurrentGradeFilter||''); });
 
-            const conflictIds=new Set();
-            const byFaculty={};
-            schedules.forEach(s=>{if(s.faculty_id){(byFaculty[s.faculty_id]=byFaculty[s.faculty_id]||[]).push(s);}});
-            Object.values(byFaculty).forEach(arr=>{
-                for(let i=0;i<arr.length;i++) for(let j=i+1;j<arr.length;j++){
-                    const a=arr[i],b=arr[j];
-                    if(gsTimeToMins(a.start_time)<gsTimeToMins(b.end_time)&&gsTimeToMins(b.start_time)<gsTimeToMins(a.end_time)){conflictIds.add(a.id);conflictIds.add(b.id);}
-                }
-            });
-            const banner=document.getElementById('gsConflictBanner');
-            if(banner) banner.style.display=conflictIds.size>0?'block':'none';
+            schedules.forEach(s => { if (s && s.id) gsScheduleCache[s.id] = s; });
+            const conflictIds = gsRefreshDss().analysis.conflictIds;
 
             const thead=document.getElementById('gsTimetableHead');
             const tbody=document.getElementById('gsTimetableBody');
@@ -443,12 +443,13 @@
                             const name=(s.faculty?.name||'Unknown').replace(/</g,'&lt;');
                             const subj=(s.subject||'').replace(/</g,'&lt;');
                             const isConflict=conflictIds.has(s.id);
+                            const isMissing=!s.schedule_date||!s.room_id;
                             const isJHSched = s.school === 'JH';
                             const ok=!!s.admin_approved;
-                            const bc=isConflict?'#c83232':(isJHSched?'#2563eb':(ok?'var(--green-primary)':'#ca8a04'));
-                            const bg=isConflict?'rgba(200,50,50,.12)':(isJHSched?'rgba(37,99,235,.1)':(ok?'rgba(45,122,80,.1)':'rgba(202,138,4,.1)'));
-                            const nc=isConflict?'#c83232':(isJHSched?'#1d4ed8':(ok?'var(--green-primary)':'#92400e'));
-                            const cf=isConflict?'<div style="font-size:.62rem;color:#c83232;font-weight:700;">&#9888; CONFLICT</div>':'';
+                            const bc=isConflict?'#c83232':(isMissing?'#d97706':(isJHSched?'#2563eb':(ok?'var(--green-primary)':'#ca8a04')));
+                            const bg=isConflict?'rgba(200,50,50,.12)':(isMissing?'rgba(217,119,6,.12)':(isJHSched?'rgba(37,99,235,.1)':(ok?'rgba(45,122,80,.1)':'rgba(202,138,4,.1)')));
+                            const nc=isConflict?'#c83232':(isMissing?'#b45309':(isJHSched?'#1d4ed8':(ok?'var(--green-primary)':'#92400e')));
+                            const cf=isConflict?'<div style="font-size:.62rem;color:#c83232;font-weight:700;">&#9888; CONFLICT</div>':(isMissing?'<div style="font-size:.62rem;color:#d97706;font-weight:700;">Missing date/room</div>':'');
                             const jhBadge=isJHSched?'<span style="font-size:.6rem;background:#2563eb;color:white;border-radius:2px;padding:0 4px;font-weight:700;margin-right:2px;">JH</span>':'';
                             return `<div style="padding:.3rem .4rem;background:${bg};border-left:3px solid ${bc};border-radius:.25rem;margin-bottom:.2rem;font-size:.68rem;line-height:1.3;"><div style="font-weight:700;color:${nc};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${name}">${jhBadge}${name}</div>${subj?`<div style="color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${subj}</div>`:''}${cf}</div>`;
                         }).join('');
@@ -474,12 +475,15 @@
             .then(data => {
                 const all = data.data || data || [];
                 const schedules = all.filter(s => s && (!s.admin_approved || s.admin_approved === false) && (s.status === 'pending' || !s.status));
-                schedules.forEach(s => { if (s && s.id) gsScheduleCache[s.id] = s; });
+                all.forEach(s => { if (s && s.id) gsScheduleCache[s.id] = s; });
+                const analysis = gsRefreshDss().analysis;
                 if (schedules.length > 0) {
                     tbody.innerHTML = schedules.map(s => {
-                        return `<tr>
+                        const rowCls = AdminScheduleDss ? AdminScheduleDss.rowClass(s, analysis) : '';
+                        const badge = AdminScheduleDss ? AdminScheduleDss.rowBadge(s, analysis) : '';
+                        return `<tr data-schedule-id="${s.id}"${rowCls ? ` class="${rowCls}"` : ''}>
                             <td class="id-badge">#${s.id}</td>
-                            <td>${s.faculty?.name || 'N/A'}${gsSharedTeacherIds.has(s.faculty_id) ? ' <span style="background:#2563eb;color:white;border-radius:9999px;font-size:0.65rem;padding:1px 7px;font-weight:700;vertical-align:middle;white-space:nowrap;">SHARED</span>' : ''}</td>
+                            <td>${badge}${s.faculty?.name || 'N/A'}${gsSharedTeacherIds.has(s.faculty_id) ? ' <span style="background:#2563eb;color:white;border-radius:9999px;font-size:0.65rem;padding:1px 7px;font-weight:700;vertical-align:middle;white-space:nowrap;">SHARED</span>' : ''}</td>
                             <td>${s.subject || 'N/A'}</td>
                             <td>${adminScheduleGradeSection(s)}</td>
                             <td>${s.day_of_week || '—'}</td>
@@ -515,7 +519,8 @@
             .then(data => {
                 const all = data.data || data || [];
                 const schedules = all.filter(s => s && s.admin_approved && (s.status === 'active' || s.status === 'approved'));
-                schedules.forEach(s => { if (s && s.id) gsScheduleCache[s.id] = s; });
+                all.forEach(s => { if (s && s.id) gsScheduleCache[s.id] = s; });
+                const analysis = gsRefreshDss().analysis;
                 // Principal final-approval pending banner
                 const pendingPrincipal = all.filter(s => s && s.admin_approved && !s.principal_approved).length;
                 const banner = document.getElementById('principalPendingBanner');
@@ -526,9 +531,11 @@
                 }
                 if (schedules.length > 0) {
                     tbody.innerHTML = schedules.map(s => {
-                        return `<tr data-schedule-id="${s.id}">
+                        const rowCls = AdminScheduleDss ? AdminScheduleDss.rowClass(s, analysis) : '';
+                        const badge = AdminScheduleDss ? AdminScheduleDss.rowBadge(s, analysis) : '';
+                        return `<tr data-schedule-id="${s.id}"${rowCls ? ` class="${rowCls}"` : ''}>
                             <td class="id-badge">#${s.id}</td>
-                            <td>${s.faculty?.name || 'N/A'}${gsSharedTeacherIds.has(s.faculty_id) ? ' <span style="background:#2563eb;color:white;border-radius:9999px;font-size:0.65rem;padding:1px 7px;font-weight:700;vertical-align:middle;white-space:nowrap;">SHARED</span>' : ''}</td>
+                            <td>${badge}${s.faculty?.name || 'N/A'}${gsSharedTeacherIds.has(s.faculty_id) ? ' <span style="background:#2563eb;color:white;border-radius:9999px;font-size:0.65rem;padding:1px 7px;font-weight:700;vertical-align:middle;white-space:nowrap;">SHARED</span>' : ''}</td>
                             <td>${s.subject || 'N/A'}</td>
                             <td>${adminScheduleGradeSection(s)}</td>
                             <td>${s.day_of_week || '—'}</td>
@@ -611,6 +618,11 @@
         }
 
         function gsApproveSchedule(id) {
+            const schedule = gsScheduleCache[id];
+            const all = Object.values(gsScheduleCache);
+            if (window.AdminScheduleDss && !AdminScheduleDss.shouldProceedWithApprove(schedule, all)) {
+                return;
+            }
             const token = document.querySelector('meta[name="csrf-token"]')?.content;
             fetch(`/api/grade-school-admin/schedules/${id}/approve`, {
                 method: 'POST',
@@ -895,6 +907,10 @@
                 start_time:    document.getElementById('editStartTime').value,
                 end_time:      document.getElementById('editEndTime').value
             };
+            const all = Object.values(gsScheduleCache);
+            if (window.AdminScheduleDss && !AdminScheduleDss.shouldProceedWithSave(payload, all, scheduleId)) {
+                return;
+            }
             fetch(`/api/grade-school-admin/schedules/${scheduleId}`, {
                 method: 'PUT',
                 headers: { 'X-CSRF-TOKEN': token, 'Content-Type': 'application/json', 'Accept': 'application/json' },

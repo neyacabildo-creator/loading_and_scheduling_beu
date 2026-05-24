@@ -137,6 +137,8 @@
         </span>
     </div>
 
+    @include('partials.admin-class-schedule-dss-chrome', ['dssPrefix' => 'jh'])
+
     <!-- Pending Schedules for Review -->
     <div id="pending-schedules" class="table-card" style="margin-bottom: 2rem;">
         <div class="table-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
@@ -305,6 +307,13 @@
         
         let jhSharedTeacherIds = new Set();
 
+        function jhRefreshDss() {
+            if (!window.AdminScheduleDss) {
+                return { analysis: { conflictIds: new Set(), missingDateIds: new Set(), missingRoomIds: new Set(), summaries: [] } };
+            }
+            return AdminScheduleDss.refreshFromCache(jhScheduleCache, 'jh');
+        }
+
         // Load schedules on page load
         document.addEventListener('DOMContentLoaded', function() {
             // Fetch shared teacher IDs for badge display
@@ -347,20 +356,8 @@
             });
             const sections=[...sectionMap.keys()];
 
-            // Conflict detection
-            const conflictIds=new Set();
-            const byFaculty={};
-            schedules.forEach(s=>{if(s.faculty_id){(byFaculty[s.faculty_id]=byFaculty[s.faculty_id]||[]).push(s);}});
-            Object.values(byFaculty).forEach(arr=>{
-                for(let i=0;i<arr.length;i++) for(let j=i+1;j<arr.length;j++){
-                    const a=arr[i],b=arr[j];
-                    if(jhTimeToMins(a.start_time)<jhTimeToMins(b.end_time)&&jhTimeToMins(b.start_time)<jhTimeToMins(a.end_time)){
-                        conflictIds.add(a.id);conflictIds.add(b.id);
-                    }
-                }
-            });
-            const banner=document.getElementById('jhConflictBanner');
-            if(banner) banner.style.display=conflictIds.size>0?'block':'none';
+            schedules.forEach(s => { if (s && s.id) jhScheduleCache[s.id] = s; });
+            const conflictIds = jhRefreshDss().analysis.conflictIds;
 
             const thead=document.getElementById('jhTimetableHead');
             const tbody=document.getElementById('jhTimetableBody');
@@ -396,11 +393,12 @@
                             const name=(s.faculty?.name||'Unknown').replace(/</g,'&lt;');
                             const subj=(s.subject||'').replace(/</g,'&lt;');
                             const isConflict=conflictIds.has(s.id);
+                            const isMissing=!s.schedule_date||!s.room_id;
                             const ok=!!s.admin_approved;
-                            const bc=isConflict?'#c83232':(ok?'var(--green-primary)':'#ca8a04');
-                            const bg=isConflict?'rgba(200,50,50,.12)':(ok?'rgba(45,122,80,.1)':'rgba(202,138,4,.1)');
-                            const nc=isConflict?'#c83232':(ok?'var(--green-primary)':'#92400e');
-                            const cf=isConflict?'<div style="font-size:.62rem;color:#c83232;font-weight:700;">&#9888; CONFLICT</div>':'';
+                            const bc=isConflict?'#c83232':(isMissing?'#d97706':(ok?'var(--green-primary)':'#ca8a04'));
+                            const bg=isConflict?'rgba(200,50,50,.12)':(isMissing?'rgba(217,119,6,.12)':(ok?'rgba(45,122,80,.1)':'rgba(202,138,4,.1)'));
+                            const nc=isConflict?'#c83232':(isMissing?'#b45309':(ok?'var(--green-primary)':'#92400e'));
+                            const cf=isConflict?'<div style="font-size:.62rem;color:#c83232;font-weight:700;">&#9888; CONFLICT</div>':(isMissing?'<div style="font-size:.62rem;color:#d97706;font-weight:700;">Missing date/room</div>':'');
                             return `<div style="padding:.3rem .4rem;background:${bg};border-left:3px solid ${bc};border-radius:.25rem;margin-bottom:.2rem;font-size:.68rem;line-height:1.3;"><div style="font-weight:700;color:${nc};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${name}">${name}</div>${subj?`<div style="color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${subj}</div>`:''}${cf}</div>`;
                         }).join('');
                         row+=`<td style="padding:.3rem;border:1px solid var(--border-color);vertical-align:top;">${pills}</td>`;
@@ -454,16 +452,18 @@
                 
                 const schedules = allSchedules.filter(s => s && (!s.admin_approved || s.admin_approved === false) && (s.status === 'pending' || !s.status));
                 
-                // Cache all schedules for modal use
                 allSchedules.forEach(s => { if (s && s.id) jhScheduleCache[s.id] = s; });
-                
+                const analysis = jhRefreshDss().analysis;
+
                 if (schedules.length > 0) {
                     tbody.innerHTML = schedules.map(schedule => {
                         const dayOfWeek = schedule.day_of_week || '—';
+                        const rowCls = AdminScheduleDss ? AdminScheduleDss.rowClass(schedule, analysis) : '';
+                        const badge = AdminScheduleDss ? AdminScheduleDss.rowBadge(schedule, analysis) : '';
                         return `
-                            <tr data-schedule-id="${schedule.id}">
+                            <tr data-schedule-id="${schedule.id}"${rowCls ? ` class="${rowCls}"` : ''}>
                                 <td class="id-badge">#${schedule.id}</td>
-                                <td>${schedule.faculty?.name || 'N/A'}${jhSharedTeacherIds.has(schedule.faculty_id) ? ' <span style="background:#2563eb;color:white;border-radius:9999px;font-size:0.65rem;padding:1px 7px;font-weight:700;vertical-align:middle;white-space:nowrap;">SHARED</span>' : ''}</td>
+                                <td>${badge}${schedule.faculty?.name || 'N/A'}${jhSharedTeacherIds.has(schedule.faculty_id) ? ' <span style="background:#2563eb;color:white;border-radius:9999px;font-size:0.65rem;padding:1px 7px;font-weight:700;vertical-align:middle;white-space:nowrap;">SHARED</span>' : ''}</td>
                                 <td>${schedule.subject || 'N/A'}</td>
                                 <td>${adminScheduleGradeSection(schedule)}</td>
                                 <td>${dayOfWeek}</td>
@@ -531,9 +531,9 @@
                 
                 const schedules = allSchedules.filter(s => s && s.admin_approved && (s.status === 'active' || s.status === 'approved'));
                 
-                // Cache all schedules for modal use
                 allSchedules.forEach(s => { if (s && s.id) jhScheduleCache[s.id] = s; });
-                
+                const analysis = jhRefreshDss().analysis;
+
                 // Principal final-approval pending banner
                 const pendingPrincipal = allSchedules.filter(s => s && s.admin_approved && !s.principal_approved).length;
                 const banner = document.getElementById('principalPendingBanner');
@@ -546,10 +546,12 @@
                 if (schedules.length > 0) {
                     tbody.innerHTML = schedules.map(schedule => {
                         const dayOfWeek = schedule.day_of_week || '—';
+                        const rowCls = AdminScheduleDss ? AdminScheduleDss.rowClass(schedule, analysis) : '';
+                        const badge = AdminScheduleDss ? AdminScheduleDss.rowBadge(schedule, analysis) : '';
                         return `
-                            <tr data-schedule-id="${schedule.id}">
+                            <tr data-schedule-id="${schedule.id}"${rowCls ? ` class="${rowCls}"` : ''}>
                                 <td class="id-badge">#${schedule.id}</td>
-                                <td>${schedule.faculty?.name || 'N/A'}${jhSharedTeacherIds.has(schedule.faculty_id) ? ' <span style="background:#2563eb;color:white;border-radius:9999px;font-size:0.65rem;padding:1px 7px;font-weight:700;vertical-align:middle;white-space:nowrap;">SHARED</span>' : ''}</td>
+                                <td>${badge}${schedule.faculty?.name || 'N/A'}${jhSharedTeacherIds.has(schedule.faculty_id) ? ' <span style="background:#2563eb;color:white;border-radius:9999px;font-size:0.65rem;padding:1px 7px;font-weight:700;vertical-align:middle;white-space:nowrap;">SHARED</span>' : ''}</td>
                                 <td>${schedule.subject || 'N/A'}</td>
                                 <td>${adminScheduleGradeSection(schedule)}</td>
                                 <td>${dayOfWeek}</td>
@@ -648,6 +650,11 @@
 
         // Approve schedule
         function approveSchedule(scheduleId) {
+            const schedule = jhScheduleCache[scheduleId];
+            const all = Object.values(jhScheduleCache);
+            if (window.AdminScheduleDss && !AdminScheduleDss.shouldProceedWithApprove(schedule, all)) {
+                return;
+            }
             fetch(`/api/admin/schedules/${scheduleId}/approve`, {
                 method: 'POST',
                 headers: {
@@ -991,6 +998,10 @@
                 start_time:    document.getElementById('editStartTime').value,
                 end_time:      document.getElementById('editEndTime').value
             };
+            const all = Object.values(jhScheduleCache);
+            if (window.AdminScheduleDss && !AdminScheduleDss.shouldProceedWithSave(data, all, scheduleId)) {
+                return;
+            }
             const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
             fetch(`/api/admin/schedules/${scheduleId}`, {
