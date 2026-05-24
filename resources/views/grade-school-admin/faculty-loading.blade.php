@@ -903,20 +903,21 @@
 
         // Delete Faculty Load
         function deleteFacultyLoad(id) {
-            if (!confirm('Are you sure you want to delete this faculty load?')) return;
+            if (!confirm('Delete this faculty load? All pending and approved schedules for this teacher at this assignment will also be removed so you can assign them again.')) return;
             fetch(`/api/grade-school-admin/faculty-loads/${id}`, {
                 method: 'DELETE',
                 headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' }
             })
-            .then(r => {
+            .then(async r => {
+                const d = await r.json().catch(() => ({}));
                 if (r.status === 200 || r.status === 204) {
                     allFacultyLoads = allFacultyLoads.filter(l => l.id !== id);
                     currentPage = 1;
                     renderTable(allFacultyLoads);
-                    alert('\u2713 Faculty load deleted');
+                    alert(d.message || '\u2713 Faculty load deleted');
                     return;
                 }
-                return r.json().then(d => alert('\u2717 ' + (d.message || 'Error deleting')));
+                alert('\u2717 ' + (d.message || 'Error deleting'));
             })
             .catch(() => alert('\u2717 Error deleting faculty load'));
         }

@@ -366,12 +366,44 @@ class FacultyLoadSupport
     }
 
     /**
+     * Flexible grade match (e.g. "Grade 3" vs stored schedule grade variants).
+     */
+    public static function gradeLevelsMatch(?string $loadGrade, ?string $scheduleGrade): bool
+    {
+        $loadGrade = trim((string) $loadGrade);
+        $scheduleGrade = trim((string) $scheduleGrade);
+
+        if ($loadGrade === '') {
+            return true;
+        }
+
+        if ($scheduleGrade === '') {
+            return false;
+        }
+
+        if (strcasecmp($loadGrade, $scheduleGrade) === 0) {
+            return true;
+        }
+
+        [$parsedLoad] = ScheduleDisplaySupport::parseGradeSection($loadGrade);
+        [$parsedSchedule] = ScheduleDisplaySupport::parseGradeSection($scheduleGrade);
+
+        if ($parsedLoad !== '' && $parsedSchedule !== '' && strcasecmp($parsedLoad, $parsedSchedule) === 0) {
+            return true;
+        }
+
+        $normLoad = TeacherPortalSupport::normalizeGradeKey($loadGrade);
+        $normSchedule = TeacherPortalSupport::normalizeGradeKey($scheduleGrade);
+
+        return $normLoad !== '' && $normLoad === $normSchedule;
+    }
+
+    /**
      * Whether a class schedule belongs to this faculty load row (grade + subject scope).
      */
     public static function scheduleBelongsToFacultyLoad(ClassSchedule $schedule, FacultyLoad $load): bool
     {
-        $grade = trim((string) $load->grade_level);
-        if ($grade !== '' && strcasecmp(trim((string) $schedule->grade_level), $grade) !== 0) {
+        if (! self::gradeLevelsMatch($load->grade_level, $schedule->grade_level)) {
             return false;
         }
 
@@ -395,24 +427,25 @@ class FacultyLoadSupport
     public static function schedulesForFacultyLoad(FacultyLoad $load, string $conn): \Illuminate\Support\Collection
     {
         $facultyId = (int) $load->faculty_id;
-        if ($facultyId <= 0) {
+        if ($facultyId <= 0 || ! Schema::connection($conn)->hasTable('class_schedules')) {
             return collect();
         }
 
-        $query = ClassSchedule::on($conn)->where('faculty_id', $facultyId);
-        $grade = trim((string) $load->grade_level);
-        if ($grade !== '') {
-            $query->where('grade_level', $grade);
-        }
-
-        $schedules = $query->get();
+        $schedules = ClassSchedule::on($conn)->where('faculty_id', $facultyId)->get();
         $loadSubject = trim((string) $load->subject);
+        $loadGrade = trim((string) $load->grade_level);
 
-        if ($loadSubject === '') {
-            return $schedules;
-        }
+        return $schedules->filter(function (ClassSchedule $schedule) use ($load, $loadSubject, $loadGrade) {
+            if ($loadGrade !== '' && ! self::gradeLevelsMatch($loadGrade, $schedule->grade_level)) {
+                return false;
+            }
 
-        return $schedules->filter(fn (ClassSchedule $schedule) => self::scheduleBelongsToFacultyLoad($schedule, $load));
+            if ($loadSubject === '') {
+                return true;
+            }
+
+            return self::scheduleBelongsToFacultyLoad($schedule, $load);
+        })->values();
     }
 
     /**
@@ -432,6 +465,17 @@ class FacultyLoadSupport
         $conn = $load->getConnectionName() ?: config('database.school_connection', 'mysql_jh');
 
         DB::connection($conn)->transaction(function () use ($load, $conn, $facultyId, &$counts) {
+            $hasOtherLoads = FacultyLoad::on($conn)
+                ->where('faculty_id', $facultyId)
+                ->where('id', '!=', $load->id)
+                ->exists();
+
+            if (! $hasOtherLoads) {
+                self::purgeSchedulesAndRelatedForTeacher($facultyId, $conn, $counts);
+
+                return;
+            }
+
             $schedules = self::schedulesForFacultyLoad($load, $conn);
             $scheduleIds = $schedules->pluck('id')->filter()->values()->all();
 
@@ -442,18 +486,9 @@ class FacultyLoadSupport
 
             $counts['pending'] += self::purgePendingSchedulesForFacultyLoad($load, $conn, $scheduleIds);
             self::purgeScheduleApprovalsAndRejectedForFacultyLoad($load, $conn, $scheduleIds);
+            self::purgeRejectedSchedulesForFacultyLoadScope($load, $conn);
 
-            $hasOtherLoads = FacultyLoad::on($conn)
-                ->where('faculty_id', $facultyId)
-                ->where('id', '!=', $load->id)
-                ->exists();
-
-            if ($hasOtherLoads) {
-                $counts['weekly'] += self::purgeMasterWeeklyForFacultyLoad($load);
-            } else {
-                $counts['weekly'] += self::purgeAllMasterWeeklyForTeacher($facultyId, $conn);
-            }
-
+            $counts['weekly'] += self::purgeMasterWeeklyForFacultyLoad($load);
             $counts['loading_rows'] += self::purgeTeacherLoadingSchedulesForLoad($load);
 
             if (Schema::connection($conn)->hasTable('load_conflict_logs')) {
@@ -467,6 +502,88 @@ class FacultyLoadSupport
         });
 
         return $counts;
+    }
+
+    /**
+     * Remove all pending/approved schedules and related rows for a teacher (last faculty load removed).
+     *
+     * @param  array{schedules: int, weekly: int, loading_rows: int, pending: int}  $counts
+     */
+    private static function purgeSchedulesAndRelatedForTeacher(int $facultyId, string $conn, array &$counts): void
+    {
+        if (Schema::connection($conn)->hasTable('class_schedules')) {
+            $schedules = ClassSchedule::on($conn)->where('faculty_id', $facultyId)->get();
+            foreach ($schedules as $schedule) {
+                self::deleteScheduleAndRelated($schedule, false);
+                $counts['schedules']++;
+            }
+        }
+
+        if (Schema::connection($conn)->hasTable('pending_schedules')) {
+            $counts['pending'] += (int) DB::connection($conn)->table('pending_schedules')
+                ->where('faculty_id', $facultyId)
+                ->delete();
+        }
+
+        if (Schema::connection($conn)->hasTable('rejected_schedules')) {
+            $rejected = DB::connection($conn)->table('rejected_schedules');
+            if (Schema::connection($conn)->hasColumn('rejected_schedules', 'faculty_id')) {
+                $rejected->where('faculty_id', $facultyId)->delete();
+            }
+        }
+
+        $counts['weekly'] += self::purgeAllMasterWeeklyForTeacher($facultyId, $conn);
+
+        if (Schema::connection($conn)->hasTable('teacher_loading_schedules')) {
+            $counts['loading_rows'] += (int) DB::connection($conn)->table('teacher_loading_schedules')
+                ->where('faculty_id', $facultyId)
+                ->delete();
+        }
+
+        if (Schema::connection($conn)->hasTable('load_conflict_logs')) {
+            DB::connection($conn)->table('load_conflict_logs')
+                ->where('faculty_id', $facultyId)
+                ->delete();
+        }
+    }
+
+    private static function purgeRejectedSchedulesForFacultyLoadScope(FacultyLoad $load, string $conn): void
+    {
+        if (! Schema::connection($conn)->hasTable('rejected_schedules')) {
+            return;
+        }
+
+        $facultyId = (int) $load->faculty_id;
+        $grade = trim((string) $load->grade_level);
+        $query = DB::connection($conn)->table('rejected_schedules')->where('faculty_id', $facultyId);
+
+        if ($grade === '') {
+            $query->delete();
+
+            return;
+        }
+
+        foreach ($query->get() as $row) {
+            if (! self::gradeLevelsMatch($grade, $row->grade_level ?? null)) {
+                continue;
+            }
+
+            $loadSubject = trim((string) $load->subject);
+            if ($loadSubject !== '' && ! self::subjectMatches($row->subject ?? '', $loadSubject)) {
+                $matched = false;
+                foreach (array_map('trim', explode(',', $loadSubject)) as $part) {
+                    if ($part !== '' && self::subjectMatches($row->subject ?? '', $part)) {
+                        $matched = true;
+                        break;
+                    }
+                }
+                if (! $matched) {
+                    continue;
+                }
+            }
+
+            DB::connection($conn)->table('rejected_schedules')->where('id', $row->id)->delete();
+        }
     }
 
     public static function deleteScheduleAndRelated(ClassSchedule $schedule, bool $removeWeeklyPerSlot = true): void
@@ -556,13 +673,17 @@ class FacultyLoadSupport
 
         $facultyId = (int) $load->faculty_id;
         $grade = trim((string) $load->grade_level);
+        $deleted = 0;
 
-        $query = MasterWeeklySchedule::on($conn)->where('faculty_id', $facultyId);
-        if ($grade !== '') {
-            $query->where('grade_level', $grade);
+        foreach (MasterWeeklySchedule::on($conn)->where('faculty_id', $facultyId)->get() as $row) {
+            if ($grade !== '' && ! self::gradeLevelsMatch($grade, $row->grade_level)) {
+                continue;
+            }
+            $row->delete();
+            $deleted++;
         }
 
-        return (int) $query->delete();
+        return $deleted;
     }
 
     private static function purgePendingSchedulesForFacultyLoad(
@@ -586,18 +707,22 @@ class FacultyLoadSupport
 
         $loadSubject = trim((string) $load->subject);
 
-        $pendingBase = DB::connection($conn)->table('pending_schedules')
-            ->where('faculty_id', $facultyId);
-        if ($grade !== '') {
-            $pendingBase->where('grade_level', $grade);
+        $pendingRows = DB::connection($conn)->table('pending_schedules')
+            ->where('faculty_id', $facultyId)
+            ->get();
+
+        if ($loadSubject === '' && $grade === '') {
+            return $deleted + (int) DB::connection($conn)->table('pending_schedules')
+                ->where('faculty_id', $facultyId)
+                ->delete();
         }
 
-        if ($loadSubject === '') {
-            return $deleted + (int) $pendingBase->delete();
-        }
+        foreach ($pendingRows as $row) {
+            if ($grade !== '' && ! self::gradeLevelsMatch($grade, $row->grade_level ?? null)) {
+                continue;
+            }
 
-        foreach ($pendingBase->get() as $row) {
-            $matched = self::subjectMatches($row->subject ?? '', $loadSubject);
+            $matched = $loadSubject === '' || self::subjectMatches($row->subject ?? '', $loadSubject);
             if (! $matched) {
                 foreach (array_map('trim', explode(',', $loadSubject)) as $part) {
                     if ($part !== '' && self::subjectMatches($row->subject ?? '', $part)) {

@@ -993,6 +993,7 @@
 
 
         function deleteFacultyLoad(id) {
+            if (!confirm('Delete this faculty load? All pending and approved schedules for this teacher at this assignment will also be removed so you can assign them again.')) return;
                 fetch(`/api/faculty-loads/${id}`, {
                     method: 'DELETE',
                     headers: {
@@ -1001,20 +1002,17 @@
                         'Accept': 'application/json'
                     }
                 })
-                .then(response => {
-                    console.log('Delete response:', response.status, response.statusText);
+                .then(async response => {
+                    const data = await response.json().catch(() => ({}));
                     if (response.status === 200 || response.status === 204) {
-                        // Remove from local data and refresh display
                         allFacultyLoads = allFacultyLoads.filter(l => l.id !== id);
                         currentPage = 1;
                         displayFacultyLoads(currentPage);
                         updatePagination();
-                        alert('Faculty load deleted successfully');
+                        alert(data.message || 'Faculty load deleted successfully');
                         return;
                     }
-                    return response.json().then(data => {
-                        alert('Error: ' + (data.message || 'Failed to delete'));
-                    });
+                    alert('Error: ' + (data.message || 'Failed to delete'));
                 })
                 .catch(error => {
                     console.error('Delete error:', error);

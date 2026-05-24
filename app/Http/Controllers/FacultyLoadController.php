@@ -326,7 +326,7 @@ class FacultyLoadController extends Controller
     public function destroy(Request $request, $id)
     {
         try {
-            $facultyLoad = FacultyLoad::on('mysql_jh')->findOrFail($id);
+            $facultyLoad = FacultyLoad::query()->findOrFail($id);
             $removed = FacultyLoadSupport::cascadeDeleteForFacultyLoad($facultyLoad);
             $facultyLoad->delete();
 
