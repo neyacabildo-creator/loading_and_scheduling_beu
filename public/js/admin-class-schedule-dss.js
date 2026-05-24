@@ -52,6 +52,34 @@
         return !['rejected', 'deleted'].includes(st);
     }
 
+    function hasSectionRoom(s) {
+        if (!s) return false;
+        if (s.room_id) return true;
+        const grade = String(s.grade_level || '').trim();
+        const section = String(s.section_name || '').trim();
+        return grade !== '' || section !== '';
+    }
+
+    function sectionSlotKey(s) {
+        const date = s.schedule_date ? String(s.schedule_date).substring(0, 10) : '';
+        const start = timeToMins(s.start_time);
+        return String(s.grade_level || '') + '|' + String(s.section_name || '') + '|' +
+            String(s.day_of_week || '') + '|' + start + '|' + date;
+    }
+
+    function sectionRoomLabel(s) {
+        if (s.room && s.room.room_number) {
+            return 'Room ' + s.room.room_number;
+        }
+        if (s.room_label && s.room_label !== '—' && !/^room\s*#/i.test(String(s.room_label))) {
+            return String(s.room_label);
+        }
+        const grade = String(s.grade_level || '').trim();
+        const section = String(s.section_name || '').trim();
+        if (grade && section) return grade + ' – ' + section;
+        return grade || section || '—';
+    }
+
     /**
      * @param {Array<object>} schedules
      * @returns {{ conflictIds: Set<number>, missingDateIds: Set<number>, missingRoomIds: Set<number>, summaries: Array<{label: string, scheduleIds: number[]}> }}
@@ -66,7 +94,36 @@
 
         active.forEach(function (s) {
             if (!s.schedule_date) missingDateIds.add(s.id);
-            if (!s.room_id) missingRoomIds.add(s.id);
+            if (!hasSectionRoom(s)) missingRoomIds.add(s.id);
+        });
+
+        const bySectionSlot = {};
+        active.forEach(function (s) {
+            const key = sectionSlotKey(s);
+            if (!String(s.grade_level || '').trim() || !String(s.section_name || '').trim()) return;
+            bySectionSlot[key] = bySectionSlot[key] || [];
+            bySectionSlot[key].push(s);
+        });
+        Object.keys(bySectionSlot).forEach(function (key) {
+            const arr = bySectionSlot[key];
+            if (arr.length < 2) return;
+            arr.forEach(function (s) { conflictIds.add(s.id); });
+            const sample = arr[0];
+            const dateStr = sample.schedule_date
+                ? String(sample.schedule_date).substring(0, 10)
+                : 'this date';
+            const startM = timeToMins(sample.start_time);
+            const endM = timeToMins(sample.end_time);
+            const sk = 'section|' + key;
+            if (!summaryKeys.has(sk)) {
+                summaryKeys.add(sk);
+                summaries.push({
+                    label: 'Has already a schedule for ' + sectionRoomLabel(sample) + ' on ' +
+                        (sample.day_of_week || '') + ', ' + dateStr + ' at ' +
+                        formatMins(startM) + '–' + formatMins(endM),
+                    scheduleIds: arr.map(function (x) { return x.id; }),
+                });
+            }
         });
 
         const byFaculty = {};
@@ -181,7 +238,7 @@
             return '<span class="cs-dss-pill cs-dss-pill-conflict" title="Time overlap with another class">Conflict</span>';
         }
         if (analysis.missingRoomIds.has(schedule.id)) {
-            return '<span class="cs-dss-pill cs-dss-pill-warn" title="Room not assigned">No room</span>';
+            return '<span class="cs-dss-pill cs-dss-pill-warn" title="Grade/section room not set">No room</span>';
         }
         if (analysis.missingDateIds.has(schedule.id)) {
             return '<span class="cs-dss-pill cs-dss-pill-warn" title="Schedule date not set">No date</span>';

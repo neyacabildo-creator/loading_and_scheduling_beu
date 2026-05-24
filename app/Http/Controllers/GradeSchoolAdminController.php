@@ -1365,6 +1365,7 @@ class GradeSchoolAdminController extends Controller
             foreach ($slots as $timeKey => $sectionData) {
                 if (!isset($timeSlotMap[$timeKey])) continue;
                 $startTime = $timeSlotMap[$timeKey]['start'];
+                $endTime   = $timeSlotMap[$timeKey]['end'];
 
                 foreach ($sectionData as $sectionKey => $data) {
                     $displaySec = $sectionDisplayMap[$sectionKey] ?? $sectionKey;
@@ -1394,7 +1395,14 @@ class GradeSchoolAdminController extends Controller
 
                     $sectionSlotKey = $gradeLevel . '|' . $displaySec . '|' . $timeKey . '|' . ($scheduleDate ?? '');
                     if (isset($seenSectionSlots[$sectionSlotKey])) {
-                        $gsConflicts[] = "{$displaySec} at {$startTime} is entered more than once in this form for the same date.";
+                        $gsConflicts[] = \App\Support\ScheduleFormConflictSupport::duplicateScheduleForSlotMessage(
+                            $gradeLevel,
+                            $displaySec,
+                            $dayOfWeek,
+                            $startTime,
+                            $scheduleDate,
+                            $endTime
+                        );
                     } else {
                         $seenSectionSlots[$sectionSlotKey] = true;
                         $sectionMsg = \App\Support\ScheduleFormConflictSupport::sectionSlotConflictMessage(
@@ -1402,7 +1410,8 @@ class GradeSchoolAdminController extends Controller
                             $displaySec,
                             $dayOfWeek,
                             $startTime,
-                            $scheduleDate
+                            $scheduleDate,
+                            $endTime
                         );
                         if ($sectionMsg) {
                             $gsConflicts[] = $sectionMsg;
@@ -1420,7 +1429,8 @@ class GradeSchoolAdminController extends Controller
                                 $roomId,
                                 $dayOfWeek,
                                 $startTime,
-                                $scheduleDate
+                                $scheduleDate,
+                                $endTime
                             );
                             if ($roomMsg) {
                                 $gsConflicts[] = $roomMsg;
@@ -1451,7 +1461,8 @@ class GradeSchoolAdminController extends Controller
                             (int) $primaryFaculty,
                             $dayOfWeek,
                             $startTime,
-                            $scheduleDate
+                            $scheduleDate,
+                            $endTime
                         );
                         if ($teacherSlotMsg) {
                             $gsConflicts[] = $teacherSlotMsg;
@@ -1507,7 +1518,7 @@ class GradeSchoolAdminController extends Controller
 
             if (!empty($gsConflicts)) {
                 return back()->withInput()
-                    ->with('error', 'Schedule not saved — conflict(s) detected: ' . implode(' | ', $gsConflicts));
+                    ->with('schedule_conflicts', $gsConflicts);
             }
             // ── End conflict detection ───────────────────────────────────────────
 

@@ -189,7 +189,7 @@ class ScheduleController extends Controller
 
             foreach ($slots as $timeKey => $sectionSlots) {
                 if (!isset($timeMap[$timeKey])) continue;
-                [$startTime] = $timeMap[$timeKey];
+                [$startTime, $endTime] = $timeMap[$timeKey];
 
                 foreach ($sectionSlots as $idx => $cell) {
                     $sectionName = $sections[$idx] ?? ('SECTION ' . ($idx + 1));
@@ -219,7 +219,14 @@ class ScheduleController extends Controller
 
                     $sectionSlotKey = $gradeLevel . '|' . $sectionName . '|' . $timeKey . '|' . ($scheduleDate ?? '');
                     if (isset($seenSectionSlots[$sectionSlotKey])) {
-                        $conflicts[] = "{$sectionName} at {$startTime} is entered more than once in this form for the same date.";
+                        $conflicts[] = \App\Support\ScheduleFormConflictSupport::duplicateScheduleForSlotMessage(
+                            $gradeLevel,
+                            $sectionName,
+                            $dayOfWeek,
+                            $startTime,
+                            $scheduleDate,
+                            $endTime
+                        );
                     } else {
                         $seenSectionSlots[$sectionSlotKey] = true;
                         $sectionMsg = \App\Support\ScheduleFormConflictSupport::sectionSlotConflictMessage(
@@ -227,7 +234,8 @@ class ScheduleController extends Controller
                             $sectionName,
                             $dayOfWeek,
                             $startTime,
-                            $scheduleDate
+                            $scheduleDate,
+                            $endTime
                         );
                         if ($sectionMsg) {
                             $conflicts[] = $sectionMsg;
@@ -245,7 +253,8 @@ class ScheduleController extends Controller
                                 $roomId,
                                 $dayOfWeek,
                                 $startTime,
-                                $scheduleDate
+                                $scheduleDate,
+                                $endTime
                             );
                             if ($roomMsg) {
                                 $conflicts[] = $roomMsg;
@@ -276,7 +285,8 @@ class ScheduleController extends Controller
                             (int) $primaryFaculty,
                             $dayOfWeek,
                             $startTime,
-                            $scheduleDate
+                            $scheduleDate,
+                            $endTime
                         );
                         if ($teacherSlotMsg) {
                             $conflicts[] = $teacherSlotMsg;
@@ -331,7 +341,7 @@ class ScheduleController extends Controller
 
             if (!empty($conflicts)) {
                 return redirect()->back()->withInput()
-                    ->with('error', 'Schedule not saved — conflict(s) detected: ' . implode(' | ', $conflicts));
+                    ->with('schedule_conflicts', $conflicts);
             }
             // ── End conflict detection ───────────────────────────────────────────
 

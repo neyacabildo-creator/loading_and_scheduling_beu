@@ -81,7 +81,7 @@ class ScheduleDisplaySupport
     }
 
     /**
-     * Physical room only (admin schedule tables). Never substitutes grade/section.
+     * Physical room number when assigned; otherwise grade + section (homeroom / section room).
      */
     public static function physicalRoomLabel(object|array $schedule, mixed $room = null): string
     {
@@ -103,7 +103,14 @@ class ScheduleDisplaySupport
 
     public static function roomLabel(object|array $schedule, mixed $room = null): string
     {
-        return self::physicalRoomLabel($schedule, $room);
+        $physical = self::physicalRoomLabel($schedule, $room);
+        if ($physical !== '—') {
+            return $physical;
+        }
+
+        $sectionRoom = self::gradeSectionLabel($schedule);
+
+        return $sectionRoom !== '—' ? $sectionRoom : '—';
     }
 
     /**

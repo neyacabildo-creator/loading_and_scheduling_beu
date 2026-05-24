@@ -167,23 +167,69 @@ class ScheduleFormConflictSupport
         return $query->first();
     }
 
+    public static function sectionRoomLabel(string $gradeLevel, string $sectionName): string
+    {
+        $grade = trim($gradeLevel);
+        $section = trim($sectionName);
+
+        if ($grade !== '' && $section !== '') {
+            return $grade . ' – ' . $section;
+        }
+
+        return $grade !== '' ? $grade : ($section !== '' ? $section : '—');
+    }
+
+    /**
+     * Toast-friendly duplicate message (grade/section room, day, date, time).
+     */
+    public static function duplicateScheduleForSlotMessage(
+        string $gradeLevel,
+        string $sectionName,
+        string $dayOfWeek,
+        string $startTime,
+        ?string $scheduleDate = null,
+        ?string $endTime = null,
+        ?string $roomDisplay = null,
+        ?object $existing = null,
+    ): string {
+        $room = $roomDisplay ?? self::sectionRoomLabel($gradeLevel, $sectionName);
+        $dateStr = ($scheduleDate !== null && trim($scheduleDate) !== '')
+            ? \Carbon\Carbon::parse(substr(trim($scheduleDate), 0, 10))->format('m/d/Y')
+            : 'this date';
+        $start = self::normalizeTime($startTime);
+        $end = self::normalizeTime($endTime ?? ($existing->end_time ?? null));
+        $timeStr = ($start && $end) ? "{$start} – {$end}" : ($start ?: $startTime);
+        $detail = '';
+        if ($existing && ! empty($existing->subject)) {
+            $detail = ' (' . $existing->subject . ')';
+        }
+
+        return "Has already a schedule for {$room} on {$dayOfWeek}, {$dateStr} at {$timeStr}{$detail}.";
+    }
+
     public static function sectionSlotConflictMessage(
         string $gradeLevel,
         string $sectionName,
         string $dayOfWeek,
         string $startTime,
         ?string $scheduleDate = null,
+        ?string $endTime = null,
     ): ?string {
         $existing = self::findSectionSlotConflict($gradeLevel, $sectionName, $dayOfWeek, $startTime, $scheduleDate);
         if (! $existing) {
             return null;
         }
 
-        $statusLabel = ($existing->admin_approved ?? false) ? 'approved' : 'pending';
-        $datePart = $scheduleDate ? ' on ' . substr($scheduleDate, 0, 10) : '';
-        $subject = $existing->subject ?? 'a class';
-
-        return "{$gradeLevel} – {$sectionName} already has \"{$subject}\" scheduled on {$dayOfWeek}{$datePart} at {$startTime} ({$statusLabel})";
+        return self::duplicateScheduleForSlotMessage(
+            $gradeLevel,
+            $sectionName,
+            $dayOfWeek,
+            $startTime,
+            $scheduleDate,
+            $endTime,
+            null,
+            $existing
+        );
     }
 
     public static function roomSlotConflictMessage(
@@ -191,17 +237,25 @@ class ScheduleFormConflictSupport
         string $dayOfWeek,
         string $startTime,
         ?string $scheduleDate = null,
+        ?string $endTime = null,
     ): ?string {
         $existing = self::findRoomSlotConflict($roomId, $dayOfWeek, $startTime, $scheduleDate);
         if (! $existing) {
             return null;
         }
 
-        $statusLabel = ($existing->admin_approved ?? false) ? 'approved' : 'pending';
-        $datePart = $scheduleDate ? ' on ' . substr($scheduleDate, 0, 10) : '';
-        $roomLabel = $existing->room_id ? ('room #' . $existing->room_id) : 'this room';
+        $roomDisplay = 'Room #' . $roomId;
 
-        return "{$roomLabel} is already booked on {$dayOfWeek}{$datePart} at {$startTime} ({$existing->grade_level} – {$existing->section_name}, {$statusLabel})";
+        return self::duplicateScheduleForSlotMessage(
+            (string) ($existing->grade_level ?? ''),
+            (string) ($existing->section_name ?? ''),
+            $dayOfWeek,
+            $startTime,
+            $scheduleDate,
+            $endTime,
+            $roomDisplay,
+            $existing
+        );
     }
 
     public static function teacherSlotConflictMessage(
@@ -209,18 +263,23 @@ class ScheduleFormConflictSupport
         string $dayOfWeek,
         string $startTime,
         ?string $scheduleDate = null,
+        ?string $endTime = null,
     ): ?string {
         $existing = self::findTeacherSlotConflict($facultyId, $dayOfWeek, $startTime, $scheduleDate);
         if (! $existing) {
             return null;
         }
 
-        $teacher = \App\Models\User::find($facultyId);
-        $name = $teacher ? trim($teacher->first_name . ' ' . $teacher->last_name) : "Teacher #{$facultyId}";
-        $statusLabel = ($existing->admin_approved ?? false) ? 'approved' : 'pending';
-        $datePart = $scheduleDate ? ' on ' . substr($scheduleDate, 0, 10) : '';
-
-        return "{$name} already has a schedule on {$dayOfWeek}{$datePart} at {$startTime} ({$existing->grade_level} – {$existing->section_name}, {$statusLabel})";
+        return self::duplicateScheduleForSlotMessage(
+            (string) ($existing->grade_level ?? ''),
+            (string) ($existing->section_name ?? ''),
+            $dayOfWeek,
+            $startTime,
+            $scheduleDate,
+            $endTime,
+            null,
+            $existing
+        );
     }
 
     /**
