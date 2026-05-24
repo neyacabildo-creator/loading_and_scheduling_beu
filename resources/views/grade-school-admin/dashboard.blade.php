@@ -36,9 +36,7 @@
                 <h1 class="page-title">Dashboard for Grade School</h1>
             </div>
         </div>
-        <div class="header-right">
-            @include('partials.admin-header-actions', ['portal' => 'grade_school'])
-        </div>
+        <div class="header-right"></div>
     </div>
 
     @include('partials.admin-teacher-absence-banner')

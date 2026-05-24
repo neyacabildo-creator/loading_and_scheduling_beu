@@ -440,72 +440,71 @@
         @yield('content')
     </main>
 
+    <div id="admin-header-actions-source" hidden aria-hidden="true">
+        @include('partials.admin-header-actions', ['portal' => 'grade_school'])
+    </div>
+
     <script>
-        // Dark Mode Management
         const html = document.documentElement;
         const savedTheme = localStorage.getItem('theme') || 'light';
-        
-        // Set initial theme
         html.setAttribute('data-theme', savedTheme);
-        
-        // Create theme toggle button
-        function initThemeToggle() {
-            if (document.getElementById('themeToggle')) return;
-            const headerRight = document.querySelector('.admin-header-actions') || document.querySelector('.header-right');
-            if (headerRight) {
-                const themeBtn = document.createElement('button');
-                themeBtn.className = 'theme-toggle-btn';
-                themeBtn.id = 'themeToggle';
-                
-                // Set icon directly before inserting (getElementById won't work before DOM insertion)
-                const currentTheme = html.getAttribute('data-theme');
-                if (currentTheme === 'dark') {
-                    themeBtn.innerHTML = `<svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1m-16 0H1m15.364 1.364l.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707m12.02-2.02a7 7 0 11-9.9 9.9 7 7 0 019.9-9.9z"></path></svg>`;
-                    themeBtn.title = 'Light Mode';
-                } else {
-                    themeBtn.innerHTML = `<svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`;
-                    themeBtn.title = 'Dark Mode';
-                }
-                
-                themeBtn.addEventListener('click', toggleTheme);
-                headerRight.insertBefore(themeBtn, headerRight.firstChild);
-            }
-        }
-        
+
+        const moonSvgFilled = `<svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`;
+        const sunSvgFilled = `<svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1m-16 0H1m15.364 1.364l.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707m12.02-2.02a7 7 0 11-9.9 9.9 7 7 0 019.9-9.9z"></path></svg>`;
+
         function updateThemeButton() {
-            const themeBtn = document.getElementById('themeToggle');
-            const currentTheme = html.getAttribute('data-theme');
-            if (themeBtn) {
-                if (currentTheme === 'dark') {
-                    themeBtn.innerHTML = `
-                        <svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 3v1m0 16v1m9-9h-1m-16 0H1m15.364 1.364l.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707m12.02-2.02a7 7 0 11-9.9 9.9 7 7 0 019.9-9.9z"></path>
-                        </svg>`;
-                    themeBtn.title = 'Light Mode';
-                } else {
-                    themeBtn.innerHTML = `
-                        <svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                        </svg>`;
-                    themeBtn.title = 'Dark Mode';
-                }
-            }
+            const isDark = html.getAttribute('data-theme') === 'dark';
+            document.querySelectorAll('[data-theme-toggle]').forEach(function(btn) {
+                btn.title = isDark ? 'Light mode' : 'Dark mode';
+                btn.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+            });
+            const toolbarIcon = document.getElementById('toolbarThemeIcon');
+            if (toolbarIcon) toolbarIcon.innerHTML = isDark ? sunSvgFilled : moonSvgFilled;
         }
-        
+
         function toggleTheme() {
-            const currentTheme = html.getAttribute('data-theme');
-            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-            
+            const newTheme = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
             html.setAttribute('data-theme', newTheme);
             localStorage.setItem('theme', newTheme);
             updateThemeButton();
         }
-        
-        // Initialize theme toggle when DOM is ready
+
+        function ensureHeaderRight(header) {
+            let right = header.querySelector('.header-right');
+            if (!right) {
+                right = document.createElement('div');
+                right.className = 'header-right';
+                Array.from(header.children).forEach(function(child) {
+                    if (!child.classList.contains('header-left')) {
+                        right.appendChild(child);
+                    }
+                });
+                header.appendChild(right);
+            }
+            return right;
+        }
+
+        function mountAdminHeaderActions() {
+            const header = document.querySelector('.header');
+            if (!header || header.querySelector('.admin-header-actions')) {
+                return;
+            }
+            const source = document.getElementById('admin-header-actions-source');
+            const actions = source ? source.querySelector('.admin-header-actions') : null;
+            if (!actions) return;
+            const right = ensureHeaderRight(header);
+            right.insertBefore(actions, right.firstChild);
+        }
+
+        function initAdminPortalChrome() {
+            mountAdminHeaderActions();
+            updateThemeButton();
+        }
+
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initThemeToggle);
+            document.addEventListener('DOMContentLoaded', initAdminPortalChrome);
         } else {
-            initThemeToggle();
+            initAdminPortalChrome();
         }
 
         // Prevent sidebar auto-scroll on navigation click

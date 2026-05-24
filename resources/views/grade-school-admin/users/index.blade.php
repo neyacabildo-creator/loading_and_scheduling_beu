@@ -91,7 +91,6 @@
             <h1 class="page-title">User Accounts Management</h1>
         </div>
         <div class="header-right">
-            @include('partials.admin-header-actions', ['portal' => 'grade_school'])
             <button onclick="openAddUserModal()" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #2d7a50 0%, #1a5336 100%); color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 0.875rem;">
                 <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
                 Add User

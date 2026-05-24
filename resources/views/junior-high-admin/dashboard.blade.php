@@ -11,9 +11,7 @@
                 <h1 class="page-title">Dashboard for Junior High School</h1>
             </div>
         </div>
-        <div class="header-right">
-            @include('partials.admin-header-actions', ['portal' => 'junior_high'])
-        </div>
+        <div class="header-right"></div>
     </div>
 
     @include('partials.admin-teacher-absence-banner')
