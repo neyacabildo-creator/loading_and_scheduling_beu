@@ -8,6 +8,14 @@
     const prefix = cfg.prefix || 'jh';
     const schoolFilter = cfg.school || (prefix === 'gs' ? 'GS' : 'JH');
     const slots = cfg.slots || [];
+    const slotsByDay = cfg.slotsByDay || null;
+
+    function slotsForCurrentDay() {
+        if (slotsByDay && currentDay && slotsByDay[currentDay]) {
+            return slotsByDay[currentDay];
+        }
+        return slots;
+    }
     const sectionsMap = cfg.sections || {};
     const grades = cfg.grades || (prefix === 'gs' ? ['1', '2', '3', '4', '5', '6'] : ['7', '8', '9', '10']);
     const apiUrl = cfg.apiUrl || '';
@@ -234,7 +242,7 @@
         thead.innerHTML = headHtml + '</tr>';
 
         let html = '';
-        slots.forEach(function (slot) {
+        slotsForCurrentDay().forEach(function (slot) {
             if (slot.isBreak) {
                 html += '<tr><td style="padding:.4rem;border:1px solid var(--border-color);text-align:center;font-size:.68rem;color:#92400e;background:rgba(245,158,11,.07);font-weight:700;">' + slot.label + '</td><td colspan="' + sections.length + '" style="border:1px solid var(--border-color);background:rgba(245,158,11,.07);text-align:center;font-size:.72rem;color:#92400e;font-weight:700;">&#10022; ' + slot.label + ' BREAK &#10022;</td></tr>';
                 return;

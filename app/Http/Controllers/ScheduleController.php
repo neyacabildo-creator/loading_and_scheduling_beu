@@ -171,17 +171,10 @@ class ScheduleController extends Controller
             ];
             $sections = $sectionsByGrade[$gradeLevel] ?? ['SECTION 1','SECTION 2','SECTION 3','SECTION 4','SECTION 5'];
 
-            // Time key → [start, end]
-            $timeMap = [
-                '0745_0845' => ['07:45','08:45'],
-                '0915_1015' => ['09:15','10:15'],
-                '1015_1115' => ['10:15','11:15'],
-                '1115_1215' => ['11:15','12:15'],
-                '1315_1415' => ['13:15','14:15'],
-                '1415_1515' => ['14:15','15:15'],
-                '1515_1615' => ['15:15','16:15'],
-                '1615_1715' => ['16:15','17:15'],
-            ];
+            $timeMap = [];
+            foreach (\App\Support\SchoolScheduleSlots::scheduleSlotKeyMap('junior_high') as $key => $times) {
+                $timeMap[$key] = [$times['start'], $times['end']];
+            }
 
             ScheduleAudit::setAuditUser((new ClassSchedule)->getConnectionName(), Auth::user()?->name);
 

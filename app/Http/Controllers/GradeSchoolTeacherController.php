@@ -551,7 +551,7 @@ class GradeSchoolTeacherController extends Controller
             ->orderBy('slot_order')
             ->get();
 
-        $timeSlots = \App\Http\Controllers\MasterWeeklyScheduleController::timeSlots();
+        $timeSlots = \App\Http\Controllers\MasterWeeklyScheduleController::timeSlots('grade_school');
         $days      = \App\Http\Controllers\MasterWeeklyScheduleController::days();
 
         return view('grade-school-teacher.loading-schedule', compact(

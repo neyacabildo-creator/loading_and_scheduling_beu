@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\MasterWeeklySchedule;
 use App\Models\User;
 use App\Support\FacultyLoadSupport;
+use App\Support\SchoolScheduleSlots;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -23,20 +24,22 @@ class MasterWeeklyScheduleController extends Controller
      * Pre-defined time slots that form the rows of the weekly grid.
      * slot_order is 1-based positioning (used for stable upsert key).
      */
-    public static function timeSlots(): array
+    /**
+     * Time rows for the master loading grid (JH or GS depending on school DB / argument).
+     */
+    public static function timeSlots(?string $schoolLevel = null): array
     {
-        return [
-            ['order' => 1, 'label' => '7:45 - 8:45',   'start' => '07:45', 'end' => '08:45', 'type' => 'class'],
-            ['order' => 2, 'label' => '8:45 - 9:45',   'start' => '08:45', 'end' => '09:45', 'type' => 'class'],
-            ['order' => 3, 'label' => '9:45 - 10:15',  'start' => '09:45', 'end' => '10:15', 'type' => 'homeroom', 'special' => 'JHS/GS HOMEROOM / STUDENT ACTIVITIES'],
-            ['order' => 4, 'label' => '10:15 - 11:15', 'start' => '10:15', 'end' => '11:15', 'type' => 'class'],
-            ['order' => 5, 'label' => '11:15 - 12:15', 'start' => '11:15', 'end' => '12:15', 'type' => 'class'],
-            ['order' => 6, 'label' => 'LUNCH',          'start' => '12:15', 'end' => '13:15', 'type' => 'lunch',    'special' => 'LUNCH'],
-            ['order' => 7, 'label' => '1:15 - 2:15',   'start' => '13:15', 'end' => '14:15', 'type' => 'class'],
-            ['order' => 8, 'label' => '2:15 - 3:15',   'start' => '14:15', 'end' => '15:15', 'type' => 'class'],
-            ['order' => 9, 'label' => '3:15 - 4:15',   'start' => '15:15', 'end' => '16:15', 'type' => 'class'],
-            ['order' => 10, 'label' => '4:15 - 5:15',  'start' => '16:15', 'end' => '17:15', 'type' => 'class'],
-        ];
+        if ($schoolLevel === null) {
+            $schoolLevel = FacultyLoadSupport::schoolLevelForConnection();
+        }
+
+        $order = 0;
+
+        return array_map(function (array $slot) use (&$order) {
+            $order++;
+
+            return array_merge($slot, ['order' => $order]);
+        }, SchoolScheduleSlots::gridSlotsForSchoolLevel($schoolLevel, null, true));
     }
 
     public static function days(): array
@@ -176,8 +179,8 @@ class MasterWeeklyScheduleController extends Controller
             fputcsv($out, array_merge(['TIME'], array_map('strtoupper', $days)));
 
             foreach ($slots as $slot) {
-                if (in_array($slot['type'], ['lunch', 'homeroom'], true)) {
-                    fputcsv($out, [$slot['label'], $slot['special'] ?? strtoupper($slot['type'])]);
+                if (in_array($slot['type'], ['lunch', 'homeroom', 'break'], true)) {
+                    fputcsv($out, [$slot['label'], $slot['special'] ?? $slot['name'] ?? strtoupper($slot['type'])]);
                     continue;
                 }
                 $row = [$slot['label']];
@@ -372,7 +375,10 @@ class MasterWeeklyScheduleController extends Controller
                 $cell = $cells[$slot['order']][$day] ?? [];
 
                 $entryType = $slot['type'];
-                if (!in_array($entryType, ['class', 'lunch', 'homeroom', 'free'])) {
+                if ($entryType === 'break') {
+                    $entryType = ! empty($slot['name']) && strtoupper($slot['name']) === 'LUNCH' ? 'lunch' : 'homeroom';
+                }
+                if (! in_array($entryType, ['class', 'lunch', 'homeroom', 'free'], true)) {
                     $entryType = 'class';
                 }
                 if (isset($cell['entry_type']) && in_array($cell['entry_type'], ['class', 'lunch', 'homeroom', 'free'])) {

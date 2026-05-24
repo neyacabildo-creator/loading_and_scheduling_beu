@@ -521,18 +521,7 @@ class AdminController extends Controller {
             'Grade 10' => ['PAUL', 'PLC', 'MBF', 'MICHEAU', 'MARIA'],
         ];
 
-        $timeSlots = [
-            ['start' => '07:45', 'end' => '08:45', 'label' => '7:45-8:45'],
-            ['type' => 'break', 'name' => 'RECESS', 'start' => '08:45', 'end' => '09:15', 'label' => '8:45-9:15'],
-            ['start' => '09:15', 'end' => '10:15', 'label' => '9:15-10:15'],
-            ['start' => '10:15', 'end' => '11:15', 'label' => '10:15-11:15'],
-            ['start' => '11:15', 'end' => '12:15', 'label' => '11:15-12:15'],
-            ['type' => 'break', 'name' => 'LUNCH BREAK', 'start' => '12:15', 'end' => '13:15', 'label' => '12:15-1:15'],
-            ['start' => '13:15', 'end' => '14:15', 'label' => '1:15-2:15'],
-            ['start' => '14:15', 'end' => '15:15', 'label' => '2:15-3:15'],
-            ['start' => '15:15', 'end' => '16:15', 'label' => '3:15-4:15'],
-            ['start' => '16:15', 'end' => '17:15', 'label' => '4:15-5:15'],
-        ];
+        $timeSlots = \App\Support\SchoolScheduleSlots::printExportSlots('junior_high');
 
         $scheduleGrid  = []; // [day][section_name][start_time] = [{subject, teacher}]
         $sections      = [];

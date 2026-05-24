@@ -22,6 +22,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // Reject deactivated accounts on every authenticated request
         $middleware->appendToGroup('web', \App\Http\Middleware\CheckUserActive::class);
 
+        // Require login for app URLs; one active session per account (blocks other browsers)
+        $middleware->appendToGroup('web', \App\Http\Middleware\ProtectAuthenticatedRoutes::class);
+        $middleware->appendToGroup('web', \App\Http\Middleware\EnforceSingleSession::class);
+
         $middleware->alias([
             'admin'            => \App\Http\Middleware\IsAdmin::class,
             'principal.admin'  => \App\Http\Middleware\IsPrincipal::class,

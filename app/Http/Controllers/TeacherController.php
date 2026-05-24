@@ -401,7 +401,7 @@ class TeacherController extends Controller
             ->orderBy('slot_order')
             ->get();
 
-        $timeSlots = \App\Http\Controllers\MasterWeeklyScheduleController::timeSlots();
+        $timeSlots = \App\Http\Controllers\MasterWeeklyScheduleController::timeSlots('junior_high');
         $days      = \App\Http\Controllers\MasterWeeklyScheduleController::days();
 
         return view('junior-high-teacher.loading-schedule', compact(

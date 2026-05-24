@@ -325,6 +325,14 @@
 
         function jhTimeToMins(t){if(!t)return 0;const p=String(t).substring(0,5).split(':');return parseInt(p[0])*60+parseInt(p[1]||0);}
 
+        const JH_SLOTS_BY_DAY = @json(\App\Support\SchoolScheduleSlots::scheduleDashboardSlotsByDay('junior_high'));
+        const JH_SLOTS = JH_SLOTS_BY_DAY.Monday || [];
+        function jhSlotsForDay(day) {
+            return JH_SLOTS_BY_DAY[day] || JH_SLOTS;
+        }
+        let jhTimetableData = window.jhTimetableData || [];
+        let jhCurrentDay = 'Monday';
+
         function jhRenderTimetable() {
             const filter  = (document.getElementById('jhTTFilter')?.value||'').toLowerCase().trim();
             const day     = jhCurrentDay;
@@ -371,7 +379,7 @@
             thead.innerHTML=headHtml+'</tr>';
 
             let html='';
-            JH_SLOTS.forEach(slot=>{
+            jhSlotsForDay(day).forEach(slot=>{
                 if(slot.isBreak){
                     html+=`<tr><td style="padding:.4rem;border:1px solid var(--border-color);text-align:center;font-size:.68rem;color:#92400e;background:rgba(245,158,11,.07);font-weight:700;">${slot.label}</td><td colspan="${sections.length}" style="border:1px solid var(--border-color);background:rgba(245,158,11,.07);text-align:center;font-size:.72rem;color:#92400e;font-weight:700;letter-spacing:.06em;">&#10022; ${slot.label} BREAK &#10022;</td></tr>`;
                     return;

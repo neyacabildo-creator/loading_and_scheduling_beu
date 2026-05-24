@@ -277,6 +277,23 @@ class TeacherAdjustmentRequestSupport
             $validated['grade_level'] = trim((string) $request->input('grade_level'));
         }
 
+        if (($validated['request_type'] ?? '') === 'time_change') {
+            $schoolLevel = SchoolScheduleSlots::schoolLevelFromConnection($connection);
+            $start = $validated['preferred_start_time'] ?? null;
+            $end = $validated['preferred_end_time'] ?? null;
+            $day = trim((string) ($validated['day_of_week'] ?? $request->input('day_of_week', '')));
+            if ($start === null || $end === null || ! SchoolScheduleSlots::isValidClassSlot($schoolLevel, $start, $end, $day !== '' ? $day : null)) {
+                return [
+                    'success' => false,
+                    'message' => 'Preferred time must match an official '
+                        . ($schoolLevel === 'grade_school' ? 'Grade School' : 'Junior High')
+                        . ' class period.',
+                ];
+            }
+            $validated['preferred_start_time'] = SchoolScheduleSlots::normalizeHi($start);
+            $validated['preferred_end_time'] = SchoolScheduleSlots::normalizeHi($end);
+        }
+
         if ($validated['request_type'] === 'teacher_reassignment') {
             $request->validate(['substitute_faculty_id' => 'required|integer'], [
                 'substitute_faculty_id.required' => 'Please select a substitute teacher.',

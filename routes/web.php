@@ -425,6 +425,7 @@ Route::middleware('auth')->group(function () {
         
         // Teachers/Faculty API endpoints
         Route::get('api/teachers', [\App\Http\Controllers\AdminController::class, 'getTeachers']);
+        Route::get('api/teachers/{id}/assigned-subjects', [\App\Http\Controllers\AdminController::class, 'getTeacherAssignedSubjects']);
         Route::post('api/teachers', [\App\Http\Controllers\AdminController::class, 'addTeacher']);
         Route::put('api/teachers/{id}', [\App\Http\Controllers\AdminController::class, 'updateTeacher']);
         Route::delete('api/teachers/{id}', [\App\Http\Controllers\AdminController::class, 'deleteTeacher']);
@@ -685,6 +686,9 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolAdmin::class, 'scho
         ]);
         Route::get('/teachers', [
             \App\Http\Controllers\GradeSchoolAdminController::class, 'getTeachers'
+        ]);
+        Route::get('/teachers/{id}/assigned-subjects', [
+            \App\Http\Controllers\GradeSchoolAdminController::class, 'getTeacherAssignedSubjects'
         ]);
         Route::put('/teachers/{id}', [
             \App\Http\Controllers\GradeSchoolAdminController::class, 'updateTeacher'

@@ -159,7 +159,12 @@ class ScheduleFormSupport
             'sharedTeachers',
             'teachersBySubject',
             'allTeachersForDropdown'
-        );
+        ) + [
+            'scheduleFormRows' => SchoolScheduleSlots::scheduleFormRows($schoolLevel),
+            'scheduleFormRowsTuesday' => $schoolLevel === 'junior_high'
+                ? SchoolScheduleSlots::scheduleFormRows('junior_high', 'Tuesday')
+                : [],
+        ];
     }
 
     public static function hasTable(string $connection, string $table): bool

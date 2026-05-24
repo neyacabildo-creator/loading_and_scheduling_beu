@@ -1,4 +1,4 @@
-﻿{{-- resources/views/junior-high-admin/schedule-form.blade.php --}}
+{{-- resources/views/junior-high-admin/schedule-form.blade.php --}}
 @extends('layouts.admin')
 
 @section('title', 'Create Schedule')
@@ -22,7 +22,7 @@
 .sf-teacher:focus{outline:none;border-color:var(--green-primary);}
 .sf-submit-btn{padding:.75rem 2rem;background:linear-gradient(135deg,var(--green-primary),#0d3d20);color:#fff;border:none;border-radius:.5rem;cursor:pointer;font-weight:600;font-size:.9rem;transition:all .2s;}
 .sf-submit-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(45,122,80,.3);}
-.sf-add-subject-btn{display:none;}/* removed — kept for any future use */
+.sf-add-subject-btn{display:none;}/* removed � kept for any future use */
 .sf-conflict-warn{font-size:.67rem;color:#dc2626;margin-top:.2rem;display:none;line-height:1.3;}
 .sf-teacher.sf-conflict{border-color:#dc2626 !important;background:rgba(220,38,38,.05) !important;}
 .sf-shared-panel{margin-top:.3rem;border-top:1px dashed var(--border-color);padding-top:.28rem;}
@@ -49,7 +49,7 @@
             <div class="sf-control-group">
                 <label>Grade Level</label>
                 <select name="grade_level" id="sfGrade" class="sf-select" required onchange="sfUpdateSections()">
-                    <option value="">— Select Grade —</option>
+                    <option value="">� Select Grade �</option>
                     <option value="Grade 7">Grade 7</option>
                     <option value="Grade 8">Grade 8</option>
                     <option value="Grade 9">Grade 9</option>
@@ -58,8 +58,8 @@
             </div>
             <div class="sf-control-group">
                 <label>Day of Week</label>
-                <select name="day_of_week" id="sfDay" class="sf-select" required>
-                    <option value="">— Select Day —</option>
+                <select name="day_of_week" id="sfDay" class="sf-select" required onchange="sfOnDayChange()">
+                    <option value="">� Select Day �</option>
                     <option value="Monday">Monday</option>
                     <option value="Tuesday">Tuesday</option>
                     <option value="Wednesday">Wednesday</option>
@@ -88,249 +88,32 @@
             <thead>
                 <tr>
                     <th style="width:80px;">Time</th>
-                    <th id="sfH0"><span class="sf-grade-badge" id="sfBadge0">—</span><br>SECTION 1</th>
-                    <th id="sfH1"><span class="sf-grade-badge" id="sfBadge1">—</span><br>SECTION 2</th>
-                    <th id="sfH2"><span class="sf-grade-badge" id="sfBadge2">—</span><br>SECTION 3</th>
-                    <th id="sfH3"><span class="sf-grade-badge" id="sfBadge3">—</span><br>SECTION 4</th>
-                    <th id="sfH4"><span class="sf-grade-badge" id="sfBadge4">—</span><br>SECTION 5</th>
+                    <th id="sfH0"><span class="sf-grade-badge" id="sfBadge0"></span><br>SECTION 1</th>
+                    <th id="sfH1"><span class="sf-grade-badge" id="sfBadge1"></span><br>SECTION 2</th>
+                    <th id="sfH2"><span class="sf-grade-badge" id="sfBadge2"></span><br>SECTION 3</th>
+                    <th id="sfH3"><span class="sf-grade-badge" id="sfBadge3">�</span><br>SECTION 4</th>
+                    <th id="sfH4"><span class="sf-grade-badge" id="sfBadge4">�</span><br>SECTION 5</th>
                 </tr>
 
             </thead>
-            <tbody>
-                {{-- Row 1: 7:45-8:45 --}}
-                <tr>
-                    <td class="time-col">7:45<br>8:45</td>
-                    @for($i=0;$i<5;$i++)
-                    <td class="sf-cell">
-                        <select name="slots[0745_0845][{{ $i }}][subject]" class="sf-subject">
-                            <option value="">— Subject —</option>
-                            <option value="MAPEH">MAPEH</option>
-                            <option value="AP">AP</option>
-                            <option value="COMP">COMP</option>
-                            <option value="ADV SCI">ADV SCI</option>
-                            <option value="CLVE">CLVE</option>
-                            <option value="MATHEMATICS">MATHEMATICS</option>
-                            <option value="ADV MATH">ADV MATH</option>
-                            <option value="FILIPINO">FILIPINO</option>
-                            <option value="ENGLISH">ENGLISH</option>
-                            <option value="SCIENCE">SCIENCE</option>
-                            <option value="TLE">TLE</option>
-                        </select>
-                        <select name="slots[0745_0845][{{ $i }}][faculty_id]" class="sf-teacher">
-                            <option value="">— Teacher —</option>
-                            @foreach($allTeachersForDropdown as $t)
-                            <option value="{{ $t['id'] }}">{{ $t['name'] }}</option>
-                            @endforeach
-                        </select>
-                    </td>
-                    @endfor
-                </tr>
-                {{-- Recess --}}
-                <tr class="break-row">
-                    <td class="time-col" style="background:rgba(245,158,11,.07);font-size:.68rem;color:#92400e;">8:45<br>9:15</td>
-                    <td colspan="5">✦ RECESS BREAK ✦</td>
-                </tr>
-                {{-- Row 2: 9:15-10:15 --}}
-                <tr>
-                    <td class="time-col">9:15<br>10:15</td>
-                    @for($i=0;$i<5;$i++)
-                    <td class="sf-cell">
-                        <select name="slots[0915_1015][{{ $i }}][subject]" class="sf-subject">
-                            <option value="">— Subject —</option>
-                            <option value="MAPEH">MAPEH</option>
-                            <option value="AP">AP</option>
-                            <option value="COMP">COMP</option>
-                            <option value="ADV SCI">ADV SCI</option>
-                            <option value="CLVE">CLVE</option>
-                            <option value="MATHEMATICS">MATHEMATICS</option>
-                            <option value="ADV MATH">ADV MATH</option>
-                            <option value="FILIPINO">FILIPINO</option>
-                            <option value="ENGLISH">ENGLISH</option>
-                            <option value="SCIENCE">SCIENCE</option>
-                            <option value="TLE">TLE</option>
-                        </select>
-                        <select name="slots[0915_1015][{{ $i }}][faculty_id]" class="sf-teacher">
-                            <option value="">— Teacher —</option>
-                            @foreach($allTeachersForDropdown as $t)
-                            <option value="{{ $t['id'] }}">{{ $t['name'] }}</option>
-                            @endforeach
-                        </select>
-                    </td>
-                    @endfor
-                </tr>
-                {{-- Row 3: 10:15-11:15 --}}
-                <tr>
-                    <td class="time-col">10:15<br>11:15</td>
-                    @for($i=0;$i<5;$i++)
-                    <td class="sf-cell">
-                        <select name="slots[1015_1115][{{ $i }}][subject]" class="sf-subject">
-                            <option value="">— Subject —</option>
-                            <option value="MAPEH">MAPEH</option>
-                            <option value="AP">AP</option>
-                            <option value="COMP">COMP</option>
-                            <option value="ADV SCI">ADV SCI</option>
-                            <option value="CLVE">CLVE</option>
-                            <option value="MATHEMATICS">MATHEMATICS</option>
-                            <option value="ADV MATH">ADV MATH</option>
-                            <option value="FILIPINO">FILIPINO</option>
-                            <option value="ENGLISH">ENGLISH</option>
-                            <option value="SCIENCE">SCIENCE</option>
-                            <option value="TLE">TLE</option>
-                        </select>
-                        <select name="slots[1015_1115][{{ $i }}][faculty_id]" class="sf-teacher">
-                            <option value="">— Teacher —</option>
-                            @foreach($allTeachersForDropdown as $t)
-                            <option value="{{ $t['id'] }}">{{ $t['name'] }}</option>
-                            @endforeach
-                        </select>
-                    </td>
-                    @endfor
-                </tr>
-                {{-- Row 4: 11:15-12:15 --}}
-                <tr>
-                    <td class="time-col">11:15<br>12:15</td>
-                    @for($i=0;$i<5;$i++)
-                    <td class="sf-cell">
-                        <select name="slots[1115_1215][{{ $i }}][subject]" class="sf-subject">
-                            <option value="">— Subject —</option>
-                            <option value="MAPEH">MAPEH</option>
-                            <option value="AP">AP</option>
-                            <option value="COMP">COMP</option>
-                            <option value="ADV SCI">ADV SCI</option>
-                            <option value="CLVE">CLVE</option>
-                            <option value="MATHEMATICS">MATHEMATICS</option>
-                            <option value="ADV MATH">ADV MATH</option>
-                            <option value="FILIPINO">FILIPINO</option>
-                            <option value="ENGLISH">ENGLISH</option>
-                            <option value="SCIENCE">SCIENCE</option>
-                            <option value="TLE">TLE</option>
-                        </select>
-                        <select name="slots[1115_1215][{{ $i }}][faculty_id]" class="sf-teacher">
-                            <option value="">— Teacher —</option>
-                            @foreach($allTeachersForDropdown as $t)
-                            <option value="{{ $t['id'] }}">{{ $t['name'] }}</option>
-                            @endforeach
-                        </select>
-                    </td>
-                    @endfor
-                </tr>
-                {{-- Lunch --}}
-                <tr class="break-row">
-                    <td class="time-col" style="background:rgba(245,158,11,.07);font-size:.68rem;color:#92400e;">12:15<br>1:15</td>
-                    <td colspan="5">✦ LUNCH BREAK ✦</td>
-                </tr>
-                {{-- Row 5: 1:15-2:15 --}}
-                <tr>
-                    <td class="time-col">1:15<br>2:15</td>
-                    @for($i=0;$i<5;$i++)
-                    <td class="sf-cell">
-                        <select name="slots[1315_1415][{{ $i }}][subject]" class="sf-subject">
-                            <option value="">— Subject —</option>
-                            <option value="MAPEH">MAPEH</option>
-                            <option value="AP">AP</option>
-                            <option value="COMP">COMP</option>
-                            <option value="ADV SCI">ADV SCI</option>
-                            <option value="CLVE">CLVE</option>
-                            <option value="MATHEMATICS">MATHEMATICS</option>
-                            <option value="ADV MATH">ADV MATH</option>
-                            <option value="FILIPINO">FILIPINO</option>
-                            <option value="ENGLISH">ENGLISH</option>
-                            <option value="SCIENCE">SCIENCE</option>
-                            <option value="TLE">TLE</option>
-                        </select>
-                        <select name="slots[1315_1415][{{ $i }}][faculty_id]" class="sf-teacher">
-                            <option value="">— Teacher —</option>
-                            @foreach($allTeachersForDropdown as $t)
-                            <option value="{{ $t['id'] }}">{{ $t['name'] }}</option>
-                            @endforeach
-                        </select>
-                    </td>
-                    @endfor
-                </tr>
-                {{-- Row 6: 2:15-3:15 --}}
-                <tr>
-                    <td class="time-col">2:15<br>3:15</td>
-                    @for($i=0;$i<5;$i++)
-                    <td class="sf-cell">
-                        <select name="slots[1415_1515][{{ $i }}][subject]" class="sf-subject">
-                            <option value="">— Subject —</option>
-                            <option value="MAPEH">MAPEH</option>
-                            <option value="AP">AP</option>
-                            <option value="COMP">COMP</option>
-                            <option value="ADV SCI">ADV SCI</option>
-                            <option value="CLVE">CLVE</option>
-                            <option value="MATHEMATICS">MATHEMATICS</option>
-                            <option value="ADV MATH">ADV MATH</option>
-                            <option value="FILIPINO">FILIPINO</option>
-                            <option value="ENGLISH">ENGLISH</option>
-                            <option value="SCIENCE">SCIENCE</option>
-                            <option value="TLE">TLE</option>
-                        </select>
-                        <select name="slots[1415_1515][{{ $i }}][faculty_id]" class="sf-teacher">
-                            <option value="">— Teacher —</option>
-                            @foreach($allTeachersForDropdown as $t)
-                            <option value="{{ $t['id'] }}">{{ $t['name'] }}</option>
-                            @endforeach
-                        </select>
-                    </td>
-                    @endfor
-                </tr>
-                {{-- Row 7: 3:15-4:15 --}}
-                <tr>
-                    <td class="time-col">3:15<br>4:15</td>
-                    @for($i=0;$i<5;$i++)
-                    <td class="sf-cell">
-                        <select name="slots[1515_1615][{{ $i }}][subject]" class="sf-subject">
-                            <option value="">— Subject —</option>
-                            <option value="MAPEH">MAPEH</option>
-                            <option value="AP">AP</option>
-                            <option value="COMP">COMP</option>
-                            <option value="ADV SCI">ADV SCI</option>
-                            <option value="CLVE">CLVE</option>
-                            <option value="MATHEMATICS">MATHEMATICS</option>
-                            <option value="ADV MATH">ADV MATH</option>
-                            <option value="FILIPINO">FILIPINO</option>
-                            <option value="ENGLISH">ENGLISH</option>
-                            <option value="SCIENCE">SCIENCE</option>
-                            <option value="TLE">TLE</option>
-                        </select>
-                        <select name="slots[1515_1615][{{ $i }}][faculty_id]" class="sf-teacher">
-                            <option value="">— Teacher —</option>
-                            @foreach($allTeachersForDropdown as $t)
-                            <option value="{{ $t['id'] }}">{{ $t['name'] }}</option>
-                            @endforeach
-                        </select>
-                    </td>
-                    @endfor
-                </tr>
-                {{-- Row 8: 4:15-5:15 --}}
-                <tr>
-                    <td class="time-col">4:15<br>5:15</td>
-                    @for($i=0;$i<5;$i++)
-                    <td class="sf-cell">
-                        <select name="slots[1615_1715][{{ $i }}][subject]" class="sf-subject">
-                            <option value="">— Subject —</option>
-                            <option value="MAPEH">MAPEH</option>
-                            <option value="AP">AP</option>
-                            <option value="COMP">COMP</option>
-                            <option value="ADV SCI">ADV SCI</option>
-                            <option value="CLVE">CLVE</option>
-                            <option value="MATHEMATICS">MATHEMATICS</option>
-                            <option value="ADV MATH">ADV MATH</option>
-                            <option value="FILIPINO">FILIPINO</option>
-                            <option value="ENGLISH">ENGLISH</option>
-                            <option value="SCIENCE">SCIENCE</option>
-                            <option value="TLE">TLE</option>
-                        </select>
-                        <select name="slots[1615_1715][{{ $i }}][faculty_id]" class="sf-teacher">
-                            <option value="">— Teacher —</option>
-                            @foreach($allTeachersForDropdown as $t)
-                            <option value="{{ $t['id'] }}">{{ $t['name'] }}</option>
-                            @endforeach
-                        </select>
-                    </td>
-                    @endfor
-                </tr>
+            @php
+                $jhSubjectOptions = ['MAPEH','AP','COMP','ADV SCI','CLVE','MATHEMATICS','ADV MATH','FILIPINO','ENGLISH','SCIENCE','TLE'];
+            @endphp
+            <tbody id="sf-tbody-weekday">
+                @include('partials.schedule-form-grid-rows', [
+                    'scheduleFormRows' => $scheduleFormRows,
+                    'allTeachersForDropdown' => $allTeachersForDropdown,
+                    'subjectOptions' => $jhSubjectOptions,
+                    'sectionCount' => 5,
+                ])
+            </tbody>
+            <tbody id="sf-tbody-tuesday" style="display:none;">
+                @include('partials.schedule-form-grid-rows', [
+                    'scheduleFormRows' => $scheduleFormRowsTuesday,
+                    'allTeachersForDropdown' => $allTeachersForDropdown,
+                    'subjectOptions' => $jhSubjectOptions,
+                    'sectionCount' => 5,
+                ])
             </tbody>
         </table>
     </div>
@@ -357,15 +140,28 @@ const JH_SECTIONS = {
     'Grade 10': ['PAUL','PLC','MBF','MICHEAU','MARIA'],
 };
 
+function sfOnDayChange() {
+    const isTue = document.getElementById('sfDay')?.value === 'Tuesday';
+    const weekday = document.getElementById('sf-tbody-weekday');
+    const tuesday = document.getElementById('sf-tbody-tuesday');
+    if (weekday) weekday.style.display = isTue ? 'none' : '';
+    if (tuesday) tuesday.style.display = isTue ? '' : 'none';
+    [weekday, tuesday].forEach(function (tb) {
+        if (!tb) return;
+        const off = tb.style.display === 'none';
+        tb.querySelectorAll('select, input').forEach(function (el) { el.disabled = off; });
+    });
+}
+
 function sfUpdateSections() {
     const grade = document.getElementById('sfGrade').value;
     const secs  = JH_SECTIONS[grade] || ['SECTION 1','SECTION 2','SECTION 3','SECTION 4','SECTION 5'];
     for (let i = 0; i < 5; i++) {
         const badge = document.getElementById('sfBadge' + i);
         const hdr   = document.getElementById('sfH' + i);
-        if (badge) badge.textContent = grade || '—';
+        if (badge) badge.textContent = grade || '�';
         if (hdr) {
-            hdr.innerHTML = '<span class="sf-grade-badge" id="sfBadge' + i + '">' + (grade || '—') + '</span><br>' + secs[i];
+            hdr.innerHTML = '<span class="sf-grade-badge" id="sfBadge' + i + '">' + (grade || '�') + '</span><br>' + secs[i];
         }
         // Update hidden section data on cells (store via data-section on inputs)
         document.querySelectorAll('[name^="slots["][name$="[' + i + '][subject]"]').forEach(inp => {
@@ -385,7 +181,7 @@ function sfUpdateSections() {
     }
 }
 
-// ── Grade → teacher filter ─────────────────────────────────────────────────
+// -- Grade ? teacher filter -------------------------------------------------
 var SF_JH_TEACHERS_BY_GRADE = JSON.parse(document.getElementById('sf-jh-teachers-by-grade')?.textContent || '{}');
 var SF_JH_TEACHERS_BY_GRADE_SUBJECT = JSON.parse(document.getElementById('sf-jh-teachers-by-grade-subject')?.textContent || '{}');
 var SF_JH_ALL_TEACHERS = JSON.parse(document.getElementById('sf-jh-all-teachers')?.textContent || '[]');
@@ -480,6 +276,7 @@ document.addEventListener('change', function(e) {
 });
 
 function sfValidate() {
+    sfOnDayChange();
     const grade = document.getElementById('sfGrade').value;
     const day   = document.getElementById('sfDay').value;
     if (!grade) { alert('Please select a Grade Level first.'); return false; }
@@ -517,14 +314,15 @@ function sfValidate() {
 
 // Init
 sfUpdateSections();
+sfOnDayChange();
 
-// ── Conflict detection + Shared Teachers panel ──────────────────────────
+// -- Conflict detection + Shared Teachers panel --------------------------
 (function () {
     var SF_JH_TEACHER_CONFLICTS = JSON.parse(document.getElementById('sf-jh-teacher-conflicts')?.textContent || '{}');
     var SF_JH_SHARED_TEACHERS   = JSON.parse(document.getElementById('sf-jh-shared-teachers')?.textContent || '[]');
     var sharedIdSet = new Set(SF_JH_SHARED_TEACHERS.map(function(t){ return String(t.faculty_id || ''); }).filter(Boolean));
 
-    // slotKey "0745_0845" → "07:45"
+    // slotKey "0745_0845" ? "07:45"
     function slotKeyToStart(key) {
         var s = (key || '').split('_')[0];
         return s.length === 4 ? s.slice(0,2) + ':' + s.slice(2,4) : '';
@@ -609,12 +407,12 @@ sfUpdateSections();
         var conflictMsg = null;
         var cell = teacherSel.closest('.sf-cell');
 
-        // ③ Same subject + teacher twice in one section/time cell
+        // ? Same subject + teacher twice in one section/time cell
         if (cell) {
             conflictMsg = sfDuplicateSubjectTeacherInCell(cell);
         }
 
-        // ① Same teacher in another section of the same time row
+        // ? Same teacher in another section of the same time row
         if (!conflictMsg) {
             var tr = teacherSel.closest('tr');
             if (tr) {
@@ -627,7 +425,7 @@ sfUpdateSections();
             }
         }
 
-        // ② Teacher already has an approved schedule for that day + time
+        // ? Teacher already has an approved schedule for that day + time
         if (!conflictMsg && day && startTime) {
             var existing = SF_JH_TEACHER_CONFLICTS[String(teacherId)] || [];
             for (var i = 0; i < existing.length; i++) {
@@ -709,7 +507,7 @@ sfUpdateSections();
                 var chip = document.createElement('span');
                 chip.className = 'sf-shared-item';
                 chip.textContent = st.teacher_name;
-                chip.title = (st.department || 'Shared') + ' — click to assign';
+                chip.title = (st.department || 'Shared') + ' � click to assign';
                 chip.dataset.stSubjects = JSON.stringify(stSubjects);
                 // Hidden by default; shown when subject matches
                 chip.style.display = 'none';
@@ -755,7 +553,7 @@ sfUpdateSections();
             }
         }
 
-        // Teacher change → conflict check
+        // Teacher change ? conflict check
         if (origTeach) {
             origTeach.addEventListener('change', function() {
                 checkConflict(origTeach);

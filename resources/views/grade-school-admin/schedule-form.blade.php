@@ -1,4 +1,4 @@
-﻿{{-- resources/views/grade-school-admin/schedule-form.blade.php --}}
+{{-- resources/views/grade-school-admin/schedule-form.blade.php --}}
 @extends('layouts.grade-school-admin')
 
 @section('title', 'Create Class Schedule')
@@ -59,7 +59,7 @@
             <div class="sf-control-group">
                 <label for="grade_level">Grade Level *</label>
                 <select name="grade_level" id="grade_level" class="sf-select" required>
-                    <option value="">— Select Grade —</option>
+                    <option value="">� Select Grade �</option>
                     @foreach(['Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6'] as $g)
                         <option value="{{ $g }}" {{ old('grade_level') === $g ? 'selected' : '' }}>{{ $g }}</option>
                     @endforeach
@@ -68,7 +68,7 @@
             <div class="sf-control-group">
                 <label for="day_of_week">Day of Week *</label>
                 <select name="day_of_week" id="day_of_week" class="sf-select" required>
-                    <option value="">— Select Day —</option>
+                    <option value="">� Select Day �</option>
                     @foreach(['Monday','Tuesday','Wednesday','Thursday','Friday'] as $d)
                         <option value="{{ $d }}" {{ old('day_of_week') === $d ? 'selected' : '' }}>{{ $d }}</option>
                     @endforeach
@@ -106,61 +106,14 @@
             <input type="hidden" name="section_names[2]" id="gs-sec-name-2" value="ST. PAUL">
             <tbody>
                 @php
-                $timeSlots = [
-                    ['key' => '0745_0835', 'display' => '7:45', 'end' => '8:35'],
-                    ['key' => '0835_0925', 'display' => '8:35', 'end' => '9:25'],
-                    'SNACK_BREAK',
-                    ['key' => '0955_1045', 'display' => '9:55', 'end' => '10:45'],
-                    ['key' => '1045_1135', 'display' => '10:45', 'end' => '11:35'],
-                    'LUNCH_BREAK',
-                    ['key' => '1315_1405', 'display' => '1:15', 'end' => '2:05'],
-                    ['key' => '1405_1455', 'display' => '2:05', 'end' => '2:55'],
-                    ['key' => '1455_1545', 'display' => '2:55', 'end' => '3:45'],
-                    ['key' => '1545_1635', 'display' => '3:45', 'end' => '4:35'],
-                ];
-                // All unique GS subjects (used as the initial/fallback list in PHP)
-                $gsSubjects = ['SCIENCE','COMPUTER','READING AND LITERACY','LANGUAGE','CLVE','MAKABANSA','MATHEMATICS','ENGLISH','FILIPINO','HELE','AP','MAPEH'];
+                    $gsSubjectOptions = ['SCIENCE','COMPUTER','READING AND LITERACY','LANGUAGE','CLVE','MAKABANSA','MATHEMATICS','ENGLISH','FILIPINO','HELE','AP','MAPEH'];
                 @endphp
-
-                @foreach($timeSlots as $slot)
-                    @if($slot === 'SNACK_BREAK')
-                        <tr class="break-row">
-                            <td class="time-col" style="background:rgba(245,158,11,.07);font-size:.68rem;color:#92400e;">9:25<br>9:55</td>
-                            <td colspan="3">✦ SNACK BREAK ✦</td>
-                        </tr>
-                    @elseif($slot === 'LUNCH_BREAK')
-                        <tr class="break-row">
-                            <td class="time-col" style="background:rgba(245,158,11,.07);font-size:.68rem;color:#92400e;">11:35<br>1:15</td>
-                            <td colspan="3">✦ LUNCH BREAK ✦</td>
-                        </tr>
-                    @else
-                        <tr>
-                            <td class="time-col">{{ $slot['display'] }}<br>{{ $slot['end'] }}</td>
-                            @foreach([0, 1, 2] as $sIdx)
-                                @php
-                                    $subjectOld = old("slots.{$slot['key']}.{$sIdx}.subject", '');
-                                    $teacherOld = old("slots.{$slot['key']}.{$sIdx}.faculty_id", '');
-                                @endphp
-                                <td class="sf-cell">
-                                    <select name="slots[{{ $slot['key'] }}][{{ $sIdx }}][subject]" class="sf-subject">
-                                        <option value="">— Subject —</option>
-                                        @foreach($gsSubjects as $subj)
-                                            <option value="{{ $subj }}" {{ $subjectOld === $subj ? 'selected' : '' }}>{{ $subj }}</option>
-                                        @endforeach
-                                    </select>
-                                    <select name="slots[{{ $slot['key'] }}][{{ $sIdx }}][faculty_id]" class="sf-teacher">
-                                        <option value="">— Teacher —</option>
-                                        @foreach($allTeachersForDropdown as $teacher)
-                                            <option value="{{ $teacher['id'] }}" {{ $teacherOld == $teacher['id'] ? 'selected' : '' }}>
-                                                {{ $teacher['name'] }}
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                </td>
-                            @endforeach
-                        </tr>
-                    @endif
-                @endforeach
+                @include('partials.schedule-form-grid-rows', [
+                    'scheduleFormRows' => $scheduleFormRows,
+                    'allTeachersForDropdown' => $allTeachersForDropdown,
+                    'subjectOptions' => $gsSubjectOptions,
+                    'sectionCount' => 3,
+                ])
             </tbody>
         </table>
 
@@ -187,13 +140,13 @@
     var gradeSelect = document.getElementById('grade_level');
     var badges      = document.querySelectorAll('table.sf-grid thead th .sf-grade-badge');
 
-    // ── Data maps ────────────────────────────────────────────────────────────
+    // -- Data maps ------------------------------------------------------------
     var SF_GS_TEACHERS_BY_GRADE         = JSON.parse(document.getElementById('sf-gs-teachers-by-grade')?.textContent || '{}');
     var SF_GS_TEACHERS_BY_GRADE_SUBJECT = JSON.parse(document.getElementById('sf-gs-teachers-by-grade-subject')?.textContent || '{}');
     var SF_GS_ALL_TEACHERS              = JSON.parse(document.getElementById('sf-gs-all-teachers')?.textContent || '[]');
     var SF_GS_TEACHERS_BY_SUBJECT       = JSON.parse(document.getElementById('sf-gs-teachers-by-subject')?.textContent || '{}');
 
-    // Aliases: form display value → possible keys in SF_GS_TEACHERS_BY_SUBJECT
+    // Aliases: form display value ? possible keys in SF_GS_TEACHERS_BY_SUBJECT
     var GS_SUBJECT_ALIASES = {
         'CLVE':                 ['CLVE','CHRISTIAN LIVING EDUCATION','CHRISTIAN LIVING'],
         'AP':                   ['AP','ARALING PANLIPUNAN'],
@@ -235,7 +188,7 @@
         });
     });
 
-    // ── Rebuild a single teacher <select> based on grade + paired subject input ──
+    // -- Rebuild a single teacher <select> based on grade + paired subject input --
     function gsRebuildTeacherSel(teacherSel) {
         var grade = gradeSelect ? gradeSelect.value : '';
         // Support both dynamically-created .sf-subject-row and static .sf-cell wrappers
@@ -336,7 +289,7 @@
     gradeSelect.addEventListener('change', updateBadges);
     updateBadges();
 
-    // Teacher→subjects map from faculty loads (kept for backward compat)
+    // Teacher?subjects map from faculty loads (kept for backward compat)
     var GS_TEACHER_SUBJECTS = JSON.parse(document.getElementById('sf-gs-teacher-subjects')?.textContent || '{}');
 
     function gsWireSubjectFilter(inp, sel) {
@@ -351,7 +304,7 @@
         'CLVE','MAKABANSA','MATHEMATICS','ENGLISH','FILIPINO','HELE','AP','MAPEH'
     ];
 
-    // ── Grade-specific sections & subjects ────────────────────────────────
+    // -- Grade-specific sections & subjects --------------------------------
     var GS_GRADE_SECTIONS = {
         'Grade 1': ['STEPHEN', 'PETER', 'ST. PAUL'],
         'Grade 2': ['ST. LUKE', 'ST. MARK', 'ST. MATTHEW'],
@@ -437,7 +390,7 @@
 
         var removeBtn = document.createElement('button');
         removeBtn.type = 'button';
-        removeBtn.textContent = '✕';
+        removeBtn.textContent = '?';
         removeBtn.style.cssText = 'position:absolute;top:2px;right:2px;background:none;border:none;color:#b91c1c;font-size:.8rem;cursor:pointer;padding:0 2px;line-height:1;';
         removeBtn.title = 'Remove this subject';
         removeBtn.addEventListener('click', function () { wrap.remove(); });
@@ -460,7 +413,7 @@
         });
     }
 
-    // ── Conflict detection helpers ────────────────────────────────────────
+    // -- Conflict detection helpers ----------------------------------------
     var GS_TEACHER_CONFLICTS = JSON.parse(document.getElementById('sf-gs-teacher-conflicts')?.textContent || '{}');
     var GS_SHARED_TEACHERS   = JSON.parse(document.getElementById('sf-gs-shared-teachers')?.textContent || '[]');
     var gsSharedIdSet = new Set(GS_SHARED_TEACHERS.map(function(t){ return String(t.faculty_id || ''); }).filter(Boolean));
@@ -526,12 +479,12 @@
         var conflictMsg = null;
         var cell = teacherSel.closest('.sf-cell');
 
-        // ③ Same subject + teacher twice in one section/time cell
+        // ? Same subject + teacher twice in one section/time cell
         if (cell) {
             conflictMsg = gsDuplicateSubjectTeacherInCell(cell);
         }
 
-        // ① Same teacher in another section of the same time row
+        // ? Same teacher in another section of the same time row
         if (!conflictMsg) {
             var tr = teacherSel.closest('tr');
             if (tr) {
@@ -543,7 +496,7 @@
                 });
             }
         }
-        // ② Existing approved schedule same day+time
+        // ? Existing approved schedule same day+time
         if (!conflictMsg && day && startTime) {
             var existing = GS_TEACHER_CONFLICTS[String(teacherId)] || [];
             for (var i = 0; i < existing.length; i++) {
@@ -634,7 +587,7 @@
                 var chip = document.createElement('span');
                 chip.className = 'sf-shared-item';
                 chip.textContent = st.teacher_name;
-                chip.title = (st.department || 'Shared') + ' — click to assign';
+                chip.title = (st.department || 'Shared') + ' � click to assign';
                 chip.dataset.stSubjects = JSON.stringify(stSubjects);
                 chip.style.display = 'none'; // hidden until subject matches
                 chip.addEventListener('click', function() {
@@ -678,7 +631,7 @@
             });
         }
 
-        // Teacher change → conflict check
+        // Teacher change ? conflict check
         if (origSel) {
             origSel.addEventListener('change', function() {
                 gsCheckConflict(origSel);

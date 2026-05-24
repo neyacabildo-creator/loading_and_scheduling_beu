@@ -298,18 +298,7 @@
         };
         let gsCurrentGradeFilter = '';
         function gsSetGradeFilter(grade) { gsCurrentGradeFilter = grade; gsRenderTimetable(); }
-        const GS_SLOTS = [
-            {label:'7:45\n8:35',   start:'07:45',end:'08:35',isBreak:false},
-            {label:'8:35\n9:25',   start:'08:35',end:'09:25',isBreak:false},
-            {label:'SNACK',         start:'09:25',end:'09:55',isBreak:true},
-            {label:'9:55\n10:45',  start:'09:55',end:'10:45',isBreak:false},
-            {label:'10:45\n11:35', start:'10:45',end:'11:35',isBreak:false},
-            {label:'LUNCH',         start:'11:35',end:'13:15',isBreak:true},
-            {label:'1:15\n2:05',   start:'13:15',end:'14:05',isBreak:false},
-            {label:'2:05\n2:55',   start:'14:05',end:'14:55',isBreak:false},
-            {label:'2:55\n3:45',   start:'14:55',end:'15:45',isBreak:false},
-            {label:'3:45\n4:35',   start:'15:45',end:'16:35',isBreak:false},
-        ];
+        const GS_SLOTS = @json(\App\Support\SchoolScheduleSlots::scheduleDashboardSlots('grade_school'));
         let gsCurrentDay = 'Monday';
         let gsWeekOffset = 0;
 

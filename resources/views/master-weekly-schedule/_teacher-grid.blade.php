@@ -61,17 +61,28 @@
             </thead>
             <tbody>
                 @foreach($timeSlots as $slot)
-                    @php $isFixed = in_array($slot['type'], ['lunch', 'homeroom']); @endphp
+                    @php $isFixed = \App\Support\SchoolScheduleSlots::isMasterGridFixedRow($slot, count($days)); @endphp
                     <tr>
                         <td class="time-col">{{ $slot['label'] }}</td>
                         @foreach($days as $day)
+                            @if($isFixed)
+                                @if($loop->first)
+                                    <td class="fixed-row" colspan="{{ count($days) }}">{{ $slot['special'] ?? $slot['name'] ?? strtoupper($slot['type']) }}</td>
+                                @endif
+                                @continue
+                            @endif
+                            @if(!\App\Support\SchoolScheduleSlots::slotAppliesToDay($slot, $day))
+                                <td class="fixed-row" style="text-align:center;">—</td>
+                                @continue
+                            @endif
+                            @if(($slot['type'] ?? '') === 'homeroom')
+                                <td class="fixed-row">{{ $slot['special'] ?? $slot['name'] ?? 'HOMEROOM' }}</td>
+                                @continue
+                            @endif
                             @php
                                 $cell = $cellMap->get($slot['order'] . '_' . $day);
                             @endphp
-                            @if($isFixed)
-                                <td class="fixed-row">{{ $slot['special'] ?? strtoupper($slot['type']) }}</td>
-                            @else
-                                <td>
+                            <td>
                                     @if($cell && ($cell->grade_section || $cell->substitute_teacher))
                                         @if($cell->grade_section)
                                             <div class="cell-section">{{ $cell->grade_section }}</div>

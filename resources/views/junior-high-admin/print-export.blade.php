@@ -105,6 +105,9 @@
                     </thead>
                     <tbody>
                         @foreach($timeSlots as $slot)
+                            @if(!empty($slot['days']) && !in_array($day, $slot['days'], true))
+                                @continue
+                            @endif
                             @if(isset($slot['type']) && $slot['type'] === 'break')
                                 <tr class="break-row">
                                     <td class="time-cell">{{ $slot['label'] }}</td>

@@ -1328,16 +1328,7 @@ class GradeSchoolAdminController extends Controller
      */
     public function storeSchedule(Request $request) {
         // Fixed time-slot definitions (matches the schedule grid form)
-        $timeSlotMap = [
-            '0745_0835' => ['start' => '07:45', 'end' => '08:35'],
-            '0835_0925' => ['start' => '08:35', 'end' => '09:25'],
-            '0955_1045' => ['start' => '09:55', 'end' => '10:45'],
-            '1045_1135' => ['start' => '10:45', 'end' => '11:35'],
-            '1315_1405' => ['start' => '13:15', 'end' => '14:05'],
-            '1405_1455' => ['start' => '14:05', 'end' => '14:55'],
-            '1455_1545' => ['start' => '14:55', 'end' => '15:45'],
-            '1545_1635' => ['start' => '15:45', 'end' => '16:35'],
-        ];
+        $timeSlotMap = \App\Support\SchoolScheduleSlots::scheduleSlotKeyMap('grade_school');
 
         // Section key → display / stored name
         // Read from request (JS populates hidden inputs based on selected grade);
@@ -1595,18 +1586,7 @@ class GradeSchoolAdminController extends Controller
             'Grade 6' => ['ST. MA. GORETTI', 'ST. CATHERINE', 'ST. CLAIRE'],
         ];
 
-        $timeSlots = [
-            ['start' => '07:45', 'end' => '08:35', 'label' => '7:45–8:35'],
-            ['start' => '08:35', 'end' => '09:25', 'label' => '8:35–9:25'],
-            ['type' => 'break', 'name' => 'SNACK BREAK', 'start' => '09:25', 'end' => '09:55', 'label' => '9:25–9:55'],
-            ['start' => '09:55', 'end' => '10:45', 'label' => '9:55–10:45'],
-            ['start' => '10:45', 'end' => '11:35', 'label' => '10:45–11:35'],
-            ['type' => 'break', 'name' => 'LUNCH BREAK', 'start' => '11:35', 'end' => '13:15', 'label' => '11:35–1:15'],
-            ['start' => '13:15', 'end' => '14:05', 'label' => '1:15–2:05'],
-            ['start' => '14:05', 'end' => '14:55', 'label' => '2:05–2:55'],
-            ['start' => '14:55', 'end' => '15:45', 'label' => '2:55–3:45'],
-            ['start' => '15:45', 'end' => '16:35', 'label' => '3:45–4:35'],
-        ];
+        $timeSlots = \App\Support\SchoolScheduleSlots::printExportSlots('grade_school');
 
         $scheduleGrid  = [];
         $sections      = [];

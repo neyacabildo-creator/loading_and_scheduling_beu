@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\User;
+use App\Support\AuthSession;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
@@ -40,6 +42,13 @@ class LoginRequest extends FormRequest
     public function authenticate(): void
     {
         $this->ensureIsNotRateLimited();
+
+        $existing = User::where('email', $this->input('email'))->first();
+        if ($existing && AuthSession::hasActiveSessionElsewhere($existing)) {
+            throw ValidationException::withMessages([
+                'email' => 'This account is already signed in on another browser or device. Log out there first, or wait for that session to expire.',
+            ]);
+        }
 
         if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Models\LoginHistory;
 use App\Support\AuthRedirectSupport;
+use App\Support\AuthSession;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -36,6 +37,12 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
 
         $user = Auth::user();
+        $sessionId = $request->session()->getId();
+
+        AuthSession::assignActiveSession($user, $sessionId);
+        AuthSession::invalidateOtherSessions((int) $user->id, $sessionId);
+        AuthSession::rotateRememberToken($user);
+        $request->session()->put('auth_tab_last_seen', now()->timestamp);
 
         LoginHistory::create([
             'user_id' => $user->id,
@@ -63,6 +70,10 @@ class AuthenticatedSessionController extends Controller
 
         if ($lastLogin) {
             $lastLogin->update(['logout_at' => now()]);
+        }
+
+        if ($user = Auth::user()) {
+            AuthSession::clearActiveSession($user);
         }
 
         Auth::guard('web')->logout();
@@ -97,6 +108,10 @@ class AuthenticatedSessionController extends Controller
 
         if ($lastLogin) {
             $lastLogin->update(['logout_at' => now()]);
+        }
+
+        if ($user = Auth::user()) {
+            AuthSession::clearActiveSession($user);
         }
 
         Auth::guard('web')->logout();

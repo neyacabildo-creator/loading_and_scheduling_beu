@@ -61,8 +61,9 @@ window.__DASH_TIMETABLE_CONFIG__ = {
     apiUrl: @json($apiUrl ?? ''),
     initial: @json($initial ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE),
     slots: @json($slots ?? []),
+    slotsByDay: @json($slotsByDay ?? null),
     sections: @json($sections ?? []),
     grades: @json($grades),
 };
 </script>
-<script src="{{ asset('js/admin-dashboard-timetable.js') }}?v=3"></script>
+<script src="{{ asset('js/admin-dashboard-timetable.js') }}?v=4"></script>

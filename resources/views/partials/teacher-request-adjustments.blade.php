@@ -11,6 +11,9 @@
         : '/api/teacher/adjustment-available-teachers');
     $divisionLabel = $divisionLabel ?? 'Teacher Portal';
     $gradeLevels = $gradeLevels ?? ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'];
+    $schoolLevel = $schoolLevel ?? 'junior_high';
+    $scheduleSlots = $scheduleSlots ?? \App\Support\SchoolScheduleSlots::classSlotsForSchoolLevel($schoolLevel);
+    $classSlotsByDay = $classSlotsByDay ?? \App\Support\SchoolScheduleSlots::classSlotsByDayForSchoolLevel($schoolLevel);
 @endphp
 
 <style>
@@ -110,13 +113,19 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label>Preferred Start</label>
-                        <input type="time" name="preferred_start_time" id="adjStart">
-                    </div>
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label>Preferred End</label>
-                        <input type="time" name="preferred_end_time" id="adjEnd">
+                    <div class="form-group" style="margin-bottom:0;grid-column:span 2;">
+                        <label>Preferred Class Period *</label>
+                        <select id="adjPeriod" required>
+                            <option value="">-- Select official period --</option>
+                            @foreach($scheduleSlots as $slot)
+                                <option value="{{ $slot['start'] }}|{{ $slot['end'] }}">{{ $slot['label'] }}</option>
+                            @endforeach
+                        </select>
+                        <small style="color:var(--text-secondary);font-size:.75rem;display:block;margin-top:.35rem;">
+                            Times follow the {{ str_contains($schoolLevel, 'grade') ? 'Grade School' : 'Junior High' }} class schedule (official period slots only).
+                        </small>
+                        <input type="hidden" name="preferred_start_time" id="adjStart">
+                        <input type="hidden" name="preferred_end_time" id="adjEnd">
                     </div>
                 </div>
             </div>
@@ -201,10 +210,82 @@ const ADJUSTMENT_API = @json($apiBase);
 const LEAVE_API = @json($leaveApiBase);
 const ADJUSTMENT_SCHEDULES_API = @json($schedulesApi);
 const ADJ_AVAILABLE_TEACHERS_API = @json($availableTeachersApi);
+const ADJ_SCHEDULE_SLOTS = @json($scheduleSlots);
+const ADJ_SLOTS_BY_DAY = @json($classSlotsByDay);
 const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 let adjApprovedSchedules = [];
 let adjSlotTouched = false;
 let adjAvailableTeachers = [];
+
+function adjNormalizeTime(t) {
+    if (!t) return '';
+    const s = String(t).trim();
+    const m = s.match(/^(\d{1,2}):(\d{2})/);
+    return m ? `${String(m[1]).padStart(2, '0')}:${m[2]}` : s.slice(0, 5);
+}
+
+function adjSlotsForDay(day) {
+    if (ADJ_SLOTS_BY_DAY && day && ADJ_SLOTS_BY_DAY[day]) {
+        return ADJ_SLOTS_BY_DAY[day];
+    }
+    if (ADJ_SLOTS_BY_DAY && ADJ_SLOTS_BY_DAY.default) {
+        return ADJ_SLOTS_BY_DAY.default;
+    }
+    return ADJ_SCHEDULE_SLOTS;
+}
+
+function adjRebuildPeriodOptions(day) {
+    const period = document.getElementById('adjPeriod');
+    if (!period) return;
+    const slots = adjSlotsForDay(day);
+    const prev = period.value;
+    period.innerHTML = '<option value="">-- Select official period --</option>';
+    slots.forEach(function (slot) {
+        const opt = document.createElement('option');
+        opt.value = slot.start + '|' + slot.end;
+        opt.textContent = slot.label;
+        period.appendChild(opt);
+    });
+    if (prev) {
+        period.value = prev;
+        if (period.value !== prev) {
+            adjSetPeriodFromTimes('', '');
+        }
+    }
+}
+
+function adjSetPeriodFromTimes(start, end) {
+    const period = document.getElementById('adjPeriod');
+    const startInp = document.getElementById('adjStart');
+    const endInp = document.getElementById('adjEnd');
+    const ns = adjNormalizeTime(start);
+    const ne = adjNormalizeTime(end);
+    if (startInp) startInp.value = ns;
+    if (endInp) endInp.value = ne;
+    if (!period) return;
+    const key = ns && ne ? `${ns}|${ne}` : '';
+    let matched = false;
+    [...period.options].forEach(opt => {
+        if (opt.value === key) {
+            period.value = key;
+            matched = true;
+        }
+    });
+    if (!matched) period.value = '';
+}
+
+function adjApplyPeriodSelection() {
+    const period = document.getElementById('adjPeriod');
+    if (!period || !period.value) {
+        const startInp = document.getElementById('adjStart');
+        const endInp = document.getElementById('adjEnd');
+        if (startInp) startInp.value = '';
+        if (endInp) endInp.value = '';
+        return;
+    }
+    const [start, end] = period.value.split('|');
+    adjSetPeriodFromTimes(start, end);
+}
 
 function adjNorm(s) {
     return String(s || '').trim().toLowerCase();
@@ -269,23 +350,19 @@ function adjFillSlotFromSchedule() {
     const slot = matches[0] || null;
     const sec = document.getElementById('adjSection');
     const day = document.getElementById('adjDay');
-    const start = document.getElementById('adjStart');
-    const end = document.getElementById('adjEnd');
     const sid = document.getElementById('adjScheduleId');
 
     if (!slot) {
         if (sec) sec.value = '';
         if (day) day.value = '';
-        if (start) start.value = '';
-        if (end) end.value = '';
+        adjSetPeriodFromTimes('', '');
         if (sid) sid.value = '';
         return;
     }
 
     if (sec) sec.value = slot.section_name || '';
     if (day) day.value = slot.day_of_week || '';
-    if (start) start.value = slot.start_time || '';
-    if (end) end.value = slot.end_time || '';
+    adjSetPeriodFromTimes(slot.start_time, slot.end_time);
     if (sid) sid.value = slot.id ? String(slot.id) : '';
 }
 
@@ -315,6 +392,7 @@ function adjUpdateFormLayout() {
     const grade = document.getElementById('adjGradeLevel');
     const sub = document.getElementById('adjSubstitute');
     const reasonFld = document.getElementById('adjReason');
+    const period = document.getElementById('adjPeriod');
 
     const showCtx = ['schedule_change', 'room_change', 'teacher_reassignment', 'other'].includes(type);
     const showPrefs = type === 'schedule_change';
@@ -332,6 +410,7 @@ function adjUpdateFormLayout() {
     adjSetRequired(grade, showCtx && type !== 'other');
     adjSetRequired(sub, showReassign);
     adjSetRequired(reasonFld, showReason);
+    adjSetRequired(period, showPrefs);
 
     if (showReassign) {
         adjLoadAvailableTeachers();
@@ -402,13 +481,18 @@ document.getElementById('adjSubstitute')?.addEventListener('change', function() 
     const nameInp = document.getElementById('adjSubstituteName');
     if (nameInp) nameInp.value = opt?.dataset?.name || opt?.textContent?.replace(/\s*\(Shared\)\s*$/, '') || '';
 });
-['adjDay', 'adjStart', 'adjEnd'].forEach(id => {
-    document.getElementById(id)?.addEventListener('input', adjMarkSlotTouched);
-    document.getElementById(id)?.addEventListener('change', adjMarkSlotTouched);
+document.getElementById('adjDay')?.addEventListener('change', function () {
+    adjMarkSlotTouched();
+    adjRebuildPeriodOptions(this.value || '');
+});
+document.getElementById('adjPeriod')?.addEventListener('change', function() {
+    adjMarkSlotTouched();
+    adjApplyPeriodSelection();
 });
 
 loadAdjustmentSchedules();
 adjUpdateFormLayout();
+adjRebuildPeriodOptions(document.getElementById('adjDay')?.value || '');
 
 function switchTab(name) {
     document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
@@ -464,6 +548,9 @@ async function submitRequest(e) {
         delete body.day_of_week;
         delete body.preferred_start_time;
         delete body.preferred_end_time;
+    } else if (!body.preferred_start_time || !body.preferred_end_time) {
+        showToast('Please select a preferred class period from the official schedule.', 'error');
+        return;
     }
     if (type !== 'teacher_reassignment') {
         delete body.substitute_faculty_id;

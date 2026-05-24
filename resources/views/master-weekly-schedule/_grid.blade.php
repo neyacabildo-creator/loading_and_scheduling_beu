@@ -278,7 +278,7 @@
             <tbody>
                 @foreach($timeSlots as $slot)
                     @php
-                        $isFixed = in_array($slot['type'], ['lunch', 'homeroom']);
+                        $isFixed = \App\Support\SchoolScheduleSlots::isMasterGridFixedRow($slot, count($days));
                     @endphp
                     <tr>
                         <td class="td-time">{{ $slot['label'] }}</td>
@@ -288,10 +288,21 @@
                                 @foreach($days as $day)
                                     <input type="hidden" name="cells[{{ $slot['order'] }}][{{ $day }}][entry_type]" value="{{ $slot['type'] }}">
                                 @endforeach
-                                {{ $slot['special'] ?? strtoupper($slot['type']) }}
+                                {{ $slot['special'] ?? $slot['name'] ?? strtoupper($slot['type']) }}
                             </td>
                         @else
                             @foreach($days as $day)
+                                @if(!\App\Support\SchoolScheduleSlots::slotAppliesToDay($slot, $day))
+                                    <td class="td-fixed" style="background:var(--bg-tertiary);color:var(--text-secondary);text-align:center;font-size:.72rem;">—</td>
+                                    @continue
+                                @endif
+                                @if(($slot['type'] ?? '') === 'homeroom')
+                                    <td class="td-fixed">
+                                        <input type="hidden" name="cells[{{ $slot['order'] }}][{{ $day }}][entry_type]" value="homeroom">
+                                        {{ $slot['special'] ?? $slot['name'] ?? 'HOMEROOM' }}
+                                    </td>
+                                    @continue
+                                @endif
                                 @php
                                     $key  = $slot['order'] . '_' . $day;
                                     $cell = $existing->get($key);
