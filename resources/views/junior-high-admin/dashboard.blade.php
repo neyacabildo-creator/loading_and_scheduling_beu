@@ -84,6 +84,17 @@
         </div>
     </div>
 
+    @include('partials.admin-dashboard-scheduling-insights', [
+        'schedulingInsights' => $schedulingInsights ?? ['summary' => []],
+        'insightRoutes' => [
+            'class_schedule' => route('admin.class-schedule'),
+            'create_schedule' => route('admin.schedule.create'),
+            'faculty_loading' => route('admin.faculty-loading'),
+            'requests' => route('admin.shared-teacher-requests'),
+        ],
+        'stReqPending' => $stReqPending ?? 0,
+    ])
+
     <!-- Faculty Loads, Rooms, Teachers Overall -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
         <div class="overview-section" style="background: var(--bg-secondary); border-radius: 0.75rem; padding: 2rem; box-shadow: var(--shadow-sm);">

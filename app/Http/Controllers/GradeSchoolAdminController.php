@@ -148,8 +148,19 @@ class GradeSchoolAdminController extends Controller
                 ->where('is_active', true)->pluck('faculty_id')->map(fn ($id) => (int) $id)->all();
             $leaveBanner = \App\Support\TeacherPresenceSupport::collectActiveLeaveBannerData('mysql_gs', $sharedTeacherIds);
 
+            try {
+                $schedulingInsights = \App\Support\ScheduleMonitoringSupport::buildSummary('mysql_gs', 'grade_school');
+            } catch (\Exception $e) {
+                Log::warning('GS scheduling insights: ' . $e->getMessage());
+                $schedulingInsights = ['summary' => [
+                    'faculty_conflicts' => 0, 'room_conflicts' => 0, 'shared_overload' => 0,
+                    'shared_cross_conflicts' => 0, 'missing_schedule_date' => 0, 'missing_room' => 0, 'total_issues' => 0,
+                ]];
+            }
+
             return view('grade-school-admin.dashboard', [
                 'leaveBanner' => $leaveBanner,
+                'schedulingInsights' => $schedulingInsights,
                 'timetableSchedules'    => $timetableSchedules,
                 'totalFaculty'          => $totalFaculty,
                 'totalClasses'          => $totalClasses,
