@@ -318,6 +318,13 @@
     </div>
 
     <script src="{{ asset('js/admin-faculty-load-form.js') }}"></script>
+    <script src="{{ asset('js/admin-faculty-load-dss.js') }}"></script>
+    <script>
+        window.ADMIN_FACULTY_LOAD_DSS = {
+            checkUrl: @json(route('grade-school-admin.dss.assess-faculty-load')),
+            csrfToken: document.querySelector('meta[name="csrf-token"]')?.content || ''
+        };
+    </script>
     <script>
         const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
         const masterScheduleBaseUrl = '{{ url("grade-school-admin/master-schedule") }}';
@@ -792,7 +799,7 @@
             document.getElementById('addFacultyLoadModal').style.display = 'flex';
         }
 
-        document.getElementById('addFacultyLoadForm')?.addEventListener('submit', function (e) {
+        document.getElementById('addFacultyLoadForm')?.addEventListener('submit', async function (e) {
             e.preventDefault();
             const subjects = gsCollectSubjects();
             if (!subjects.length) {
@@ -808,6 +815,13 @@
                 status:           document.getElementById('addFacultyStatus').value,
                 notes:            document.getElementById('addFacultyNotes').value,
             };
+            if (window.AdminFacultyLoadDss) {
+                const ok = await AdminFacultyLoadDss.confirmBeforeSave({
+                    faculty_id: parseInt(data.faculty_id, 10),
+                    load_hours: data.load_hours,
+                });
+                if (!ok) return;
+            }
             fetch('/api/grade-school-admin/faculty-loads', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
@@ -851,7 +865,7 @@
             document.getElementById('editFacultyLoadModal').style.display = 'flex';
         }
 
-        document.getElementById('editFacultyLoadForm')?.addEventListener('submit', function (e) {
+        document.getElementById('editFacultyLoadForm')?.addEventListener('submit', async function (e) {
             e.preventDefault();
             const id = document.getElementById('editFacultyLoadId').value;
             const facultyId = document.getElementById('editFacultyId').value;
@@ -873,6 +887,14 @@
                 status:           document.getElementById('editFacultyStatus')?.value || 'available',
                 notes:            document.getElementById('editFacultyNotes').value,
             };
+            if (window.AdminFacultyLoadDss) {
+                const ok = await AdminFacultyLoadDss.confirmBeforeSave({
+                    faculty_id: data.faculty_id,
+                    load_hours: data.load_hours,
+                    exclude_load_id: parseInt(id, 10) || null,
+                });
+                if (!ok) return;
+            }
             fetch(`/api/grade-school-admin/faculty-loads/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },

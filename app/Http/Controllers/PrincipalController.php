@@ -44,6 +44,8 @@ class PrincipalController extends Controller
             $jhPendingPrincipal  = $this->safeDbCount('mysql_jh', 'class_schedules', ['admin_approved' => 1, 'principal_approved' => 0]);
             $pendingSchedules = $gsPendingPrincipal + $jhPendingPrincipal;
 
+            $principalScheduleFlags = \App\Support\ScheduleDssSupport::principalPendingScheduleFlags();
+
             // Rooms from both school DBs (Room model uses UseSchoolConnection which falls back
             // to default DB in principal context — query directly instead)
             $jhRooms     = $this->safeDbCount('mysql_jh', 'rooms');
@@ -82,6 +84,7 @@ class PrincipalController extends Controller
                 'pendingRequests',
                 'gsSchedules', 'jhSchedules',
                 'pendingSchedules',
+                'principalScheduleFlags',
                 'totalRooms', 'jhRooms', 'gsRooms', 'roomsData',
                 'recentRequests', 'recentActivity'
             ));
@@ -95,6 +98,7 @@ class PrincipalController extends Controller
                 'pendingRequests'  => 0,
                 'gsSchedules'      => 0, 'jhSchedules'  => 0,
                 'pendingSchedules' => 0,
+                'principalScheduleFlags' => ['total_pending' => 0, 'with_policy_flags' => 0],
                 'totalRooms'       => 0, 'jhRooms' => 0, 'gsRooms' => 0,
                 'roomsData'        => collect(),
                 'recentRequests'   => collect(),

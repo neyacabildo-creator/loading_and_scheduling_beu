@@ -177,6 +177,7 @@ Route::middleware('auth')->group(function () {
         Route::get('api/teacher/adjustment-requests', [\App\Http\Controllers\TeacherController::class, 'getAdjustmentRequests']);
         Route::get('api/teacher/adjustment-schedules', [\App\Http\Controllers\TeacherController::class, 'getAdjustmentScheduleOptions']);
         Route::get('api/teacher/adjustment-available-teachers', [\App\Http\Controllers\TeacherController::class, 'getAdjustmentAvailableTeachers']);
+        Route::post('api/teacher/adjustment-check-slot', [\App\Http\Controllers\ScheduleDssController::class, 'checkAdjustmentSlot']);
         Route::post('api/teacher/adjustment-requests', [\App\Http\Controllers\TeacherController::class, 'storeAdjustmentRequest']);
         Route::get('api/teacher/leave-requests', [\App\Http\Controllers\TeacherController::class, 'getLeaveRequests']);
         Route::post('api/teacher/leave-requests', [\App\Http\Controllers\TeacherController::class, 'storeLeaveRequest']);
@@ -412,6 +413,9 @@ Route::middleware('auth')->group(function () {
 
         // Faculty load availability status
         Route::get('api/admin/faculty-load-status', [ScheduleController::class, 'getFacultyLoadStatus'])->name('admin.faculty-load-status');
+
+        Route::post('api/admin/dss/assess-slot', [\App\Http\Controllers\ScheduleDssController::class, 'assessSlot'])->name('admin.dss.assess-slot');
+        Route::post('api/admin/dss/assess-faculty-load', [\App\Http\Controllers\ScheduleDssController::class, 'assessFacultyLoad'])->name('admin.dss.assess-faculty-load');
 
         Route::get('api/admin/notifications', [\App\Http\Controllers\AdminNotificationController::class, 'index']);
         Route::post('api/admin/notifications/read', [\App\Http\Controllers\AdminNotificationController::class, 'markRead']);
@@ -765,6 +769,9 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolAdmin::class, 'scho
         // Faculty load availability status
         Route::get('/faculty-load-status', [ScheduleController::class, 'getFacultyLoadStatus'])->name('grade-school-admin.faculty-load-status');
 
+        Route::post('/dss/assess-slot', [\App\Http\Controllers\ScheduleDssController::class, 'assessSlot'])->name('grade-school-admin.dss.assess-slot');
+        Route::post('/dss/assess-faculty-load', [\App\Http\Controllers\ScheduleDssController::class, 'assessFacultyLoad'])->name('grade-school-admin.dss.assess-faculty-load');
+
     });
 });
 
@@ -1115,6 +1122,7 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolTeacher::class, 'sc
         Route::get('/adjustment-available-teachers', [
             \App\Http\Controllers\GradeSchoolTeacherController::class, 'getAdjustmentAvailableTeachers'
         ]);
+        Route::post('/adjustment-check-slot', [\App\Http\Controllers\ScheduleDssController::class, 'checkAdjustmentSlot']);
         Route::post('/adjustment-requests', [
             \App\Http\Controllers\GradeSchoolTeacherController::class, 'storeAdjustmentRequest'
         ]);

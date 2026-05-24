@@ -110,11 +110,29 @@ class ScheduleGeneratorController extends Controller
             return back()->withErrors(['error' => 'Session expired — please re-run the generator.']);
         }
 
+        $proposed = $result['proposed'];
+        if ($request->boolean('import_only_clean') && ! empty($result['conflicts'])) {
+            $badIndices = [];
+            foreach ($result['conflicts'] as $c) {
+                foreach ($c['indices'] ?? [] as $idx) {
+                    $badIndices[(int) $idx] = true;
+                }
+            }
+            $proposed = array_values(array_filter(
+                $proposed,
+                fn ($entry, $idx) => ! isset($badIndices[$idx]),
+                ARRAY_FILTER_USE_BOTH
+            ));
+            if (empty($proposed)) {
+                return back()->withErrors(['error' => 'No conflict-free rows to import. Adjust generator settings or import all rows.']);
+            }
+        }
+
         config(['database.school_connection' => $conn]);
 
         try {
             $generator = new ScheduleGenerator();
-            $count     = $generator->persist($result['proposed'], $result['conflicts'] ?? [], Auth::id());
+            $count     = $generator->persist($proposed, $result['conflicts'] ?? [], Auth::id());
         } catch (\Exception $e) {
             Log::error('ScheduleGenerator::persist() failed: ' . $e->getMessage());
             config(['database.school_connection' => null]);

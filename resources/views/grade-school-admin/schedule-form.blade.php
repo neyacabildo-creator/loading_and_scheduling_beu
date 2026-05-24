@@ -57,18 +57,18 @@
     <div class="sf-card">
         <div class="sf-controls">
             <div class="sf-control-group">
-                <label for="grade_level">Grade Level *</label>
+                <label for="grade_level">Grade Level</label>
                 <select name="grade_level" id="grade_level" class="sf-select" required>
-                    <option value="">ù Select Grade ù</option>
+                    <option value="">Select Grade</option>
                     @foreach(['Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6'] as $g)
                         <option value="{{ $g }}" {{ old('grade_level') === $g ? 'selected' : '' }}>{{ $g }}</option>
                     @endforeach
                 </select>
             </div>
             <div class="sf-control-group">
-                <label for="day_of_week">Day of Week *</label>
+                <label for="day_of_week">Day of Week</label>
                 <select name="day_of_week" id="day_of_week" class="sf-select" required>
-                    <option value="">ù Select Day ù</option>
+                    <option value="">Select Day</option>
                     @foreach(['Monday','Tuesday','Wednesday','Thursday','Friday'] as $d)
                         <option value="{{ $d }}" {{ old('day_of_week') === $d ? 'selected' : '' }}>{{ $d }}</option>
                     @endforeach
@@ -80,6 +80,7 @@
             </div>
         </div>
         <p style="font-size:.8rem;color:var(--text-secondary);margin:0;">Select a grade level and day, then fill in subjects and assign teachers per section/time slot. Sections update automatically per grade.</p>
+        <div id="sfSlotAssistantStatus" style="margin-top:.75rem;"></div>
     </div>
 
     <!-- Grid -->
@@ -688,5 +689,12 @@
     });
 })();
 </script>
+<script>
+window.SF_SLOT_ASSISTANT = {
+    apiUrl: @json(route('grade-school-admin.dss.assess-slot')),
+    schoolLevel: 'grade_school'
+};
+</script>
+<script src="{{ asset('js/schedule-slot-assistant.js') }}"></script>
 
 @endsection

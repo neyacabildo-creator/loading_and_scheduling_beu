@@ -49,7 +49,7 @@
             <div class="sf-control-group">
                 <label>Grade Level</label>
                 <select name="grade_level" id="sfGrade" class="sf-select" required onchange="sfUpdateSections()">
-                    <option value="">ù Select Grade </option>
+                    <option value="">Select Grade</option>
                     <option value="Grade 7">Grade 7</option>
                     <option value="Grade 8">Grade 8</option>
                     <option value="Grade 9">Grade 9</option>
@@ -59,7 +59,7 @@
             <div class="sf-control-group">
                 <label>Day of Week</label>
                 <select name="day_of_week" id="sfDay" class="sf-select" required onchange="sfOnDayChange()">
-                    <option value=""> Select Day </option>
+                    <option value="">Select Day</option>
                     <option value="Monday">Monday</option>
                     <option value="Tuesday">Tuesday</option>
                     <option value="Wednesday">Wednesday</option>
@@ -73,6 +73,7 @@
             </div>
         </div>
         <p style="font-size:.8rem;color:var(--text-secondary);margin:0;">Select a grade level and day, then fill in the subjects and assign teachers per section/time slot.</p>
+        <div id="sfSlotAssistantStatus" style="margin-top:.75rem;"></div>
     </div>
 
     <!-- Grid -->
@@ -91,8 +92,8 @@
                     <th id="sfH0"><span class="sf-grade-badge" id="sfBadge0"></span><br>SECTION 1</th>
                     <th id="sfH1"><span class="sf-grade-badge" id="sfBadge1"></span><br>SECTION 2</th>
                     <th id="sfH2"><span class="sf-grade-badge" id="sfBadge2"></span><br>SECTION 3</th>
-                    <th id="sfH3"><span class="sf-grade-badge" id="sfBadge3">ù</span><br>SECTION 4</th>
-                    <th id="sfH4"><span class="sf-grade-badge" id="sfBadge4">ù</span><br>SECTION 5</th>
+                    <th id="sfH3"><span class="sf-grade-badge" id="sfBadge3"></span><br>SECTION 4</th>
+                    <th id="sfH4"><span class="sf-grade-badge" id="sfBadge4"></span><br>SECTION 5</th>
                 </tr>
 
             </thead>
@@ -573,4 +574,11 @@ sfUpdateSections();
     window.sfDuplicateSubjectTeacherInCell = sfDuplicateSubjectTeacherInCell;
 }());
 </script>
+<script>
+window.SF_SLOT_ASSISTANT = {
+    apiUrl: @json(route('admin.dss.assess-slot')),
+    schoolLevel: 'junior_high'
+};
+</script>
+<script src="{{ asset('js/schedule-slot-assistant.js') }}"></script>
 @endsection

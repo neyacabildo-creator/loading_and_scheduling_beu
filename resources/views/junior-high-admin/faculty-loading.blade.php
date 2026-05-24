@@ -365,7 +365,12 @@
     </div>
 
     <script src="{{ asset('js/admin-faculty-load-form.js') }}"></script>
+    <script src="{{ asset('js/admin-faculty-load-dss.js') }}"></script>
     <script>
+        window.ADMIN_FACULTY_LOAD_DSS = {
+            checkUrl: @json(route('admin.dss.assess-faculty-load')),
+            csrfToken: document.querySelector('meta[name="csrf-token"]')?.content || ''
+        };
         const masterScheduleBaseUrl = '{{ url("admin/master-schedule") }}';
         let allFacultyLoads = [];
         let currentPage = 1;
@@ -581,7 +586,7 @@
             document.getElementById('editFacultyLoadModal').style.display = 'flex';
         }
 
-        document.getElementById('editFacultyLoadForm')?.addEventListener('submit', function (e) {
+        document.getElementById('editFacultyLoadForm')?.addEventListener('submit', async function (e) {
             e.preventDefault();
             const id = document.getElementById('editFacultyLoadId').value;
             const facultyId = document.getElementById('editFacultyTeacherId').value;
@@ -603,6 +608,14 @@
                 status:           document.getElementById('editFacultyStatus')?.value || 'available',
                 notes:            document.getElementById('editFacultyNotes').value,
             };
+            if (window.AdminFacultyLoadDss) {
+                const ok = await AdminFacultyLoadDss.confirmBeforeSave({
+                    faculty_id: data.faculty_id,
+                    load_hours: data.load_hours,
+                    exclude_load_id: parseInt(id, 10) || null,
+                });
+                if (!ok) return;
+            }
             fetch(`/api/faculty-loads/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '', 'Accept': 'application/json' },
@@ -950,7 +963,7 @@
             document.getElementById('addFacultyLoadModal').style.display = 'flex';
         }
 
-        document.getElementById('addFacultyLoadForm')?.addEventListener('submit', function (e) {
+        document.getElementById('addFacultyLoadForm')?.addEventListener('submit', async function (e) {
             e.preventDefault();
             const facultyId = document.getElementById('addFacultyTeacherId').value;
             if (!facultyId) {
@@ -971,6 +984,13 @@
                 status:           document.getElementById('addFacultyStatus').value,
                 notes:            document.getElementById('addFacultyNotes').value,
             };
+            if (window.AdminFacultyLoadDss) {
+                const ok = await AdminFacultyLoadDss.confirmBeforeSave({
+                    faculty_id: data.faculty_id,
+                    load_hours: data.load_hours,
+                });
+                if (!ok) return;
+            }
             fetch('/api/faculty-loads', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '', 'Accept': 'application/json' },

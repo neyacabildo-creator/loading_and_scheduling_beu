@@ -9,6 +9,9 @@
     $availableTeachersApi = $availableTeachersApi ?? (str_contains($apiBase, 'grade-school-teacher')
         ? '/api/grade-school-teacher/adjustment-available-teachers'
         : '/api/teacher/adjustment-available-teachers');
+    $adjustmentCheckSlotApi = $adjustmentCheckSlotApi ?? (str_contains($apiBase, 'grade-school-teacher')
+        ? '/api/grade-school-teacher/adjustment-check-slot'
+        : '/api/teacher/adjustment-check-slot');
     $divisionLabel = $divisionLabel ?? 'Teacher Portal';
     $gradeLevels = $gradeLevels ?? ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'];
     $schoolLevel = $schoolLevel ?? 'junior_high';
@@ -136,6 +139,7 @@
                         </small>
                         <input type="hidden" name="preferred_start_time" id="adjStart">
                         <input type="hidden" name="preferred_end_time" id="adjEnd">
+                        <div id="adjSlotCheckStatus" style="margin-top:.5rem;font-size:.8rem;"></div>
                     </div>
                 </div>
             </div>
@@ -291,10 +295,62 @@ function adjApplyPeriodSelection() {
         const endInp = document.getElementById('adjEnd');
         if (startInp) startInp.value = '';
         if (endInp) endInp.value = '';
+        adjCheckPreferredSlot();
         return;
     }
     const [start, end] = period.value.split('|');
     adjSetPeriodFromTimes(start, end);
+    adjCheckPreferredSlot();
+}
+
+let adjSlotCheckTimer = null;
+function adjCheckPreferredSlot() {
+    const statusEl = document.getElementById('adjSlotCheckStatus');
+    if (!statusEl) return;
+    clearTimeout(adjSlotCheckTimer);
+    adjSlotCheckTimer = setTimeout(function () {
+        const day = document.getElementById('adjDay')?.value || '';
+        const start = document.getElementById('adjStart')?.value || '';
+        const end = document.getElementById('adjEnd')?.value || '';
+        const date = document.getElementById('adjPreferredDate')?.value || '';
+        if (!day || !start || !end) {
+            statusEl.innerHTML = '';
+            return;
+        }
+        const token = document.querySelector('meta[name="csrf-token"]')?.content
+            || document.querySelector('#reqForm input[name="_token"]')?.value || '';
+        fetch(@json($adjustmentCheckSlotApi), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                'X-CSRF-TOKEN': token,
+            },
+            body: JSON.stringify({
+                day_of_week: day,
+                preferred_start_time: start,
+                preferred_end_time: end,
+                preferred_date: date || null,
+            }),
+        })
+            .then(r => r.json())
+            .then(function (data) {
+                if (data.conflicts && data.conflicts.length) {
+                    const lines = data.conflicts.map(function (c) {
+                        return (c.subject || 'Class') + ' ' + (c.time || '') + (c.section ? ' (' + c.section + ')' : '');
+                    });
+                    statusEl.innerHTML = '<span style="color:#d97706;">Conflicts with: ' + lines.join('; ') + '</span>';
+                } else if (data.valid_slot) {
+                    statusEl.innerHTML = '<span style="color:#16a34a;">No scheduling conflict detected</span>';
+                } else {
+                    const warn = (data.messages || []).find(m => m.type === 'warn');
+                    statusEl.innerHTML = warn
+                        ? '<span style="color:#d97706;">' + warn.text + '</span>'
+                        : '<span style="color:var(--text-secondary);">Period selected — review warnings before submit.</span>';
+                }
+            })
+            .catch(function () { statusEl.innerHTML = ''; });
+    }, 300);
 }
 
 function adjNorm(s) {
@@ -503,7 +559,9 @@ document.getElementById('adjSubstitute')?.addEventListener('change', function() 
 document.getElementById('adjDay')?.addEventListener('change', function () {
     adjMarkSlotTouched();
     adjRebuildPeriodOptions(this.value || '');
+    adjCheckPreferredSlot();
 });
+document.getElementById('adjPreferredDate')?.addEventListener('change', adjCheckPreferredSlot);
 document.getElementById('adjPeriod')?.addEventListener('change', function() {
     adjMarkSlotTouched();
     adjApplyPeriodSelection();

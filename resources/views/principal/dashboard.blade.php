@@ -54,10 +54,16 @@
         <div class="stat-label">JH Schedules</div>
         <div class="stat-sub">Junior High total</div>
     </div>
-    <div class="stat-card {{ $pendingSchedules > 0 ? 'warning' : '' }}">
+    <div class="stat-card {{ $pendingSchedules > 0 ? 'warning' : '' }}" style="cursor:pointer;" onclick="window.location='{{ route('principal.schedule-approvals') }}'" title="Review schedules awaiting principal approval">
         <div class="stat-value">{{ $pendingSchedules }}</div>
         <div class="stat-label">Awaiting Your Approval</div>
-        <div class="stat-sub">Admin-approved, needs principal review</div>
+        <div class="stat-sub">Admin-approved, needs principal review
+            @if(($principalScheduleFlags['with_policy_flags'] ?? 0) > 0)
+                <span style="display:inline-block;margin-left:.35rem;background:#fef3c7;color:#92400e;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:9999px;">
+                    {{ $principalScheduleFlags['with_policy_flags'] }} with policy flags
+                </span>
+            @endif
+        </div>
     </div>
     <div class="stat-card">
         <div class="stat-value">{{ $totalUsers }}</div>

@@ -41,51 +41,56 @@
 
     @include('partials.admin-teacher-absence-banner')
 
+    <style>
+        .stat-card-clickable { cursor: pointer; transition: border-color .2s, box-shadow .2s; }
+        .stat-card-clickable:hover { border-color: var(--green-primary, #2d7a50); box-shadow: 0 4px 14px rgba(45,122,80,.12); }
+    </style>
+
     <!-- Stats Grid -->
     <div class="stats-grid">
-        <div class="stat-card">
+        <div class="stat-card stat-card-clickable" onclick="window.location='{{ route('grade-school-admin.users.index') }}'" title="Open user accounts">
             <div>
                 <p class="stat-label">Total Faculty</p>
                 <p class="stat-value">{{ $totalFaculty ?? 0 }}</p>
                 <p class="stat-change">Active Teachers</p>
             </div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card stat-card-clickable" onclick="window.location='{{ route('grade-school-admin.class-schedule') }}'" title="Open class schedule">
             <div>
                 <p class="stat-label">Total Schedules</p>
                 <p class="stat-value">{{ $totalClasses ?? 0 }}</p>
                 <p class="stat-change">{{ $approvedSchedules ?? 0 }} Approved</p>
             </div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card stat-card-clickable" onclick="window.location='{{ route('grade-school-admin.class-schedule') }}#pending-schedules'" title="Review pending schedules">
             <div>
                 <p class="stat-label">Pending Approvals</p>
                 <p class="stat-value">{{ $pendingApprovals ?? 0 }}</p>
                 <p class="stat-change">Need Attention</p>
             </div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card stat-card-clickable" onclick="window.location='{{ route('grade-school-admin.rooms-sections.index') }}'" title="Manage rooms">
             <div>
                 <p class="stat-label">Total Rooms</p>
                 <p class="stat-value">{{ $totalRooms ?? 0 }}</p>
                 <p class="stat-change">Available for Schedule</p>
             </div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card stat-card-clickable" onclick="window.location='{{ route('grade-school-admin.faculty-loading') }}'" title="Faculty loading">
             <div>
                 <p class="stat-label">Total Load Hours</p>
                 <p class="stat-value">{{ number_format($totalLoadHours ?? 0, 1) }}</p>
                 <p class="stat-change">Faculty Assignments</p>
             </div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card stat-card-clickable" onclick="window.location='{{ route('grade-school-admin.class-schedule') }}'" title="Review scheduling conflicts">
             <div>
                 <p class="stat-label">Scheduling Conflicts</p>
                 <p class="stat-value" style="{{ ($schedulingConflicts ?? 0) > 0 ? 'color:#ef4444;' : 'color:#16a34a;' }}">{{ $schedulingConflicts ?? 0 }}</p>
                 <p class="stat-change" style="{{ ($schedulingConflicts ?? 0) > 0 ? 'color:#ef4444;' : 'color:#16a34a;' }}">{{ ($schedulingConflicts ?? 0) > 0 ? 'Requires attention' : 'No conflicts detected' }}</p>
             </div>
         </div>
-        <div class="stat-card" style="cursor:pointer;" onclick="window.location='{{ route('grade-school-admin.shared-teacher-requests') }}'">
+        <div class="stat-card stat-card-clickable" onclick="window.location='{{ route('grade-school-admin.shared-teacher-requests') }}'" title="All teacher requests">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;">
                 <div>
                     <p class="stat-label">All Requests</p>
@@ -108,17 +113,6 @@
             </div>
         </div>
     </div>
-
-    @include('partials.admin-dashboard-scheduling-insights', [
-        'schedulingInsights' => $schedulingInsights ?? ['summary' => []],
-        'insightRoutes' => [
-            'class_schedule' => route('grade-school-admin.class-schedule'),
-            'create_schedule' => route('grade-school-admin.schedule.create'),
-            'faculty_loading' => route('grade-school-admin.faculty-loading'),
-            'requests' => route('grade-school-admin.shared-teacher-requests'),
-        ],
-        'stReqPending' => $stReqPending ?? 0,
-    ])
 
     <!-- Faculty Loads, Rooms, Teachers Overall -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">

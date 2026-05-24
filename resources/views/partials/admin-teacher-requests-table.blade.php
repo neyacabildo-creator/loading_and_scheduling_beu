@@ -83,6 +83,11 @@
                     <td class="str-col-status"><span class="status-{{ $tsr->status }}">{{ ucfirst($tsr->status) }}</span></td>
                     <td class="str-col-actions">
                         @if($tsr->status === 'pending')
+                            @include('partials.admin-request-impact', [
+                                'tsr' => $tsr,
+                                'adminConnection' => $adminConnection ?? 'mysql_jh',
+                                'schoolLevel' => $schoolLevel ?? 'junior_high',
+                            ])
                             @include('partials.admin-request-actions-pending', [
                                 'approveRoute' => route($approveRouteName, $tsr->id),
                                 'rejectRoute'  => route($rejectRouteName, $tsr->id),

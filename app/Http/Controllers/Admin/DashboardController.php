@@ -140,20 +140,9 @@ class DashboardController extends Controller
                 ->where('is_active', true)->pluck('faculty_id')->map(fn ($id) => (int) $id)->all();
             $leaveBanner = \App\Support\TeacherPresenceSupport::collectActiveLeaveBannerData('mysql_jh', $sharedTeacherIds);
 
-            try {
-                $schedulingInsights = \App\Support\ScheduleMonitoringSupport::buildSummary('mysql_jh', 'junior_high');
-            } catch (\Exception $e) {
-                Log::warning('JH scheduling insights: ' . $e->getMessage());
-                $schedulingInsights = ['summary' => [
-                    'faculty_conflicts' => 0, 'room_conflicts' => 0, 'shared_overload' => 0,
-                    'shared_cross_conflicts' => 0, 'missing_schedule_date' => 0, 'missing_room' => 0, 'total_issues' => 0,
-                ]];
-            }
-
             // Junior High Admin dashboard
             return view('junior-high-admin.dashboard', [
                 'leaveBanner' => $leaveBanner,
-                'schedulingInsights' => $schedulingInsights,
                 'timetableSchedules' => $timetableSchedules,
                 // Header stats
                 'totalFaculty' => $totalFaculty,
