@@ -227,10 +227,11 @@ class TeacherController extends Controller
         $teacherId = Auth::id();
 
         // 1. Get admin-assigned faculty loads for this teacher (from mysql_jh via UseSchoolConnection)
+        $connection = \App\Support\TeacherDatabaseSupport::connectionFromContext();
         $facultyLoads = FacultyLoad::where('faculty_id', $teacherId)->get();
-        $classSchedules = TeacherPortalSupport::classSchedulesForTeacherWorkload($teacherId);
+        $classSchedules = TeacherPortalSupport::classSchedulesForTeacherWorkload($teacherId, $connection);
 
-        $schedules = TeacherPortalSupport::buildWorkloadSchedules($classSchedules, $facultyLoads);
+        $schedules = TeacherPortalSupport::buildWorkloadSchedules($classSchedules, $facultyLoads, $connection);
         $totalUnits = collect($schedules)->sum(fn ($s) => (int) ($s['units'] ?? 0));
 
         return response()->json([
@@ -247,11 +248,12 @@ class TeacherController extends Controller
     {
         $teacherId = Auth::id();
         $schoolYear = date('Y') . '-' . (date('Y') + 1);
+        $connection = \App\Support\TeacherDatabaseSupport::connectionFromContext();
 
         $facultyLoads = FacultyLoad::where('faculty_id', $teacherId)->get();
-        $classSchedules = TeacherPortalSupport::classSchedulesForTeacherWorkload($teacherId);
+        $classSchedules = TeacherPortalSupport::classSchedulesForTeacherWorkload($teacherId, $connection);
 
-        $schedules = TeacherPortalSupport::buildWorkloadSchedules($classSchedules, $facultyLoads);
+        $schedules = TeacherPortalSupport::buildWorkloadSchedules($classSchedules, $facultyLoads, $connection);
         $histories = collect($schedules)
             ->map(fn ($s) => TeacherPortalSupport::workloadHistoryEntry($s, $schoolYear))
             ->values();

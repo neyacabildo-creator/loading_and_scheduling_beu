@@ -185,12 +185,13 @@ function renderTable(data) {
         const st = String(d.status ?? 'active').toLowerCase();
         const badgeClass = ['active', 'approved', 'available'].includes(st) ? 'active' : (st === 'inactive' ? 'inactive' : 'active');
         const color = loadHrs > 6 ? '#d32f2f' : loadHrs > 4 ? '#f57f17' : 'var(--green-primary)';
-        const gradeSection = d.grade_section || gradeSectionLabel(d);
+        const subjectLabel = (d.subject && d.subject !== '—') ? d.subject : (d.subject_name && d.subject_name !== '—' ? d.subject_name : '—');
+        const gradeSection = (d.grade_section && d.grade_section !== '—') ? d.grade_section : gradeSectionLabel(d);
         return `
             <tr>
                 <td>${i + 1}</td>
                 <td>${day}</td>
-                <td>${d.subject ?? '—'}</td>
+                <td>${subjectLabel}</td>
                 <td>${gradeSection}</td>
                 <td><strong>${unitCount}</strong></td>
                 <td>

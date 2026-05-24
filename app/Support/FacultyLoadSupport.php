@@ -756,6 +756,29 @@ class FacultyLoadSupport
                 ->delete();
         }
 
+        [$parsedGrade, $parsedSection] = \App\Support\ScheduleDisplaySupport::parseGradeSection($load->grade_level);
+        $gradeLevel = $parsedGrade !== '' ? $parsedGrade : trim((string) ($load->grade_level ?? ''));
+        $section = $parsedSection !== '' ? $parsedSection : null;
+
+        $dayOfWeek = null;
+        $timeStart = null;
+        $timeEnd = null;
+        if (\App\Support\TeacherPortalSupport::hasClassSchedulesTable($conn)) {
+            $match = \App\Models\ClassSchedule::on($conn)
+                ->where('faculty_id', $load->faculty_id)
+                ->whereNotIn('status', ['rejected', 'deleted'])
+                ->get()
+                ->first(fn ($s) => \App\Support\TeacherPortalSupport::scheduleMatchesFacultyLoad($s, $load));
+            if ($match) {
+                $resolved = \App\Support\ScheduleDisplaySupport::resolveGradeAndSection($match);
+                $gradeLevel = $gradeLevel !== '' ? $gradeLevel : ($resolved['grade_level'] ?: '');
+                $section = $section ?: ($resolved['section_name'] ?: null);
+                $dayOfWeek = $match->day_of_week;
+                $timeStart = $match->start_time;
+                $timeEnd = $match->end_time;
+            }
+        }
+
         DB::connection($conn)->table('teacher_loading_schedules')->updateOrInsert(
             ['faculty_id' => $load->faculty_id, 'subject_name' => $newName],
             [
@@ -763,6 +786,11 @@ class FacultyLoadSupport
                 'school_year'  => date('Y') . '-' . (date('Y') + 1),
                 'semester'     => '1st',
                 'subject_name' => $newName,
+                'grade_level'  => $gradeLevel !== '' ? $gradeLevel : null,
+                'section'      => $section,
+                'day_of_week'  => $dayOfWeek,
+                'time_start'   => $timeStart,
+                'time_end'     => $timeEnd,
                 'load_hours'   => $load->load_hours,
                 'units'        => $load->classes_assigned,
                 'status'       => $load->status === 'available' ? 'approved' : 'draft',

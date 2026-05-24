@@ -92,21 +92,104 @@ class TeacherPortalSupport
     }
 
     /**
+     * Personal loading rows synced from faculty assignments (richest subject/grade data).
+     */
+    public static function teacherLoadingSchedulesForWorkload(int $facultyId, ?string $connection = null): Collection
+    {
+        $connection = $connection ?? config('database.school_connection', 'mysql_jh');
+
+        if ($facultyId <= 0 || ! Schema::connection($connection)->hasTable('teacher_loading_schedules')) {
+            return collect();
+        }
+
+        return DB::connection($connection)
+            ->table('teacher_loading_schedules')
+            ->where('faculty_id', $facultyId)
+            ->orderBy('day_of_week')
+            ->orderBy('time_start')
+            ->orderBy('subject_name')
+            ->get();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function rowFromTeacherLoadingSchedule(object $row): array
+    {
+        [$parsedGrade, $parsedSection] = ScheduleDisplaySupport::parseGradeSection($row->grade_level ?? null);
+        $gradeLevel = $parsedGrade !== '' ? $parsedGrade : trim((string) ($row->grade_level ?? ''));
+        $sectionName = $parsedSection !== '' ? $parsedSection : trim((string) ($row->section ?? ''));
+
+        $status = strtolower(trim((string) ($row->status ?? 'draft')));
+        if ($status === 'available') {
+            $status = 'approved';
+        }
+
+        return [
+            'id'               => $row->id ?? null,
+            'source'           => 'teacher_loading_schedule',
+            'subject'          => trim((string) ($row->subject_name ?? '')),
+            'subject_name'     => trim((string) ($row->subject_name ?? '')),
+            'subject_code'     => trim((string) ($row->subject_code ?? '')),
+            'grade_level'      => $gradeLevel !== '' ? $gradeLevel : null,
+            'section_name'     => $sectionName !== '' ? $sectionName : null,
+            'day_of_week'      => $row->day_of_week ?? null,
+            'start_time'       => $row->time_start ?? null,
+            'end_time'         => $row->time_end ?? null,
+            'units'            => max(1, (int) round((float) ($row->units ?? 0))),
+            'classes_assigned' => max(1, (int) round((float) ($row->units ?? 0))),
+            'load_hours'       => (float) ($row->load_hours ?? 0),
+            'status'           => $status,
+            'school_year'      => $row->school_year ?? null,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    public static function workloadDedupeKey(array $row): string
+    {
+        return strtolower(implode('|', [
+            trim((string) ($row['subject'] ?? $row['subject_name'] ?? '')),
+            trim((string) ($row['grade_section'] ?? '')),
+            trim((string) ($row['day_of_week'] ?? '')),
+            trim((string) ($row['start_time'] ?? $row['time_start'] ?? '')),
+        ]));
+    }
+
+    /**
      * @param  \Illuminate\Support\Collection|\Illuminate\Database\Eloquent\Collection  $classSchedules
      * @param  \Illuminate\Support\Collection|\Illuminate\Database\Eloquent\Collection  $facultyLoads
      */
-    public static function buildWorkloadSchedules($classSchedules, $facultyLoads): array
+    public static function buildWorkloadSchedules($classSchedules, $facultyLoads, ?string $connection = null): array
     {
+        $connection = $connection ?? config('database.school_connection', 'mysql_jh');
         $loads = collect($facultyLoads);
         $allSchedules = collect($classSchedules);
+        $facultyId = (int) ($loads->first()?->faculty_id ?? $allSchedules->first()?->faculty_id ?? 0);
         $rows = [];
+        $seen = [];
+
+        $pushRow = function (array $row) use (&$rows, &$seen): void {
+            $normalized = self::normalizeWorkloadRow($row);
+            $key = self::workloadDedupeKey($normalized);
+            if (isset($seen[$key])) {
+                return;
+            }
+            $seen[$key] = true;
+            $rows[] = $normalized;
+        };
+
+        foreach (self::teacherLoadingSchedulesForWorkload($facultyId, $connection) as $tls) {
+            $pushRow(self::rowFromTeacherLoadingSchedule($tls));
+        }
 
         foreach ($classSchedules as $s) {
             $hours = self::scheduleDurationHours($s->start_time, $s->end_time);
             $load = $loads->first(fn ($l) => self::scheduleMatchesFacultyLoad($s, $l));
             $grade = ScheduleDisplaySupport::resolveGradeAndSection($s);
 
-            $rows[] = [
+            $pushRow([
                 'id'               => $s->id,
                 'source'           => 'class_schedule',
                 'subject'          => trim((string) ($s->subject ?? '')) ?: trim((string) ($load?->subject ?? '')),
@@ -120,7 +203,7 @@ class TeacherPortalSupport
                 'end_time'         => $s->end_time,
                 'grade_level'      => $grade['grade_level'] ?: ($s->grade_level ?? null),
                 'section_name'     => $grade['section_name'] ?: ($s->section_name ?? null),
-            ];
+            ]);
         }
 
         foreach ($loads as $load) {
@@ -148,11 +231,16 @@ class TeacherPortalSupport
                 $units = 1;
             }
 
-            $rows[] = [
+            $subject = trim((string) ($load->subject ?? ''));
+            if ($subject === '' && $comp) {
+                $subject = trim((string) ($comp->subject ?? ''));
+            }
+
+            $pushRow([
                 'id'               => $load->id,
                 'source'           => 'faculty_load',
-                'subject'          => trim((string) ($load->subject ?? '')),
-                'subject_name'     => trim((string) ($load->subject ?? '')),
+                'subject'          => $subject,
+                'subject_name'     => $subject,
                 'load_hours'       => $hours,
                 'classes_assigned' => $units,
                 'units'            => $units,
@@ -162,10 +250,10 @@ class TeacherPortalSupport
                 'end_time'         => $comp?->end_time,
                 'grade_level'      => $gradeLevel !== '' ? $gradeLevel : null,
                 'section_name'     => $sectionName,
-            ];
+            ]);
         }
 
-        return array_values(array_map(fn (array $row) => self::normalizeWorkloadRow($row), $rows));
+        return array_values($rows);
     }
 
     /**
@@ -247,6 +335,12 @@ class TeacherPortalSupport
 
         $gradeSection = self::gradeSectionLabel($gradeLevel, $sectionName);
         $subject = trim((string) ($row['subject'] ?? $row['subject_name'] ?? ''));
+        if (strcasecmp($subject, 'unassigned') === 0) {
+            $subject = '';
+        }
+        if ($subject === '' && ! empty($row['notes'])) {
+            $subject = trim((string) $row['notes']);
+        }
         if ($subject === '' && $gradeSection !== '') {
             $subject = $gradeSection;
         }
@@ -256,9 +350,12 @@ class TeacherPortalSupport
             $units = $subject !== '' || $gradeSection !== '' ? 1 : 0;
         }
 
+        $startTime = $row['start_time'] ?? $row['time_start'] ?? null;
+        $endTime = $row['end_time'] ?? $row['time_end'] ?? null;
+
         $loadHours = (float) ($row['load_hours'] ?? 0);
-        if ($loadHours <= 0 && ! empty($row['start_time']) && ! empty($row['end_time'])) {
-            $loadHours = self::scheduleDurationHours($row['start_time'], $row['end_time']);
+        if ($loadHours <= 0 && ! empty($startTime) && ! empty($endTime)) {
+            $loadHours = self::scheduleDurationHours($startTime, $endTime);
         }
         if ($loadHours <= 0 && $units > 0) {
             $loadHours = (float) $units;
@@ -276,8 +373,9 @@ class TeacherPortalSupport
             'grade_section'    => $gradeSection !== '' ? $gradeSection : '—',
             'room'             => $gradeSection !== '' ? $gradeSection : '—',
             'day_of_week'      => $day !== '' ? $day : null,
-            'start_time'       => $row['start_time'] ?? null,
-            'end_time'         => $row['end_time'] ?? null,
+            'start_time'       => $startTime,
+            'end_time'         => $endTime,
+            'school_year'      => $row['school_year'] ?? null,
             'units'            => $units,
             'classes_assigned' => $units,
             'load_hours'       => round($loadHours, 2),
@@ -292,11 +390,14 @@ class TeacherPortalSupport
     public static function workloadHistoryEntry(array $row, ?string $schoolYear = null): array
     {
         $normalized = self::normalizeWorkloadRow($row);
-        $schoolYear = $schoolYear ?? (date('Y') . '-' . (date('Y') + 1));
+        $defaultYear = date('Y') . '-' . (date('Y') + 1);
+        $resolvedYear = trim((string) ($row['school_year'] ?? $normalized['school_year'] ?? ''));
+        $schoolYear = $resolvedYear !== '' ? $resolvedYear : ($schoolYear ?? $defaultYear);
 
         return [
             'id'            => $normalized['id'],
             'subject'       => $normalized['subject'],
+            'subject_name'  => $normalized['subject_name'],
             'grade_level'   => $normalized['grade_level'],
             'section'       => $normalized['section_name'],
             'section_name'  => $normalized['section_name'],
