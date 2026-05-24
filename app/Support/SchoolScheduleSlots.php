@@ -38,7 +38,7 @@ class SchoolScheduleSlots
         return [
             ['start' => '07:45', 'end' => '08:35', 'label' => '7:45 – 8:35', 'type' => 'class'],
             ['start' => '08:35', 'end' => '09:25', 'label' => '8:35 – 9:25', 'type' => 'class'],
-            ['start' => '09:25', 'end' => '10:55', 'label' => '9:25 – 10:55', 'type' => 'break', 'name' => 'SNACK BREAK'],
+            ['start' => '09:25', 'end' => '09:55', 'label' => '9:25 – 9:55', 'type' => 'break', 'name' => 'SNACK BREAK'],
             ['start' => '09:55', 'end' => '10:45', 'label' => '9:55 – 10:45', 'type' => 'class'],
             ['start' => '10:45', 'end' => '11:35', 'label' => '10:45 – 11:35', 'type' => 'class'],
             ['start' => '11:35', 'end' => '13:15', 'label' => '11:35 – 1:15', 'type' => 'break', 'name' => 'LUNCH'],

@@ -187,6 +187,7 @@
         'initial' => $timetableSchedules ?? [],
         'grades' => ['1', '2', '3', '4', '5', '6'],
         'slots' => \App\Support\SchoolScheduleSlots::scheduleDashboardSlots('grade_school'),
+        'slotsByDay' => \App\Support\SchoolScheduleSlots::scheduleDashboardSlotsByDay('grade_school'),
         'sections' => [
             '1' => ['STEPHEN', 'PETER', 'ST. PAUL'],
             '2' => ['ST. LUKE', 'ST. MARK', 'ST. MATTHEW'],
