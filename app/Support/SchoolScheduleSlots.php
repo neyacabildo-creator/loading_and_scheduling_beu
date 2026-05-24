@@ -38,7 +38,7 @@ class SchoolScheduleSlots
         return [
             ['start' => '07:45', 'end' => '08:35', 'label' => '7:45 – 8:35', 'type' => 'class'],
             ['start' => '08:35', 'end' => '09:25', 'label' => '8:35 – 9:25', 'type' => 'class'],
-            ['start' => '09:25', 'end' => '09:55', 'label' => '9:25 – 10:45', 'type' => 'break', 'name' => 'SNACK BREAK'],
+            ['start' => '09:25', 'end' => '10:55', 'label' => '9:25 – 10:55', 'type' => 'break', 'name' => 'SNACK BREAK'],
             ['start' => '09:55', 'end' => '10:45', 'label' => '9:55 – 10:45', 'type' => 'class'],
             ['start' => '10:45', 'end' => '11:35', 'label' => '10:45 – 11:35', 'type' => 'class'],
             ['start' => '11:35', 'end' => '13:15', 'label' => '11:35 – 1:15', 'type' => 'break', 'name' => 'LUNCH'],
@@ -50,57 +50,97 @@ class SchoolScheduleSlots
     }
 
     /**
-     * Junior High official grid (all weekdays).
+     * Junior High morning / lunch rows (all weekdays).
      *
      * @return list<array{start: string, end: string, label: string, type?: string, special?: string}>
      */
-    public static function juniorHighGridSlots(): array
+    public static function juniorHighSharedGridSlots(): array
     {
         return [
             ['start' => '07:45', 'end' => '08:45', 'label' => '7:45 – 8:45', 'type' => 'class'],
-            ['start' => '08:45', 'end' => '09:15', 'label' => '8:45 – 9:15', 'type' => 'homeroom', 'special' => 'RECESS'],
-            ['start' => '09:15', 'end' => '10:15', 'label' => '9:15 – 10:15', 'type' => 'class'],
+            ['start' => '08:45', 'end' => '09:45', 'label' => '8:45 – 9:45', 'type' => 'class'],
+            ['start' => '09:45', 'end' => '10:15', 'label' => '9:45 – 10:15', 'type' => 'homeroom', 'special' => 'RECESS'],
             ['start' => '10:15', 'end' => '11:15', 'label' => '10:15 – 11:15', 'type' => 'class'],
             ['start' => '11:15', 'end' => '12:15', 'label' => '11:15 – 12:15', 'type' => 'class'],
             ['start' => '12:15', 'end' => '13:15', 'label' => '12:15 – 1:15', 'type' => 'lunch', 'special' => 'LUNCH'],
             ['start' => '13:15', 'end' => '14:15', 'label' => '1:15 – 2:15', 'type' => 'class'],
             ['start' => '14:15', 'end' => '15:15', 'label' => '2:15 – 3:15', 'type' => 'class'],
+        ];
+    }
+
+    /**
+     * @return list<array{start: string, end: string, label: string, type?: string, special?: string}>
+     */
+    public static function juniorHighWeekdayAfternoonGridSlots(): array
+    {
+        return [
             ['start' => '15:15', 'end' => '16:15', 'label' => '3:15 – 4:15', 'type' => 'class'],
             ['start' => '16:15', 'end' => '17:15', 'label' => '4:15 – 5:15', 'type' => 'class'],
         ];
     }
 
     /**
-     * Junior High grid for a single day (same slots Mon–Fri).
+     * @return list<array{start: string, end: string, label: string, type?: string, special?: string}>
+     */
+    public static function juniorHighTuesdayAfternoonGridSlots(): array
+    {
+        return [
+            [
+                'start'   => '15:15',
+                'end'     => '16:45',
+                'label'   => '3:15 – 4:45',
+                'type'    => 'homeroom',
+                'special' => 'HOMEROOM/CLUB ACTIVITIES',
+            ],
+        ];
+    }
+
+    /**
+     * Junior High grid for one day (create schedule, timetable, class schedule).
      *
      * @return list<array{start: string, end: string, label: string, type?: string, special?: string, name?: string}>
      */
     public static function juniorHighGridSlotsForDay(?string $dayOfWeek): array
     {
-        return self::juniorHighGridSlots();
+        $slots = self::juniorHighSharedGridSlots();
+
+        if (self::isTuesday($dayOfWeek)) {
+            return array_merge($slots, self::juniorHighTuesdayAfternoonGridSlots());
+        }
+
+        return array_merge($slots, self::juniorHighWeekdayAfternoonGridSlots());
     }
 
     /**
-     * Union of all JH rows for master loading grid.
+     * Union of all JH rows for master loading grid (rows may apply to specific days only).
      *
      * @return list<array{start: string, end: string, label: string, type?: string, special?: string, name?: string, days?: list<string>}>
      */
     public static function juniorHighGridSlotsUnion(): array
     {
-        return array_map(function (array $slot) {
-            return $slot + ['days' => self::WEEKDAYS];
-        }, self::juniorHighGridSlots());
+        $weekdays = ['Monday', 'Wednesday', 'Thursday', 'Friday'];
+        $shared = array_map(fn (array $slot) => $slot + ['days' => self::WEEKDAYS], self::juniorHighSharedGridSlots());
+        $weekdayAfternoon = array_map(
+            fn (array $slot) => $slot + ['days' => $weekdays],
+            self::juniorHighWeekdayAfternoonGridSlots()
+        );
+        $tuesdayAfternoon = array_map(
+            fn (array $slot) => $slot + ['days' => ['Tuesday']],
+            self::juniorHighTuesdayAfternoonGridSlots()
+        );
+
+        return array_merge($shared, $weekdayAfternoon, $tuesdayAfternoon);
     }
 
     /**
-     * Junior High class periods (excludes recess/lunch).
+     * Junior High class periods for teacher request adjustments (excludes recess/lunch).
      *
      * @return list<array{start: string, end: string, label: string}>
      */
     public static function juniorHighClassSlots(?string $dayOfWeek = null): array
     {
         $slots = [];
-        foreach (self::juniorHighGridSlots() as $slot) {
+        foreach (self::juniorHighGridSlotsForDay($dayOfWeek) as $slot) {
             if (in_array($slot['type'] ?? 'class', ['lunch', 'homeroom', 'break'], true)) {
                 continue;
             }
@@ -108,6 +148,14 @@ class SchoolScheduleSlots
                 'start' => $slot['start'],
                 'end'   => $slot['end'],
                 'label' => self::normalizeSlotLabel($slot['label']),
+            ];
+        }
+
+        if (self::isTuesday($dayOfWeek)) {
+            $slots[] = [
+                'start' => '15:15',
+                'end'   => '16:45',
+                'label' => '3:15 – 4:45 (Homeroom/Club)',
             ];
         }
 
@@ -458,6 +506,11 @@ class SchoolScheduleSlots
         }
 
         return null;
+    }
+
+    private static function isTuesday(?string $dayOfWeek): bool
+    {
+        return strcasecmp(trim((string) $dayOfWeek), 'Tuesday') === 0;
     }
 
     private static function normalizeSlotLabel(string $label): string

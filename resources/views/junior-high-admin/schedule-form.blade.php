@@ -58,7 +58,7 @@
             </div>
             <div class="sf-control-group">
                 <label>Day of Week</label>
-                <select name="day_of_week" id="sfDay" class="sf-select" required>
+                <select name="day_of_week" id="sfDay" class="sf-select" required onchange="sfOnDayChange()">
                     <option value=""> Select Day </option>
                     <option value="Monday">Monday</option>
                     <option value="Tuesday">Tuesday</option>
@@ -99,9 +99,17 @@
             @php
                 $jhSubjectOptions = ['MAPEH','AP','COMP','ADV SCI','CLVE','MATHEMATICS','ADV MATH','FILIPINO','ENGLISH','SCIENCE','TLE'];
             @endphp
-            <tbody id="sf-tbody">
+            <tbody id="sf-tbody-weekday">
                 @include('partials.schedule-form-grid-rows', [
                     'scheduleFormRows' => $scheduleFormRows,
+                    'allTeachersForDropdown' => $allTeachersForDropdown,
+                    'subjectOptions' => $jhSubjectOptions,
+                    'sectionCount' => 5,
+                ])
+            </tbody>
+            <tbody id="sf-tbody-tuesday" style="display:none;">
+                @include('partials.schedule-form-grid-rows', [
+                    'scheduleFormRows' => $scheduleFormRowsTuesday ?? [],
                     'allTeachersForDropdown' => $allTeachersForDropdown,
                     'subjectOptions' => $jhSubjectOptions,
                     'sectionCount' => 5,
@@ -131,6 +139,25 @@ const JH_SECTIONS = {
     'Grade 9':  ['CHARTRES','PIAT','FATIMA','CARMEL','LOURDES'],
     'Grade 10': ['PAUL','PLC','MBF','MICHEAU','MARIA'],
 };
+
+function sfOnDayChange() {
+    const day = (document.getElementById('sfDay') || {}).value || '';
+    const isTuesday = day === 'Tuesday';
+    const weekday = document.getElementById('sf-tbody-weekday');
+    const tuesday = document.getElementById('sf-tbody-tuesday');
+    if (weekday) weekday.style.display = isTuesday ? 'none' : '';
+    if (tuesday) tuesday.style.display = isTuesday ? '' : 'none';
+    [weekday, tuesday].forEach(function (tbody) {
+        if (!tbody) return;
+        const active = (isTuesday && tbody === tuesday) || (!isTuesday && tbody === weekday);
+        tbody.querySelectorAll('input, select, textarea').forEach(function (el) {
+            el.disabled = !active;
+        });
+    });
+    document.querySelectorAll('.sf-teacher').forEach(function (s) {
+        if (s.value) checkConflict(s);
+    });
+}
 
 function sfUpdateSections() {
     const grade = document.getElementById('sfGrade').value;
@@ -541,11 +568,7 @@ sfUpdateSections();
         }
     });
 
-    // Re-check on day change
-    var dayEl = document.getElementById('sfDay');
-    if (dayEl) dayEl.addEventListener('change', function() {
-        document.querySelectorAll('.sf-teacher').forEach(function(s){ if (s.value) checkConflict(s); });
-    });
+    sfOnDayChange();
 
     window.sfDuplicateSubjectTeacherInCell = sfDuplicateSubjectTeacherInCell;
 }());
