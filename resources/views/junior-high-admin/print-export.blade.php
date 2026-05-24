@@ -90,7 +90,10 @@
     @endphp
 
     @foreach($displayDays as $day)
-        @php $daySched = $scheduleGrid[$day] ?? []; @endphp
+        @php
+            $daySched = $scheduleGrid[$day] ?? [];
+            $dayTimeSlots = \App\Support\SchoolScheduleSlots::printExportSlotsForDay($schoolLevel ?? 'junior_high', $day);
+        @endphp
         <div class="pe-day-block">
             <div class="pe-day-title">{{ strtoupper($day) }}</div>
             <div style="overflow-x:auto;">
@@ -104,20 +107,17 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($timeSlots as $slot)
-                            @if(!empty($slot['days']) && !in_array($day, $slot['days'], true))
-                                @continue
-                            @endif
+                        @foreach($dayTimeSlots as $slot)
                             @if(isset($slot['type']) && $slot['type'] === 'break')
                                 <tr class="break-row">
-                                    <td class="time-cell">{{ $slot['label'] }}</td>
+                                    <td class="time-cell" style="white-space:pre-line;">{{ \App\Support\SchoolScheduleSlots::formatTimeCellLabel($slot) }}</td>
                                     @foreach($sections as $sec)
                                         <td>{{ $slot['name'] }}</td>
                                     @endforeach
                                 </tr>
                             @else
                                 <tr>
-                                    <td class="time-cell">{{ $slot['label'] }}</td>
+                                    <td class="time-cell" style="white-space:pre-line;">{{ \App\Support\SchoolScheduleSlots::formatTimeCellLabel($slot) }}</td>
                                     @foreach($sections as $sec)
                                         <td>
                                             @php $entries = $daySched[$sec][$slot['start']] ?? []; @endphp

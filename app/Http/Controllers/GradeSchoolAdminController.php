@@ -1586,7 +1586,8 @@ class GradeSchoolAdminController extends Controller
             'Grade 6' => ['ST. MA. GORETTI', 'ST. CATHERINE', 'ST. CLAIRE'],
         ];
 
-        $timeSlots = \App\Support\SchoolScheduleSlots::printExportSlots('grade_school');
+        $schoolLevel = 'grade_school';
+        $timeSlots = \App\Support\SchoolScheduleSlots::printExportSlots($schoolLevel);
 
         $scheduleGrid  = [];
         $sections      = [];
@@ -1641,7 +1642,7 @@ class GradeSchoolAdminController extends Controller
         return view('grade-school-admin.print-export', compact(
             'gradeLevel', 'dayOfWeek', 'scheduleDate',
             'sections', 'scheduleGrid', 'timeSlots',
-            'gradeLevels', 'days', 'sectionsByGrade'
+            'gradeLevels', 'days', 'sectionsByGrade', 'schoolLevel'
         ));
     }
 

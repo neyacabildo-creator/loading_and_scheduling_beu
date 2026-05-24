@@ -164,7 +164,7 @@
             @foreach($timeSlots as $slot)
                 @php $isFixed = \App\Support\SchoolScheduleSlots::isMasterGridFixedRow($slot, count($days)); @endphp
                 <tr>
-                    <td class="td-time">{{ $slot['label'] }}</td>
+                    <td class="td-time" style="white-space:pre-line;">{{ \App\Support\SchoolScheduleSlots::formatTimeCellLabel($slot) }}</td>
                     @if($isFixed)
                         <td class="td-fixed" colspan="{{ count($days) }}">
                             {{ $slot['special'] ?? $slot['name'] ?? strtoupper($slot['type']) }}

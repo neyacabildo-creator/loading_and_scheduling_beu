@@ -164,10 +164,10 @@ class MasterWeeklyScheduleController extends Controller
         $safeName = preg_replace('/[^A-Za-z0-9_-]+/', '-', trim($teacher->first_name . '-' . $teacher->last_name)) ?: 'teacher';
         $filename = 'master-schedule-' . $safeName . '-' . str_replace('/', '-', $schoolYear) . '.csv';
 
-        $slots = self::timeSlots();
+        $slots = self::timeSlots($schoolLevel);
         $days = self::days();
 
-        return response()->streamDownload(function () use ($slots, $days, $existing, $facultyName, $schoolYear, $semester, $subjectHandled) {
+        return response()->streamDownload(function () use ($slots, $days, $existing, $facultyName, $schoolYear, $semester, $subjectHandled, $schoolLevel) {
             $out = fopen('php://output', 'w');
             fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
             fputcsv($out, ['MASTER LOADING SCHEDULE']);
@@ -180,11 +180,21 @@ class MasterWeeklyScheduleController extends Controller
 
             foreach ($slots as $slot) {
                 if (in_array($slot['type'], ['lunch', 'homeroom', 'break'], true)) {
-                    fputcsv($out, [$slot['label'], $slot['special'] ?? $slot['name'] ?? strtoupper($slot['type'])]);
+                    fputcsv($out, [SchoolScheduleSlots::formatTimeCellLabel($slot), $slot['special'] ?? $slot['name'] ?? strtoupper($slot['type'])]);
                     continue;
                 }
-                $row = [$slot['label']];
+                $row = [SchoolScheduleSlots::formatTimeCellLabel($slot)];
                 foreach ($days as $day) {
+                    if (! SchoolScheduleSlots::slotAppliesToDay($slot, $day)) {
+                        $row[] = '';
+
+                        continue;
+                    }
+                    if (($slot['type'] ?? '') === 'homeroom') {
+                        $row[] = $slot['special'] ?? $slot['name'] ?? 'HOMEROOM';
+
+                        continue;
+                    }
                     $key = $slot['order'] . '_' . $day;
                     $cell = $existing->get($key);
                     $grade = trim((string) ($cell?->grade_section ?? ''));
@@ -238,11 +248,13 @@ class MasterWeeklyScheduleController extends Controller
             ->sort()
             ->values();
 
+        $schoolLevel = FacultyLoadSupport::schoolLevelForConnection();
+
         return view('master-weekly-schedule._card', [
             'teacher'        => $teacher,
             'schoolYear'     => $schoolYear,
             'semester'       => $semester,
-            'timeSlots'      => self::timeSlots(),
+            'timeSlots'      => self::timeSlots($schoolLevel),
             'days'           => self::days(),
             'existing'       => $existing,
             'subjectHandled' => $subjectHandled,
@@ -273,7 +285,7 @@ class MasterWeeklyScheduleController extends Controller
         $justCleared = session('just_cleared', false);
         $hasContent  = $existing->filter(fn($r) => !empty($r->grade_section))->isNotEmpty();
         if (!$justCleared && !$hasContent) {
-            $slotsByStart = collect(self::timeSlots())->keyBy('start');
+            $slotsByStart = collect(self::timeSlots($schoolLevel))->keyBy('start');
             \App\Models\ClassSchedule::where('faculty_id', $teacherId)
                 ->where('admin_approved', true)
                 ->get()
@@ -333,7 +345,7 @@ class MasterWeeklyScheduleController extends Controller
         return view($viewName, [
             'teacher'          => $teacher,
             'schoolYear'       => $schoolYear,
-            'timeSlots'        => self::timeSlots(),
+            'timeSlots'        => self::timeSlots($schoolLevel),
             'days'             => self::days(),
             'existing'         => $existing,
             'subjectHandled'   => $subjectHandled,
@@ -361,7 +373,8 @@ class MasterWeeklyScheduleController extends Controller
         $schoolYear     = $request->input('school_year');
         $subjectHandled = $request->input('subject_handled');
         $cells          = $request->input('cells', []);
-        $slots          = self::timeSlots();
+        $schoolLevel    = FacultyLoadSupport::schoolLevelForConnection();
+        $slots          = self::timeSlots($schoolLevel);
 
         // Pre-load approved class schedules keyed by "day|HH:MM" for fast per-cell lookup
         $approvedCS = \App\Models\ClassSchedule::where('faculty_id', $teacherId)
@@ -372,6 +385,10 @@ class MasterWeeklyScheduleController extends Controller
 
         foreach ($slots as $slot) {
             foreach (self::days() as $day) {
+                if (! SchoolScheduleSlots::slotAppliesToDay($slot, $day)) {
+                    continue;
+                }
+
                 $cell = $cells[$slot['order']][$day] ?? [];
 
                 $entryType = $slot['type'];

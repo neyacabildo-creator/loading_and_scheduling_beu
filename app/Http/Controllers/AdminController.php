@@ -521,7 +521,8 @@ class AdminController extends Controller {
             'Grade 10' => ['PAUL', 'PLC', 'MBF', 'MICHEAU', 'MARIA'],
         ];
 
-        $timeSlots = \App\Support\SchoolScheduleSlots::printExportSlots('junior_high');
+        $schoolLevel = 'junior_high';
+        $timeSlots = \App\Support\SchoolScheduleSlots::printExportSlots($schoolLevel);
 
         $scheduleGrid  = []; // [day][section_name][start_time] = [{subject, teacher}]
         $sections      = [];
@@ -593,7 +594,7 @@ class AdminController extends Controller {
         return view('junior-high-admin.print-export', compact(
             'gradeLevel', 'dayOfWeek', 'scheduleDate',
             'sections', 'scheduleGrid', 'timeSlots', 'availableDays',
-            'gradeLevels', 'days', 'sectionsByGrade'
+            'gradeLevels', 'days', 'sectionsByGrade', 'schoolLevel'
         ));
     }
 

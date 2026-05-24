@@ -63,7 +63,7 @@
                 @foreach($timeSlots as $slot)
                     @php $isFixed = \App\Support\SchoolScheduleSlots::isMasterGridFixedRow($slot, count($days)); @endphp
                     <tr>
-                        <td class="time-col">{{ $slot['label'] }}</td>
+                        <td class="time-col" style="white-space:pre-line;">{{ \App\Support\SchoolScheduleSlots::formatTimeCellLabel($slot) }}</td>
                         @foreach($days as $day)
                             @if($isFixed)
                                 @if($loop->first)
@@ -83,18 +83,17 @@
                                 $cell = $cellMap->get($slot['order'] . '_' . $day);
                             @endphp
                             <td>
-                                    @if($cell && ($cell->grade_section || $cell->substitute_teacher))
-                                        @if($cell->grade_section)
-                                            <div class="cell-section">{{ $cell->grade_section }}</div>
-                                        @endif
-                                        @if($cell->substitute_teacher)
-                                            <div class="cell-students-display">{{ $cell->substitute_teacher }}</div>
-                                        @endif
-                                    @else
-                                        <span style="color:var(--text-tertiary); font-size:0.75rem;">—</span>
+                                @if($cell && ($cell->grade_section || $cell->substitute_teacher))
+                                    @if($cell->grade_section)
+                                        <div class="cell-section">{{ $cell->grade_section }}</div>
                                     @endif
-                                </td>
-                            @endif
+                                    @if($cell->substitute_teacher)
+                                        <div class="cell-students-display">{{ $cell->substitute_teacher }}</div>
+                                    @endif
+                                @else
+                                    <span style="color:var(--text-tertiary); font-size:0.75rem;">—</span>
+                                @endif
+                            </td>
                         @endforeach
                     </tr>
                 @endforeach

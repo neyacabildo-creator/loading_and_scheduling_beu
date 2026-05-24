@@ -271,6 +271,30 @@ class SchoolScheduleSlots
     }
 
     /**
+     * Time column text for grids (two-line class times, single-line breaks).
+     */
+    public static function formatTimeCellLabel(array $slot): string
+    {
+        if (in_array($slot['type'] ?? 'class', ['lunch', 'homeroom', 'break'], true)) {
+            return (string) ($slot['special'] ?? $slot['name'] ?? strtoupper($slot['type'] ?? 'BREAK'));
+        }
+
+        [$top, $bottom] = self::splitLabelToDisplayPair($slot['label']);
+
+        return $bottom !== '' ? $top . "\n" . $bottom : $top;
+    }
+
+    /**
+     * Print/export rows for one day (JH uses day-specific rows; GS ignores day).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function printExportSlotsForDay(?string $schoolLevel, string $dayOfWeek): array
+    {
+        return self::printExportSlots($schoolLevel, $dayOfWeek);
+    }
+
+    /**
      * Weekly timetable / print-export rows (includes breaks).
      *
      * @return list<array<string, mixed>>
