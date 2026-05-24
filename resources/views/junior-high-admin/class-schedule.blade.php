@@ -31,8 +31,57 @@
         .schedule-event { padding: 0.25rem 0.5rem; background: linear-gradient(135deg, rgba(45,122,80,0.8) 0%, rgba(45,122,80,0.6) 100%); color: white; border-radius: 0.25rem; font-size: 0.65rem; margin-bottom: 0.25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .schedule-event.pending { background: linear-gradient(135deg, rgba(234,179,8,0.8) 0%, rgba(234,179,8,0.6) 100%); }
         .schedule-event.completed { background: linear-gradient(135deg, rgba(150,150,150,0.8) 0%, rgba(150,150,150,0.6) 100%); }
-        .action-buttons, .schedule-actions-row { display: flex; flex-direction: row; align-items: center; gap: 0.4rem; flex-wrap: nowrap; }
-        .action-buttons .action-btn, .schedule-actions-row .action-btn { margin: 0; flex-shrink: 0; }
+        #pendingSchedulesTable th:last-child,
+        #pendingSchedulesTable td:last-child,
+        #approvedSchedulesTable th:last-child,
+        #approvedSchedulesTable td:last-child {
+            white-space: nowrap;
+            vertical-align: middle;
+            min-width: 11.5rem;
+        }
+        .schedule-table-actions,
+        .schedule-actions-row {
+            display: inline-flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 0.5rem;
+            flex-wrap: nowrap;
+        }
+        .schedule-table-actions .action-btn,
+        .schedule-actions-row .action-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            flex: 0 0 auto;
+            white-space: nowrap;
+            min-height: 2rem;
+            padding: 0.4rem 0.7rem;
+            font-size: 0.72rem;
+            line-height: 1.2;
+            box-sizing: border-box;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .schedule-table-actions .action-btn.approve,
+        .schedule-actions-row .action-btn.approve { background: rgba(45,122,80,0.1); color: var(--green-primary); border: 1px solid var(--green-primary); }
+        .schedule-table-actions .action-btn.approve:hover,
+        .schedule-actions-row .action-btn.approve:hover { background: var(--green-primary); color: white; }
+        .schedule-table-actions .action-btn.edit,
+        .schedule-actions-row .action-btn.edit { background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); }
+        .schedule-table-actions .action-btn.edit:hover,
+        .schedule-actions-row .action-btn.edit:hover { background: var(--text-secondary); color: white; }
+        .schedule-table-actions .action-btn.delete,
+        .schedule-actions-row .action-btn.delete,
+        .schedule-table-actions .action-btn.reject,
+        .schedule-actions-row .action-btn.reject { background: transparent; color: #c83232; border: 1px solid #c83232; }
+        .schedule-table-actions .action-btn.delete:hover,
+        .schedule-actions-row .action-btn.delete:hover,
+        .schedule-table-actions .action-btn.reject:hover,
+        .schedule-actions-row .action-btn.reject:hover { background: #c83232; color: white; }
         
         /* Dark Mode Calendar Styles - Force Apply */
         html[data-theme="dark"] .calendar-day { background: #3a3a3a !important; color: #e0e0e0 !important; border-color: #404040 !important; }
@@ -236,56 +285,6 @@
     </div>
 
     <style>
-        .action-btn {
-            padding: 0.5rem 0.75rem;
-            border: none;
-            border-radius: 0.375rem;
-            cursor: pointer;
-            font-size: 0.75rem;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-        .action-btn.approve {
-            background: rgba(45,122,80,0.1);
-            color: var(--green-primary);
-            border: 1px solid var(--green-primary);
-        }
-        .action-btn.approve:hover {
-            background: var(--green-primary);
-            color: white;
-        }
-        .action-btn.edit {
-            background: var(--bg-secondary);
-            color: var(--text-primary);
-            border: 1px solid var(--border-color);
-        }
-        .action-btn.edit:hover {
-            background: var(--text-secondary);
-            color: white;
-        }
-        .action-btn.delete {
-            background: transparent;
-            color: #c83232;
-            border: 1px solid #c83232;
-        }
-        .action-btn.delete:hover {
-            background: #c83232;
-            color: white;
-        }
-        .action-btn.reject {
-            background: transparent;
-            color: #c83232;
-            border: 1px solid #c83232;
-        }
-        .action-btn.reject:hover {
-            background: #c83232;
-            color: white;
-        }
-        .action-buttons {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-        }
         .calendar-day.drag-over {
             background: rgba(45, 122, 80, 0.15) !important;
             outline: 2px dashed var(--green-primary);
@@ -464,10 +463,10 @@
                                 <td>${adminScheduleTimeRange(schedule)}</td>
                                 <td>${adminScheduleRoom(schedule)}</td>
                                 <td>
-                                    <div class="action-buttons">
-                                        <button class="action-btn approve" onclick="openApprovalModal(${schedule.id}, 'approve')">Approve</button>
-                                        <button class="action-btn edit" onclick="openEditModal(${schedule.id})">Edit</button>
-                                        <button class="action-btn delete" onclick="quickRejectSchedule(${schedule.id}, this)">Reject</button>
+                                    <div class="schedule-table-actions">
+                                        <button type="button" class="action-btn approve" onclick="openApprovalModal(${schedule.id}, 'approve')">Approve</button>
+                                        <button type="button" class="action-btn edit" onclick="openEditModal(${schedule.id})">Edit</button>
+                                        <button type="button" class="action-btn reject" onclick="quickRejectSchedule(${schedule.id}, this)">Reject</button>
                                     </div>
                                 </td>
                             </tr>
@@ -552,8 +551,8 @@
                                 <td><span class="badge badge-active">${schedule.status || 'active'}</span></td>
                                 <td>
                                     <div class="schedule-actions-row">
-                                        <button class="action-btn edit" onclick="openEditModal(${schedule.id})">Edit</button>
-                                        <button class="action-btn delete" onclick="adminQuickDeleteSchedule(${schedule.id}, this, { url: '/api/admin/schedules/${schedule.id}', onRollback: function(){ loadPendingSchedules(); loadApprovedSchedules(); } })">Delete</button>
+                                        <button type="button" class="action-btn edit" onclick="openEditModal(${schedule.id})">Edit</button>
+                                        <button type="button" class="action-btn delete" onclick="adminQuickDeleteSchedule(${schedule.id}, this, { url: '/api/admin/schedules/${schedule.id}', onRollback: function(){ loadPendingSchedules(); loadApprovedSchedules(); } })">Delete</button>
                                     </div>
                                 </td>
                             </tr>
