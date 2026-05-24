@@ -177,7 +177,7 @@ class SchoolScheduleSlots
             return self::gradeSchoolGridSlots();
         }
 
-        if ($unionAllDays || $dayOfWeek === null) {
+        if ($unionAllDays) {
             return self::juniorHighGridSlotsUnion();
         }
 

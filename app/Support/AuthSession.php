@@ -3,6 +3,8 @@
 namespace App\Support;
 
 use App\Models\User;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -139,9 +141,16 @@ class AuthSession
             return false;
         }
 
-        return $user->active_session_at->gte(
-            now()->subMinutes(self::sessionLifetimeMinutes())
-        );
+        $seenAt = $user->active_session_at;
+        if (! $seenAt instanceof CarbonInterface) {
+            try {
+                $seenAt = Carbon::parse($seenAt);
+            } catch (\Throwable) {
+                return false;
+            }
+        }
+
+        return $seenAt->gte(now()->subMinutes(self::sessionLifetimeMinutes()));
     }
 
     /**

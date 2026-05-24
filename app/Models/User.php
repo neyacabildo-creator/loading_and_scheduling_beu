@@ -53,6 +53,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'active_session_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
             'shared_teacher_subjects' => 'array',
