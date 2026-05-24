@@ -46,9 +46,13 @@
 
     function adminScheduleRoom(s) {
         if (!s) return '—';
-        if (s.room_label) return esc(s.room_label);
         if (s.room && s.room.room_number) return esc('Room ' + s.room.room_number);
-        return esc(adminScheduleGradeSection(s));
+        if (s.room_label && s.room_label !== '—') {
+            if (s.grade_section_label && s.room_label === s.grade_section_label) return '—';
+            if (s.grade && s.room_label === s.grade) return '—';
+            return esc(s.room_label);
+        }
+        return '—';
     }
 
     function adminScheduleTimeRange(s) {

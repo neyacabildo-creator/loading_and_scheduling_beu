@@ -80,16 +80,30 @@ class ScheduleDisplaySupport
         }
     }
 
-    public static function roomLabel(object|array $schedule, mixed $room = null): string
+    /**
+     * Physical room only (admin schedule tables). Never substitutes grade/section.
+     */
+    public static function physicalRoomLabel(object|array $schedule, mixed $room = null): string
     {
-        $row = is_array($schedule) ? (object) $schedule : $schedule;
-        if ($room !== null) {
-            $row->room = $room;
+        if ($room !== null && is_object($room) && ! empty($room->room_number)) {
+            return 'Room ' . $room->room_number;
         }
 
-        $label = TeacherPortalSupport::displayRoomFromRow($row);
+        $roomId = is_array($schedule) ? ($schedule['room_id'] ?? null) : ($schedule->room_id ?? null);
+        if ($roomId) {
+            $row = is_array($schedule) ? (object) $schedule : $schedule;
+            $related = $room ?? ($row->room ?? null);
+            if (is_object($related) && ! empty($related->room_number)) {
+                return 'Room ' . $related->room_number;
+            }
+        }
 
-        return $label !== '' && $label !== '—' ? $label : self::gradeSectionLabel($schedule);
+        return '—';
+    }
+
+    public static function roomLabel(object|array $schedule, mixed $room = null): string
+    {
+        return self::physicalRoomLabel($schedule, $room);
     }
 
     /**
