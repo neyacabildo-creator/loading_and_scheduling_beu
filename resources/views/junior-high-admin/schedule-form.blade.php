@@ -49,7 +49,7 @@
             <div class="sf-control-group">
                 <label>Grade Level</label>
                 <select name="grade_level" id="sfGrade" class="sf-select" required onchange="sfUpdateSections()">
-                    <option value="">ù Select Grade ù</option>
+                    <option value="">ù Select Grade </option>
                     <option value="Grade 7">Grade 7</option>
                     <option value="Grade 8">Grade 8</option>
                     <option value="Grade 9">Grade 9</option>
@@ -58,8 +58,8 @@
             </div>
             <div class="sf-control-group">
                 <label>Day of Week</label>
-                <select name="day_of_week" id="sfDay" class="sf-select" required onchange="sfOnDayChange()">
-                    <option value="">ù Select Day ù</option>
+                <select name="day_of_week" id="sfDay" class="sf-select" required>
+                    <option value=""> Select Day </option>
                     <option value="Monday">Monday</option>
                     <option value="Tuesday">Tuesday</option>
                     <option value="Wednesday">Wednesday</option>
@@ -99,17 +99,9 @@
             @php
                 $jhSubjectOptions = ['MAPEH','AP','COMP','ADV SCI','CLVE','MATHEMATICS','ADV MATH','FILIPINO','ENGLISH','SCIENCE','TLE'];
             @endphp
-            <tbody id="sf-tbody-weekday">
+            <tbody id="sf-tbody">
                 @include('partials.schedule-form-grid-rows', [
                     'scheduleFormRows' => $scheduleFormRows,
-                    'allTeachersForDropdown' => $allTeachersForDropdown,
-                    'subjectOptions' => $jhSubjectOptions,
-                    'sectionCount' => 5,
-                ])
-            </tbody>
-            <tbody id="sf-tbody-tuesday" style="display:none;">
-                @include('partials.schedule-form-grid-rows', [
-                    'scheduleFormRows' => $scheduleFormRowsTuesday,
                     'allTeachersForDropdown' => $allTeachersForDropdown,
                     'subjectOptions' => $jhSubjectOptions,
                     'sectionCount' => 5,
@@ -139,19 +131,6 @@ const JH_SECTIONS = {
     'Grade 9':  ['CHARTRES','PIAT','FATIMA','CARMEL','LOURDES'],
     'Grade 10': ['PAUL','PLC','MBF','MICHEAU','MARIA'],
 };
-
-function sfOnDayChange() {
-    const isTue = document.getElementById('sfDay')?.value === 'Tuesday';
-    const weekday = document.getElementById('sf-tbody-weekday');
-    const tuesday = document.getElementById('sf-tbody-tuesday');
-    if (weekday) weekday.style.display = isTue ? 'none' : '';
-    if (tuesday) tuesday.style.display = isTue ? '' : 'none';
-    [weekday, tuesday].forEach(function (tb) {
-        if (!tb) return;
-        const off = tb.style.display === 'none';
-        tb.querySelectorAll('select, input').forEach(function (el) { el.disabled = off; });
-    });
-}
 
 function sfUpdateSections() {
     const grade = document.getElementById('sfGrade').value;
@@ -276,7 +255,6 @@ document.addEventListener('change', function(e) {
 });
 
 function sfValidate() {
-    sfOnDayChange();
     const grade = document.getElementById('sfGrade').value;
     const day   = document.getElementById('sfDay').value;
     if (!grade) { alert('Please select a Grade Level first.'); return false; }
@@ -314,7 +292,6 @@ function sfValidate() {
 
 // Init
 sfUpdateSections();
-sfOnDayChange();
 
 // -- Conflict detection + Shared Teachers panel --------------------------
 (function () {

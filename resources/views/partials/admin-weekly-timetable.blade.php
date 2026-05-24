@@ -66,4 +66,4 @@ window.__DASH_TIMETABLE_CONFIG__ = {
     grades: @json($grades),
 };
 </script>
-<script src="{{ asset('js/admin-dashboard-timetable.js') }}?v=5"></script>
+<script src="{{ asset('js/admin-dashboard-timetable.js') }}?v=6"></script>

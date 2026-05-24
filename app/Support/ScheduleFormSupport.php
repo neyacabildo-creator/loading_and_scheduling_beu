@@ -161,9 +161,6 @@ class ScheduleFormSupport
             'allTeachersForDropdown'
         ) + [
             'scheduleFormRows' => SchoolScheduleSlots::scheduleFormRows($schoolLevel),
-            'scheduleFormRowsTuesday' => $schoolLevel === 'junior_high'
-                ? SchoolScheduleSlots::scheduleFormRows('junior_high', 'Tuesday')
-                : [],
         ];
     }
 
