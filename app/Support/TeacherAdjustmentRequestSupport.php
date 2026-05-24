@@ -309,7 +309,8 @@ class TeacherAdjustmentRequestSupport
             }
         }
 
-        if (TeacherPresenceSupport::isAbsenceLeaveType($validated['request_type'] ?? null)) {
+        // Leave requests use POST …/leave-requests (leave_type field), not this endpoint.
+        if ($request->filled('leave_type') && ! TeacherPresenceSupport::isScheduleAdjustmentType($validated['request_type'] ?? null)) {
             return TeacherLeaveRequestSupport::store($request, $connection);
         }
 

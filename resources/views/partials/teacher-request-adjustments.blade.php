@@ -534,6 +534,7 @@ function adjFormatValidationErrors(json) {
 
 async function submitRequest(e) {
     e.preventDefault();
+    adjApplyPeriodSelection();
     const form = e.target;
     const body = Object.fromEntries(new FormData(form).entries());
     delete body._token;

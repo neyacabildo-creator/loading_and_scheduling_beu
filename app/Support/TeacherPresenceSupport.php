@@ -18,15 +18,31 @@ class TeacherPresenceSupport
         'emergency_leave',
         'official_business',
         'leave_other',
+    ];
+
+    /** Stored in teacher_requests.request_type for schedule adjustments (not leave). */
+    public const SCHEDULE_ADJUSTMENT_TYPES = [
+        'time_change',
+        'room_change',
+        'teacher_reassignment',
+        'section_change',
+        'schedule_change',
         'other',
     ];
 
+    public static function isScheduleAdjustmentType(?string $type): bool
+    {
+        return in_array(trim((string) $type), self::SCHEDULE_ADJUSTMENT_TYPES, true);
+    }
+
     public static function isAbsenceLeaveType(?string $type): bool
     {
-        $type = TeacherLeaveRequestSupport::normalizeLeaveType((string) $type);
+        $type = trim((string) $type);
+        if ($type === '' || self::isScheduleAdjustmentType($type)) {
+            return false;
+        }
 
-        return in_array($type, TeacherLeaveRequestSupport::LEAVE_TYPES, true)
-            || in_array((string) $type, self::ABSENCE_LEAVE_TYPES, true);
+        return in_array($type, self::ABSENCE_LEAVE_TYPES, true);
     }
 
     public static function typeLabel(?string $type): string
