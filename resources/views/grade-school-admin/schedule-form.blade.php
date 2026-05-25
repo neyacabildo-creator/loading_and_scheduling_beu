@@ -419,14 +419,7 @@
         'Grade 5': ['ST. MARGARETTE', 'ST. THERESE', 'ST. AGATHA'],
         'Grade 6': ['ST. MA. GORETTI', 'ST. CATHERINE', 'ST. CLAIRE'],
     };
-    var GS_GRADE_SUBJECTS = {
-        'Grade 1': ['SCIENCE','COMPUTER','READING AND LITERACY','LANGUAGE','CLVE','MAKABANSA','MATHEMATICS'],
-        'Grade 2': ['MAKABANSA','ENGLISH','FILIPINO','SCIENCE','MATHEMATICS','CLVE','COMPUTER'],
-        'Grade 3': ['FILIPINO','CLVE','MAKABANSA','SCIENCE','MATHEMATICS','READING AND LITERACY','ENGLISH','COMPUTER'],
-        'Grade 4': ['MATHEMATICS','HELE','AP','MAPEH','ENGLISH','SCIENCE','CLVE','FILIPINO','COMPUTER'],
-        'Grade 5': ['AP','FILIPINO','ENGLISH','SCIENCE','HELE','MATHEMATICS','MAPEH','COMPUTER','CLVE'],
-        'Grade 6': ['MATHEMATICS','ENGLISH','SCIENCE','FILIPINO','CLVE','HELE','MAPEH','AP'],
-    };
+    var GS_GRADE_SUBJECTS = @json(\App\Support\SchoolSubjectsCatalog::gradeSchoolSubjectsByGrade());
 
     /** Rebuild section column headers + hidden section_names inputs + subject dropdowns. */
     function gsUpdateSections(grade) {

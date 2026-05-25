@@ -89,7 +89,59 @@ class SchoolSubjectsCatalog
         'Grade 3' => ['FILIPINO', 'CLVE', 'MAKABANSA', 'SCIENCE', 'MATHEMATICS', 'READING AND LITERACY', 'ENGLISH', 'COMPUTER'],
         'Grade 4' => ['MATHEMATICS', 'HELE', 'AP', 'MAPEH', 'ENGLISH', 'SCIENCE', 'CLVE', 'FILIPINO', 'COMPUTER'],
         'Grade 5' => ['AP', 'FILIPINO', 'ENGLISH', 'SCIENCE', 'HELE', 'MATHEMATICS', 'MAPEH', 'COMPUTER', 'CLVE'],
+        'Grade 6' => ['AP', 'MATHEMATICS', 'ENGLISH', 'SCIENCE', 'FILIPINO', 'CLVE', 'HELE', 'MAPEH'],
     ];
+
+    /**
+     * Grade School subjects per grade (Grades 1–6 + Kinder). Used by faculty load, class schedule, and create schedule.
+     *
+     * @return array<string, list<string>>
+     */
+    public static function gradeSchoolSubjectsByGrade(): array
+    {
+        return self::GS_BY_GRADE;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function gradeSchoolSubjectsForGrade(?string $gradeLevel): array
+    {
+        $grade = trim((string) $gradeLevel);
+
+        return self::GS_BY_GRADE[$grade] ?? [];
+    }
+
+    /**
+     * Flat list of all Grade 1–6 subjects (for faculty-load fallback dropdown).
+     *
+     * @return list<string>
+     */
+    public static function gradeSchoolDefaultSubjectList(): array
+    {
+        $grades = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'];
+
+        return self::mergeSubjects(
+            self::flattenGrades(array_intersect_key(self::GS_BY_GRADE, array_flip($grades))),
+            []
+        );
+    }
+
+    /**
+     * All subjects for GS faculty-load dropdowns (canonical + DB).
+     *
+     * @return list<string>
+     */
+    public static function gradeSchoolFacultyLoadSubjectOptions(): array
+    {
+        return self::mergeSubjects(
+            array_merge(
+                self::gradeSchoolDefaultSubjectList(),
+                KinderScheduleSupport::ACTIVITY_SUBJECTS
+            ),
+            self::subjectsFromSchedules('mysql_gs')
+        );
+    }
 
     /** @var list<string> */
     public const GS_SHARED_TEACHER_GRADES = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5'];

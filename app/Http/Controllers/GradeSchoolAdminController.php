@@ -752,7 +752,9 @@ class GradeSchoolAdminController extends Controller
      * Show class schedule page
      */
     public function classSchedule() {
-        return view('grade-school-admin.class-schedule');
+        return view('grade-school-admin.class-schedule', [
+            'gradeSchoolSubjectsByGrade' => \App\Support\SchoolSubjectsCatalog::gradeSchoolSubjectsByGrade(),
+        ]);
     }
 
     /**
@@ -790,18 +792,18 @@ class GradeSchoolAdminController extends Controller
         $sharedTeacherUserIds = User::whereHas('role', fn($q) => $q->where('name', 'shared_teacher'))
             ->pluck('id')->map(fn($id) => (string) $id)->toArray();
 
-        // Subjects: from class_schedules + sensible defaults
-        $defaultSubjects = ['Reading','Language','Filipino','Mathematics','CLVE/PE/Arts','Mathematics','Science','English','Filipino','Araling Panlipunan','Christian Living Education','MAPEH','Computer Education','Edukasyon sa Pagpapakatao','Mother Tongue','Values Education'];
-        $dbSubjects = ClassSchedule::distinct()->pluck('subject')->filter()->values()->toArray();
-        $subjects   = collect(array_unique(array_merge($dbSubjects, $defaultSubjects)))->sort()->values()->toArray();
+        $subjects = \App\Support\SchoolSubjectsCatalog::gradeSchoolFacultyLoadSubjectOptions();
 
         $sharedTeacherIds = DB::connection('mysql_gs')->table('shared_teachers')
             ->where('is_active', true)->pluck('faculty_id')->map(fn ($id) => (int) $id)->all();
         $leaveBanner = \App\Support\TeacherPresenceSupport::collectActiveLeaveBannerData('mysql_gs', $sharedTeacherIds);
 
+        $gradeSchoolSubjectsByGrade = \App\Support\SchoolSubjectsCatalog::gradeSchoolSubjectsByGrade();
+
         return view('grade-school-admin.faculty-loading', compact(
             'totalFaculty', 'totalClasses', 'avgLoad', 'overloaded', 'teachers', 'subjects',
-            'sharedTeacherUserIds', 'sharedTeacherSubjectsMap', 'leaveBanner'
+            'sharedTeacherUserIds', 'sharedTeacherSubjectsMap', 'leaveBanner',
+            'gradeSchoolSubjectsByGrade'
         ));
     }
 
@@ -912,6 +914,14 @@ class GradeSchoolAdminController extends Controller
             $teacher = User::find($validated['faculty_id']);
             $validated['teacher_name'] = $teacher ? (trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name) : null;
 
+            if (\App\Support\KinderScheduleSupport::isKinderGrade($validated['grade_level'] ?? null)
+                && FacultyLoadSupport::isSharedTeacher((int) $validated['faculty_id'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Shared teachers cannot be assigned to Kinder or Nursery faculty loads.',
+                ], 422);
+            }
+
             $dupMsg = FacultyLoadSupport::facultyLoadConflictMessage(
                 (int) $validated['faculty_id'],
                 $validated['teacher_name'] ?? null,
@@ -1001,10 +1011,20 @@ class GradeSchoolAdminController extends Controller
                 $validated['teacher_name'] = $teacher ? trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name : null;
             }
 
+            $facultyIdForCheck = (int) ($validated['faculty_id'] ?? $load->faculty_id);
+            $gradeForCheck = $validated['grade_level'] ?? $load->grade_level;
+            if (\App\Support\KinderScheduleSupport::isKinderGrade($gradeForCheck)
+                && FacultyLoadSupport::isSharedTeacher($facultyIdForCheck)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Shared teachers cannot be assigned to Kinder or Nursery faculty loads.',
+                ], 422);
+            }
+
             $dupMsg = FacultyLoadSupport::facultyLoadConflictMessage(
-                (int) ($validated['faculty_id'] ?? $load->faculty_id),
+                $facultyIdForCheck,
                 $validated['teacher_name'] ?? $load->teacher_name,
-                $validated['grade_level'] ?? $load->grade_level,
+                $gradeForCheck,
                 $validated['subject'] ?? $load->subject,
                 (int) $load->id
             );

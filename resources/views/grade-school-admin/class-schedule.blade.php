@@ -711,14 +711,7 @@
             .catch(() => {});
         }
 
-        const GS_EDIT_GRADE_SUBJECTS = {
-            'Grade 1': ['Mathematics','Science','English','Filipino','Araling Panlipunan','Christian Living Education','MAPEH','Mother Tongue','Reading'],
-            'Grade 2': ['Mathematics','Science','English','Filipino','Araling Panlipunan','Christian Living Education','MAPEH','Mother Tongue','Reading'],
-            'Grade 3': ['Mathematics','Science','English','Filipino','Araling Panlipunan','Christian Living Education','MAPEH','Mother Tongue','Reading'],
-            'Grade 4': ['Mathematics','Science','English','Filipino','Araling Panlipunan','Christian Living Education','MAPEH','Computer Education','Technology and Livelihood Education','Values Education'],
-            'Grade 5': ['Mathematics','Science','English','Filipino','Araling Panlipunan','Christian Living Education','MAPEH','Computer Education','Technology and Livelihood Education','Values Education'],
-            'Grade 6': ['Mathematics','Science','English','Filipino','Araling Panlipunan','Christian Living Education','MAPEH','Computer Education','Technology and Livelihood Education','Values Education'],
-        };
+        const GS_EDIT_GRADE_SUBJECTS = @json($gradeSchoolSubjectsByGrade ?? \App\Support\SchoolSubjectsCatalog::gradeSchoolSubjectsByGrade());
 
         function gsUpdateSectionOptions() {
             const grade = document.getElementById('editGradeLevel').value;

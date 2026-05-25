@@ -502,17 +502,7 @@
 
         const GS_KINDER_GRADES = ['Kinder 2', 'Kinder 1', 'Nursery'];
         let scheduleCardDownloadUrl = '';
-        const GS_GRADE_SUBJECTS = {
-            'Kinder 2': ['Reading','Language','Filipino','Mathematics','CLVE/PE/Arts'],
-            'Kinder 1': ['Reading','Language','Filipino','Mathematics','CLVE/PE/Arts'],
-            'Nursery': ['Reading','Language','Filipino','Mathematics','CLVE/PE/Arts'],
-            'Grade 1': ['Mathematics','Science','English','Filipino','Araling Panlipunan','Christian Living Education','MAPEH','Mother Tongue','Reading'],
-            'Grade 2': ['Mathematics','Science','English','Filipino','Araling Panlipunan','Christian Living Education','MAPEH','Mother Tongue','Reading'],
-            'Grade 3': ['Mathematics','Science','English','Filipino','Araling Panlipunan','Christian Living Education','MAPEH','Mother Tongue','Reading'],
-            'Grade 4': ['Mathematics','Science','English','Filipino','Araling Panlipunan','Christian Living Education','MAPEH','Computer Education','Technology and Livelihood Education','Values Education'],
-            'Grade 5': ['Mathematics','Science','English','Filipino','Araling Panlipunan','Christian Living Education','MAPEH','Computer Education','Technology and Livelihood Education','Values Education'],
-            'Grade 6': ['Mathematics','Science','English','Filipino','Araling Panlipunan','Christian Living Education','MAPEH','Computer Education','Technology and Livelihood Education','Values Education'],
-        };
+        const GS_GRADE_SUBJECTS = @json($gradeSchoolSubjectsByGrade ?? \App\Support\SchoolSubjectsCatalog::gradeSchoolSubjectsByGrade());
         let gsFacultySchedulesCache = [];
         let gsEditFacultySchedulesCache = [];
         let gsFacultyTeachersCache = [];
@@ -521,6 +511,62 @@
         function gsSubjectsForGrade(gradeLevel) {
             return GS_GRADE_SUBJECTS[gradeLevel] || GS_ALL_SUBJECTS;
         }
+
+        function gsIsKinderGrade(gradeLevel) {
+            return GS_KINDER_GRADES.includes(String(gradeLevel || '').trim());
+        }
+
+        function gsPopulateAddFacultyTeachers() {
+            const sel = document.getElementById('addFacultyId');
+            if (!sel) return;
+
+            const gradeLevel = document.getElementById('addFacultyGradeLevel')?.value || '';
+            const hideShared = gsIsKinderGrade(gradeLevel);
+            const previous = sel.value;
+
+            sel.innerHTML = '<option value="">-- Select Teacher --</option>';
+            (gsFacultyTeachersCache || []).forEach(t => {
+                const roleName = t.role_name || t.role?.name || '';
+                if (hideShared && roleName === 'shared_teacher') {
+                    return;
+                }
+                const opt = document.createElement('option');
+                opt.value = t.id;
+                if (roleName === 'shared_teacher') {
+                    opt.dataset.shared = '1';
+                }
+                opt.dataset.roleName = roleName;
+                opt.dataset.assignedSubjects = JSON.stringify(t.assigned_subjects || []);
+                opt.textContent = ((t.first_name || t.last_name)
+                    ? (t.first_name + ' ' + t.last_name).trim()
+                    : (t.name || '')) + (roleName === 'shared_teacher' ? ' (Shared Teacher)' : '');
+                sel.appendChild(opt);
+            });
+
+            if (previous) {
+                const still = Array.from(sel.options).find(o => String(o.value) === String(previous));
+                if (still) {
+                    sel.value = previous;
+                } else {
+                    sel.value = '';
+                    gsFacultySchedulesCache = [];
+                    gsPendingSharedSubjects = [];
+                    document.getElementById('addFacultyHours').value = '';
+                    document.getElementById('addFacultyClasses').value = '0';
+                    document.getElementById('gsAddSubjectList').innerHTML =
+                        '<p style="color:var(--text-secondary);font-size:0.85rem;margin:0;">Select a grade level, then add each subject.</p>';
+                }
+            }
+        }
+
+        document.getElementById('addFacultyGradeLevel')?.addEventListener('change', function () {
+            gsPopulateAddFacultyTeachers();
+            if (typeof gsRenderSubjectRows === 'function') {
+                gsRenderSubjectRows(['']);
+            }
+            gsRecalculateAddHours();
+            gsRecalculateOngoingClasses(false);
+        });
 
         AdminFacultyLoadForm.init({
             rowClass: 'gs-subject-row',
@@ -789,21 +835,7 @@
             .then(data => {
                 const teachers = Array.isArray(data) ? data : (data.data || []);
                 gsFacultyTeachersCache = teachers;
-                sel.innerHTML = '<option value="">-- Select Teacher --</option>';
-                teachers.forEach(t => {
-                    const opt = document.createElement('option');
-                    opt.value = t.id;
-                    const roleName = t.role_name || t.role?.name || '';
-                    if (roleName === 'shared_teacher') {
-                        opt.dataset.shared = '1';
-                    }
-                    opt.dataset.roleName = roleName;
-                    opt.dataset.assignedSubjects = JSON.stringify(t.assigned_subjects || []);
-                    opt.textContent = ((t.first_name || t.last_name)
-                        ? (t.first_name + ' ' + t.last_name).trim()
-                        : (t.name || '')) + (roleName === 'shared_teacher' ? ' (Shared Teacher)' : '');
-                    sel.appendChild(opt);
-                });
+                gsPopulateAddFacultyTeachers();
             })
             .catch(() => {
                 sel.innerHTML = '<option value="">-- Select Teacher --</option>';
