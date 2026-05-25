@@ -177,25 +177,4 @@ class ScheduleApprovalController extends Controller
         }
     }
 
-    /**
-     * View schedule details
-     */
-    public function show($schedule)
-    {
-        $schedule = ClassSchedule::findOrFail($schedule);
-        // Manually load relationships to avoid cross-connection eager loading
-        if ($schedule->faculty_id) {
-            $schedule->setRelation('faculty', User::find($schedule->faculty_id));
-        }
-        if ($schedule->room_id) {
-            $schedule->setRelation('room', Room::find($schedule->room_id));
-        }
-        if ($schedule->approved_by) {
-            $schedule->setRelation('approver', User::find($schedule->approved_by));
-        }
-        
-        return view('junior-high-admin.schedule-approval.show', [
-            'schedule' => $schedule,
-        ]);
-    }
 }

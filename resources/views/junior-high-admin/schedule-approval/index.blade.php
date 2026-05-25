@@ -125,7 +125,6 @@
                         </td>
                         <td>
                         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
-                            <a href="{{ route('admin.schedule-approval.show', $schedule->id) }}" class="action-btn btn-view">View</a>
                             @if($schedule->status !== 'active' || !$schedule->admin_approved)
                                 <form method="POST" action="{{ route('admin.schedule-approval.approve', $schedule->id) }}" style="display: inline;">
                                     @csrf

@@ -315,7 +315,6 @@ Route::middleware('auth')->group(function () {
         // Schedule Approval management
         Route::prefix('admin/schedule-approval')->group(function() {
             Route::get('/', [\App\Http\Controllers\Admin\ScheduleApprovalController::class, 'index'])->name('admin.schedule-approval.index');
-            Route::get('{schedule}', [\App\Http\Controllers\Admin\ScheduleApprovalController::class, 'show'])->name('admin.schedule-approval.show');
             Route::post('{schedule}/approve', [\App\Http\Controllers\Admin\ScheduleApprovalController::class, 'approve'])->name('admin.schedule-approval.approve');
             Route::post('{schedule}/reject', [\App\Http\Controllers\Admin\ScheduleApprovalController::class, 'reject'])->name('admin.schedule-approval.reject');
         });

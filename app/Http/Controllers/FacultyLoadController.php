@@ -119,18 +119,6 @@ class FacultyLoadController extends Controller
     }
 
     /**
-     * Show create form
-     */
-    public function create()
-    {
-        $faculties = User::whereHas('role', function ($query) {
-            $query->where('name', 'faculty');
-        })->get();
-
-        return view('grade-school-admin.faculty-loading.add', compact('faculties'));
-    }
-
-    /**
      * Store a new faculty load
      */
     public function store(Request $request)
@@ -214,19 +202,6 @@ class FacultyLoadController extends Controller
         $teachers = User::where('school_level', 'junior_high')
             ->whereHas('role', function($q) { $q->where('name', 'like', '%teacher%'); })->get();
         return redirect()->route('admin.faculty-loading.edit', $id);
-    }
-
-    /**
-     * Show edit form for a faculty load.
-     */
-    public function edit($id)
-    {
-        $facultyLoad = FacultyLoad::findOrFail($id);
-        $faculties = User::whereHas('role', function ($query) {
-            $query->where('name', 'faculty');
-        })->get();
-
-        return view('grade-school-admin.faculty-loading.edit', compact('facultyLoad', 'faculties'));
     }
 
     /**

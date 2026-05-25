@@ -1182,13 +1182,6 @@ class GradeSchoolAdminController extends Controller
     }
 
     /**
-     * Show rooms management page
-     */
-    public function rooms() {
-        return view('grade-school-admin.rooms.index');
-    }
-
-    /**
      * Show users management page
      */
     public function users() {
@@ -1281,13 +1274,6 @@ class GradeSchoolAdminController extends Controller
         ];
 
         return view('grade-school-admin.schedule-approval.index', compact('schedules', 'stats'));
-    }
-
-    /**
-     * Show reports page
-     */
-    public function reports() {
-        return view('grade-school-admin.reports.index');
     }
 
     /**
