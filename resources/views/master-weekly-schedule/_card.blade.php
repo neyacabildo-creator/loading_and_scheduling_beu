@@ -116,8 +116,18 @@
 </head>
 <body>
 
+@if(empty($isAjax ?? false))
+<div class="card-toolbar">
+    <span class="tbr-title">Master Loading Schedule</span>
+    <div style="display:flex;gap:.5rem;">
+        <button type="button" class="btn-download-card" style="background:#fff;color:#0369a1;border:1px solid #0369a1!important;" onclick="ScheduleCardPhotoDownload.downloadFromDocument(document, @json('master-schedule-' . preg_replace('/[^A-Za-z0-9_-]+/', '-', trim($teacher->first_name . '-' . $teacher->last_name))))">Download</button>
+        <button type="button" class="btn-print-card" onclick="window.print()">Print</button>
+    </div>
+</div>
+@endif
+
 {{-- ===== PAPER CARD ===== --}}
-<div class="sched-paper">
+<div class="sched-paper" id="scheduleCardPaper">
 
     {{-- Title --}}
     <div class="sched-title-bar">MASTER LOADING SCHEDULE</div>
@@ -220,5 +230,6 @@
 
 </div>{{-- /sched-paper --}}
 
+<script src="{{ asset('js/schedule-card-photo-download.js') }}"></script>
 </body>
 </html>

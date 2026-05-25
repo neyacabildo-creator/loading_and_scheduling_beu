@@ -198,7 +198,11 @@ class TeacherPresenceSupport
             $to = substr((string) $row->date_to, 0, 10);
             $totalDays = (int) ($row->total_days ?? 0);
             if ($totalDays <= 0 && $from && $to) {
-                $totalDays = max(1, Carbon::parse($from)->diffInDays(Carbon::parse($to)) + 1);
+                try {
+                    $totalDays = max(1, Carbon::parse($from)->diffInDays(Carbon::parse($to)) + 1);
+                } catch (\Throwable) {
+                    $totalDays = 1;
+                }
             }
             $type = (string) ($row->leave_type ?? 'other');
             $entry = [
@@ -210,7 +214,7 @@ class TeacherPresenceSupport
                 'date_from'   => $from,
                 'date_to'     => $to,
                 'total_days'  => $totalDays,
-                'date_range'  => Carbon::parse($from)->format('M j, Y') . ' – ' . Carbon::parse($to)->format('M j, Y'),
+                'date_range'  => TeacherLeaveRequestSupport::formatDateRangeLabel($from, $to),
             ];
             if (isset($sharedSet[$tid])) {
                 $shared[$tid] = $entry;

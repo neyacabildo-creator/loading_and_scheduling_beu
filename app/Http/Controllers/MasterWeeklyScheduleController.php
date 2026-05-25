@@ -329,6 +329,7 @@ class MasterWeeklyScheduleController extends Controller
             'existing'       => $existing,
             'subjectHandled' => $subjectHandled,
             'subjectOptions' => $subjectOptions,
+            'isAjax'         => $request->boolean('ajax'),
         ]);
     }
 

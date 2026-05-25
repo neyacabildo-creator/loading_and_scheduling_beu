@@ -501,7 +501,7 @@
         const GS_EDIT_SEL_STYLE = 'width:100%;padding:0.55rem;border:1px solid var(--border-color);border-radius:0.375rem;background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;';
 
         const GS_KINDER_GRADES = ['Kinder 2', 'Kinder 1', 'Nursery'];
-        let scheduleCardDownloadUrl = '';
+        let scheduleCardPhotoName = 'schedule-card';
         const GS_GRADE_SUBJECTS = @json($gradeSchoolSubjectsByGrade ?? \App\Support\SchoolSubjectsCatalog::gradeSchoolSubjectsByGrade());
         let gsFacultySchedulesCache = [];
         let gsEditFacultySchedulesCache = [];
@@ -995,13 +995,14 @@
             const spinner = document.getElementById('scheduleCardSpinner');
             const dlBtn   = document.getElementById('scheduleCardDownloadBtn');
             let cardUrl = `{{ url('grade-school-admin/master-schedule') }}/${teacherId}/card?ajax=1`;
+            scheduleCardPhotoName = 'schedule-card-' + teacherId;
             if (gradeLevel && GS_KINDER_GRADES.includes(gradeLevel)) {
                 cardUrl += '&grade_level=' + encodeURIComponent(gradeLevel);
-                scheduleCardDownloadUrl = `{{ url('grade-school-admin/master-schedule') }}/${teacherId}/kinder-download?grade_level=` + encodeURIComponent(gradeLevel || '');
+                scheduleCardPhotoName = 'kinder-schedule-' + teacherId + '-' + (gradeLevel || 'kinder').replace(/\s+/g, '-');
             } else {
-                scheduleCardDownloadUrl = `{{ url('grade-school-admin/master-schedule') }}/${teacherId}/download`;
+                scheduleCardPhotoName = 'master-schedule-' + teacherId;
             }
-            if (dlBtn) dlBtn.style.display = scheduleCardDownloadUrl ? 'inline-flex' : 'none';
+            if (dlBtn) dlBtn.style.display = 'inline-flex';
 
             modal.style.display   = 'flex';
             frame.style.display   = 'none';
@@ -1230,7 +1231,7 @@
             <div style="padding:.75rem 1rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e5e7eb;flex-shrink:0;">
                 <span id="scheduleCardModalTitle" style="font-weight:700;font-size:.9rem;color:#1a4731;">Schedule Card Preview</span>
                 <div style="display:flex;gap:.5rem;align-items:center;">
-                    <button id="scheduleCardDownloadBtn" type="button" onclick="if(scheduleCardDownloadUrl){window.location=scheduleCardDownloadUrl;}"
+                    <button id="scheduleCardDownloadBtn" type="button" onclick="downloadScheduleCardPhoto()"
                             style="display:none;padding:.35rem .85rem;background:#fff;color:#0369a1;border:1px solid #0369a1;border-radius:.4rem;font-size:.8rem;font-weight:600;cursor:pointer;">
                         Download
                     </button>
@@ -1254,5 +1255,13 @@
         </div>
     </div>
     <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+    <script src="{{ asset('js/schedule-card-photo-download.js') }}"></script>
+    <script>
+        function downloadScheduleCardPhoto() {
+            const frame = document.getElementById('scheduleCardFrame');
+            if (!frame || !window.ScheduleCardPhotoDownload) return;
+            ScheduleCardPhotoDownload.downloadFromIframe(frame, scheduleCardPhotoName || 'schedule-card');
+        }
+    </script>
 
 @endsection

@@ -1045,7 +1045,8 @@
             const modal    = document.getElementById('scheduleCardModal');
             const frame    = document.getElementById('scheduleCardFrame');
             const spinner  = document.getElementById('scheduleCardSpinner');
-            const cardUrl  = `{{ url('admin/master-schedule') }}/${teacherId}/card`;
+            const cardUrl  = `{{ url('admin/master-schedule') }}/${teacherId}/card?ajax=1`;
+            scheduleCardPhotoName = 'master-schedule-' + teacherId;
 
             modal.style.display   = 'flex';
             frame.style.display   = 'none';
@@ -1274,6 +1275,10 @@
             <div style="padding:.75rem 1rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e5e7eb;flex-shrink:0;">
                 <span style="font-weight:700;font-size:.9rem;color:#1a4731;">Master Loading Schedule &mdash; Card Preview</span>
                 <div style="display:flex;gap:.5rem;align-items:center;">
+                    <button type="button" onclick="downloadScheduleCardPhoto()"
+                            style="padding:.35rem .85rem;background:#fff;color:#0369a1;border:1px solid #0369a1;border-radius:.4rem;font-size:.8rem;font-weight:600;cursor:pointer;">
+                        Download
+                    </button>
                     <button onclick="document.getElementById('scheduleCardFrame').contentWindow.print()"
                             style="padding:.35rem .85rem;background:#1a4731;color:#fff;border:none;border-radius:.4rem;font-size:.8rem;font-weight:600;cursor:pointer;">
                         Print
@@ -1294,5 +1299,14 @@
         </div>
     </div>
     <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+    <script src="{{ asset('js/schedule-card-photo-download.js') }}"></script>
+    <script>
+        let scheduleCardPhotoName = 'master-schedule';
+        function downloadScheduleCardPhoto() {
+            const frame = document.getElementById('scheduleCardFrame');
+            if (!frame || !window.ScheduleCardPhotoDownload) return;
+            ScheduleCardPhotoDownload.downloadFromIframe(frame, scheduleCardPhotoName || 'schedule-card');
+        }
+    </script>
 
 @endsection

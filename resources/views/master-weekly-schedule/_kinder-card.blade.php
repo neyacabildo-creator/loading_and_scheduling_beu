@@ -94,7 +94,17 @@
 </head>
 <body>
 
-<div class="sched-paper">
+@if(empty($isAjax))
+<div class="card-toolbar">
+    <span class="tbr-title">Kinder Weekly Schedule</span>
+    <div style="display:flex;gap:.5rem;">
+        <button type="button" class="btn-download-card" onclick="ScheduleCardPhotoDownload.downloadFromDocument(document, @json('kinder-schedule-' . preg_replace('/[^A-Za-z0-9_-]+/', '-', $teacherName)))">Download</button>
+        <button type="button" class="btn-print-card" onclick="window.print()">Print</button>
+    </div>
+</div>
+@endif
+
+<div class="sched-paper" id="scheduleCardPaper">
     <div class="sched-title-bar">KINDER WEEKLY SCHEDULE</div>
 
     <div class="sched-info-row">
@@ -152,5 +162,6 @@
     </div>
 </div>
 
+<script src="{{ asset('js/schedule-card-photo-download.js') }}"></script>
 </body>
 </html>

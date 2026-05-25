@@ -24,6 +24,29 @@ class TeacherLeaveRequestSupport
         'other',
     ];
 
+    public static function formatDateRangeLabel(?string $from, ?string $to): string
+    {
+        $from = trim(substr((string) $from, 0, 10));
+        $to = trim(substr((string) $to, 0, 10));
+
+        if ($from === '' && $to === '') {
+            return '';
+        }
+
+        try {
+            if ($from !== '' && $to !== '') {
+                return Carbon::parse($from)->format('M d, Y') . ' – ' . Carbon::parse($to)->format('M d, Y');
+            }
+            if ($from !== '') {
+                return Carbon::parse($from)->format('M d, Y');
+            }
+        } catch (\Throwable) {
+            return trim($from . ($to !== '' ? ' – ' . $to : ''));
+        }
+
+        return '';
+    }
+
     public static function ensureTable(string $connection): void
     {
         if (! Schema::connection($connection)->hasTable(self::TABLE)) {
@@ -184,12 +207,17 @@ class TeacherLeaveRequestSupport
         }
 
         $sharedSet = array_fill_keys(array_map('intval', $sharedTeacherIds), true);
+        $hasSubmittedCol = Schema::connection($connection)->hasColumn(self::TABLE, 'submitted_to_admin');
 
-        $rows = DB::connection($connection)
-            ->table(self::TABLE)
-            ->orderByRaw("FIELD(status,'pending','approved','rejected','cancelled')")
-            ->orderByDesc('created_at')
-            ->get();
+        try {
+            $rows = DB::connection($connection)
+                ->table(self::TABLE)
+                ->orderByRaw("FIELD(status,'pending','approved','rejected','cancelled')")
+                ->orderByDesc('created_at')
+                ->get();
+        } catch (\Throwable) {
+            return collect();
+        }
 
         if ($rows->isEmpty()) {
             return collect();
@@ -206,16 +234,17 @@ class TeacherLeaveRequestSupport
             $rows->pluck('teacher_id')->map(fn ($id) => (int) $id)->all()
         );
 
-        return $rows->map(function ($r) use ($users, $presenceMap, $sharedSet) {
+        return $rows->map(function ($r) use ($users, $presenceMap, $sharedSet, $connection, $hasSubmittedCol) {
             $teacherId = (int) $r->teacher_id;
             $isShared = isset($sharedSet[$teacherId]);
             $user = $users->get($teacherId);
             $reviewer = $users->get($r->reviewed_by);
-            $from = substr((string) $r->date_from, 0, 10);
-            $to = substr((string) $r->date_to, 0, 10);
+            $from = substr((string) ($r->date_from ?? ''), 0, 10);
+            $to = substr((string) ($r->date_to ?? ''), 0, 10);
 
-            $submittedTo = $r->submitted_to_admin
-                ?? self::adminCodeForConnection($connection);
+            $submittedTo = ($hasSubmittedCol && ! empty($r->submitted_to_admin))
+                ? $r->submitted_to_admin
+                : self::adminCodeForConnection($connection);
 
             return (object) [
                 'id'                       => $r->id,
@@ -231,7 +260,7 @@ class TeacherLeaveRequestSupport
                 'date_from'                => $from,
                 'date_to'                  => $to,
                 'total_days'               => $r->total_days,
-                'leave_dates'              => Carbon::parse($from)->format('M d, Y') . ' – ' . Carbon::parse($to)->format('M d, Y'),
+                'leave_dates'              => self::formatDateRangeLabel($from, $to),
                 'reason'                   => $r->reason,
                 'admin_notes'              => $r->admin_notes,
                 'created_at'               => $r->created_at,

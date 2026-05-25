@@ -340,22 +340,25 @@ class KinderScheduleSupport
         }
 
         config(['database.school_connection' => 'mysql_gs']);
+        $startKey = substr((string) $activity['start'], 0, 5);
+        $endKey = substr((string) $activity['end'], 0, 5);
+
         $query = ClassSchedule::query()
             ->where('grade_level', $gradeLevel)
             ->where('section_name', $sectionName)
-            ->where('start_time', $activity['start'])
-            ->where('end_time', $activity['end'])
             ->where('admin_approved', true)
-            ->where('status', 'active');
+            ->whereNotIn('status', ['deleted', 'rejected', 'pending'])
+            ->whereRaw('LEFT(TIME(start_time), 5) = ?', [$startKey])
+            ->whereRaw('LEFT(TIME(end_time), 5) = ?', [$endKey]);
 
         if ($facultyId) {
             $query->where('faculty_id', $facultyId);
         }
 
         $map = [];
-        foreach ($query->get(['day_of_week', 'subject']) as $row) {
+        foreach ($query->orderBy('day_of_week')->get(['day_of_week', 'subject', 'faculty_id']) as $row) {
             $day = trim((string) ($row->day_of_week ?? ''));
-            if ($day !== '') {
+            if ($day !== '' && ! isset($map[$day])) {
                 $map[$day] = trim((string) ($row->subject ?? ''));
             }
         }
@@ -367,6 +370,24 @@ class KinderScheduleSupport
         }
 
         return $map;
+    }
+
+    /**
+     * Approved weekly subjects for card display (teacher rows first, then section-wide).
+     *
+     * @return array<string, string>
+     */
+    public static function approvedWeeklyActivityForCard(
+        string $gradeLevel,
+        string $sectionName,
+        int $facultyId
+    ): array {
+        $forTeacher = self::savedWeeklyActivity($gradeLevel, $sectionName, $facultyId);
+        if (array_filter($forTeacher) !== []) {
+            return $forTeacher;
+        }
+
+        return self::savedWeeklyActivity($gradeLevel, $sectionName, null);
     }
 
     /**
@@ -386,7 +407,7 @@ class KinderScheduleSupport
             'sectionName'      => $section,
             'sections'         => $sections,
             'routineSlots'     => self::routineSlots($grade),
-            'weeklyActivity'   => self::savedWeeklyActivity($grade, $section, (int) $teacher->id),
+            'weeklyActivity'   => self::approvedWeeklyActivityForCard($grade, $section, (int) $teacher->id),
             'activitySubjects' => self::activitySubjectsForFaculty((int) $teacher->id, $grade),
             'weekdays'         => self::WEEKDAYS,
             'teachersInCharge'       => self::teachersInCharge(),

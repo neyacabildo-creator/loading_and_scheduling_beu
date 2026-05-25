@@ -11,8 +11,8 @@
     </div>
     <div class="header-right">
         @php
-            $pendingCount = $requests->where('status', 'pending')->count()
-                + $teacherScheduleRequests->where('status', 'pending')->count()
+            $pendingCount = ($requests ?? collect())->where('status', 'pending')->count()
+                + ($teacherScheduleRequests ?? collect())->where('status', 'pending')->count()
                 + ($teacherLeaveRequests ?? collect())->where('status', 'pending')->count();
         @endphp
         @if($pendingCount > 0)

@@ -334,22 +334,35 @@ class SharedTeacherPortalController extends Controller
 
     public function adminGsRequests()
     {
-        $sharedTeacherIds = $this->sharedTeacherFacultyIds('mysql_gs');
+        try {
+            $sharedTeacherIds = $this->sharedTeacherFacultyIds('mysql_gs');
 
-        $requests = \App\Support\SharedTeacherRequestListSupport::listForAdmin('mysql_gs', $sharedTeacherIds);
-        $sharedPresenceMap = \App\Support\TeacherPresenceSupport::activeStatusMapForTeachers('mysql_gs', $sharedTeacherIds);
-        $requests = $requests->map(function ($r) use ($sharedPresenceMap) {
-            $r->presence = $sharedPresenceMap[(int) $r->faculty_id] ?? null;
+            $requests = \App\Support\SharedTeacherRequestListSupport::listForAdmin('mysql_gs', $sharedTeacherIds);
+            $sharedPresenceMap = \App\Support\TeacherPresenceSupport::activeStatusMapForTeachers('mysql_gs', $sharedTeacherIds);
+            $requests = $requests->map(function ($r) use ($sharedPresenceMap) {
+                $r->presence = $sharedPresenceMap[(int) $r->faculty_id] ?? null;
 
-            return $r;
-        });
-        $reviewers = $this->loadReviewers($requests);
-        $teacherUsers = $this->loadTeacherUsers($requests);
-        $teacherScheduleRequests = $this->loadTeacherAdjustmentRequests('mysql_gs', 'mysql_gs_teacher', $sharedTeacherIds);
-        $teacherLeaveRequests = \App\Support\TeacherLeaveRequestSupport::listAllLeaveForAdmin('mysql_gs', $sharedTeacherIds);
-        $absentToday = $this->collectAbsentTodaySummary('mysql_gs', $sharedTeacherIds);
+                return $r;
+            });
+            $reviewers = $this->loadReviewers($requests);
+            $teacherUsers = $this->loadTeacherUsers($requests);
+            $teacherScheduleRequests = $this->loadTeacherAdjustmentRequests('mysql_gs', 'mysql_gs_teacher', $sharedTeacherIds);
+            $teacherLeaveRequests = \App\Support\TeacherLeaveRequestSupport::listAllLeaveForAdmin('mysql_gs', $sharedTeacherIds);
+            $absentToday = $this->collectAbsentTodaySummary('mysql_gs', $sharedTeacherIds);
 
-        return view('grade-school-admin.shared-teacher-requests', compact('requests', 'reviewers', 'teacherUsers', 'teacherScheduleRequests', 'teacherLeaveRequests', 'absentToday'));
+            return view('grade-school-admin.shared-teacher-requests', compact('requests', 'reviewers', 'teacherUsers', 'teacherScheduleRequests', 'teacherLeaveRequests', 'absentToday'));
+        } catch (\Throwable $e) {
+            Log::error('adminGsRequests: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+
+            return view('grade-school-admin.shared-teacher-requests', [
+                'requests'                  => collect(),
+                'reviewers'                 => collect(),
+                'teacherUsers'              => collect(),
+                'teacherScheduleRequests'   => collect(),
+                'teacherLeaveRequests'      => collect(),
+                'absentToday'               => ['regular' => [], 'shared' => []],
+            ])->with('error', 'Could not load requests. Please refresh or contact support.');
+        }
     }
 
     public function adminGsApprove(Request $request, int $id)
