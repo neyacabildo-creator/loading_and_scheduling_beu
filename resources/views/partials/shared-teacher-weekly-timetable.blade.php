@@ -98,7 +98,7 @@
                     <p class="photo-title">Class Schedule — {{ $teacherName }}</p>
                     <p class="photo-meta">School Year {{ $schoolYear }} · Generated {{ now()->format('F d, Y') }}</p>
                     @if(!empty($presentation['subject_label']))
-                        <span class="st-pe-subject-badge">{{ $presentation['subject_label'] }}</span>
+                        <span class="st-pe-subject-badge no-print">{{ $presentation['subject_label'] }}</span>
                     @endif
                 </div>
 
