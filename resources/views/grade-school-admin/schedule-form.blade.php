@@ -104,7 +104,9 @@
         @include('partials.kinder-weekly-activity-table', [
             'gradeTitle' => null,
             'singleDay' => old('day_of_week'),
-            'weeklyActivity' => old('activity', \App\Support\KinderScheduleSupport::WEEKLY_ACTIVITY_BY_DAY),
+            'subjectOptionsReady' => \App\Support\KinderScheduleSupport::isKinderGrade(old('grade_level'))
+                && in_array(old('day_of_week'), \App\Support\KinderScheduleSupport::WEEKDAYS, true),
+            'weeklyActivity' => old('activity', []),
         ])
         <div style="display:flex;gap:1rem;padding-top:1.25rem;border-top:1px solid var(--border-color);margin-top:1rem;">
             <button type="submit" class="sf-submit-btn" id="sfKinderSubmitBtn">Save Kinder Schedule</button>
@@ -200,7 +202,6 @@
     var SF_GS_TEACHERS_BY_GRADE         = JSON.parse(document.getElementById('sf-gs-teachers-by-grade')?.textContent || '{}');
     var SF_GS_TEACHERS_BY_GRADE_KINDER  = JSON.parse(document.getElementById('sf-gs-teachers-by-grade-kinder')?.textContent || '{}');
     var KINDER_ACTIVITY_SUBJECTS       = @json(\App\Support\KinderScheduleSupport::ACTIVITY_SUBJECTS);
-    var KINDER_WEEKLY_DEFAULTS         = @json(\App\Support\KinderScheduleSupport::WEEKLY_ACTIVITY_BY_DAY);
     var SF_GS_TEACHERS_BY_GRADE_SUBJECT = JSON.parse(document.getElementById('sf-gs-teachers-by-grade-subject')?.textContent || '{}');
     var SF_GS_ALL_TEACHERS              = JSON.parse(document.getElementById('sf-gs-all-teachers')?.textContent || '[]');
     var SF_GS_TEACHERS_BY_SUBJECT       = JSON.parse(document.getElementById('sf-gs-teachers-by-subject')?.textContent || '{}');
@@ -234,25 +235,66 @@
         return weekly;
     }
 
+    function gsBuildKinderSubjectOptions(selected, includeSubjects) {
+        var opts = '<option value="">Select Subject</option>';
+        if (includeSubjects) {
+            KINDER_ACTIVITY_SUBJECTS.forEach(function (subj) {
+                opts += '<option value="' + subj.replace(/"/g, '&quot;') + '"' + (selected === subj ? ' selected' : '') + '>' + subj + '</option>';
+            });
+        }
+        return opts;
+    }
+
+    function gsPopulateKinderSubjectSelect(sel, selected) {
+        if (!sel) return;
+        sel.innerHTML = gsBuildKinderSubjectOptions(selected || sel.value, true);
+        sel.dataset.kinderSubjectsReady = '1';
+    }
+
+    function gsWireKinderSubjectSelect(sel, prefillSelected) {
+        if (!sel) return;
+        delete sel.dataset.kinderSubjectsReady;
+        if (prefillSelected) {
+            gsPopulateKinderSubjectSelect(sel, prefillSelected);
+            return;
+        }
+        sel.addEventListener('focus', function () {
+            if (sel.dataset.kinderSubjectsReady === '1') return;
+            gsPopulateKinderSubjectSelect(sel, '');
+        });
+        sel.addEventListener('mousedown', function () {
+            if (sel.dataset.kinderSubjectsReady === '1') return;
+            gsPopulateKinderSubjectSelect(sel, '');
+        });
+    }
+
     function gsUpdateKinderDayTable() {
         var tbody = document.getElementById('gsKinderScheduleBody');
         if (!tbody) return;
+        var grade = gradeSelect ? gradeSelect.value : '';
         var day = daySelect ? daySelect.value : '';
-        var weekly = Object.assign({}, KINDER_WEEKLY_DEFAULTS, gsKinderWeeklyFromForm());
+        var kinderGrade = isKinderGrade(grade);
+        var weekly = gsKinderWeeklyFromForm();
+        if (!kinderGrade) {
+            tbody.innerHTML = '<tr id="gsKinderDayPlaceholder"><td colspan="2" style="border:1px solid var(--border-color);padding:1rem;text-align:center;color:var(--text-secondary);font-size:0.85rem;">Select a Kinder or Nursery grade level first.</td></tr>';
+            return;
+        }
         if (!day) {
             tbody.innerHTML = '<tr id="gsKinderDayPlaceholder"><td colspan="2" style="border:1px solid var(--border-color);padding:1rem;text-align:center;color:var(--text-secondary);font-size:0.85rem;">Select a day of week above to assign a subject.</td></tr>';
             return;
         }
         var selected = weekly[day] || '';
-        var opts = '<option value="">Select subject</option>';
-        KINDER_ACTIVITY_SUBJECTS.forEach(function (subj) {
-            opts += '<option value="' + subj.replace(/"/g, '&quot;') + '"' + (selected === subj ? ' selected' : '') + '>' + subj + '</option>';
-        });
+        var readyOnLoad = !!selected;
         tbody.innerHTML = '<tr data-kinder-day="' + day + '">' +
             '<td style="border:1px solid var(--border-color);padding:.5rem;font-weight:700;text-transform:uppercase;">' + day.toUpperCase() + '</td>' +
             '<td style="border:1px solid var(--border-color);padding:.35rem;">' +
             '<select name="activity[' + day + ']" required title="Subjects" style="width:100%;padding:.45rem;border:1px solid var(--border-color);border-radius:.35rem;background:var(--bg-secondary);">' +
-            opts + '</select></td></tr>';
+            gsBuildKinderSubjectOptions(selected, readyOnLoad) +
+            '</select></td></tr>';
+        gsWireKinderSubjectSelect(
+            tbody.querySelector('select[name="activity[' + day + ']"]'),
+            readyOnLoad ? selected : ''
+        );
     }
 
     // Aliases: form display value ? possible keys in SF_GS_TEACHERS_BY_SUBJECT
@@ -794,7 +836,7 @@
         }
         var subjectSel = document.querySelector('#gsKinderScheduleBody select[name="activity[' + day + ']"]');
         if (!subjectSel || !subjectSel.value) {
-            gsToast('Please select a subject for ' + day + '.');
+            gsToast('Please select a Subject for ' + day + '.');
             return false;
         }
         return true;
