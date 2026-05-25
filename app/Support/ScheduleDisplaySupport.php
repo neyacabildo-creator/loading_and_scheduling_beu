@@ -129,6 +129,12 @@ class ScheduleDisplaySupport
             $data['schedule_date'] = $schedule->getRawOriginal('schedule_date') ?? $data['schedule_date'] ?? null;
         }
 
+        $dayOfWeek = is_array($schedule) ? ($schedule['day_of_week'] ?? '') : ($schedule->day_of_week ?? '');
+        if (($data['schedule_date'] === null || $data['schedule_date'] === '')
+            && KinderScheduleSupport::isKinderGrade($parts['grade_level'])) {
+            $data['schedule_date'] = KinderScheduleSupport::inferredScheduleDateForDay((string) $dayOfWeek);
+        }
+
         $data['display_date'] = self::formatScheduleDate($data['schedule_date'] ?? null);
         $data['room_label'] = self::roomLabel($schedule, $room);
 

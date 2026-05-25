@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\ClassSchedule;
 use App\Models\FacultyLoad;
 use App\Models\User;
+use Carbon\Carbon;
 
 /**
  * Kinder 2, Kinder 1, and Nursery routines, sections, and weekly activity subjects.
@@ -46,6 +47,40 @@ class KinderScheduleSupport
         $g = trim((string) $grade);
 
         return in_array($g, self::GRADES, true);
+    }
+
+    /**
+     * Calendar date for a weekday (current week, Monday-based) when none was stored.
+     */
+    public static function inferredScheduleDateForDay(string $dayOfWeek, ?string $referenceDate = null): ?string
+    {
+        $day = trim($dayOfWeek);
+        if (! in_array($day, self::WEEKDAYS, true)) {
+            return null;
+        }
+
+        $index = array_search($day, self::WEEKDAYS, true);
+        $ref = $referenceDate
+            ? Carbon::parse($referenceDate)
+            : Carbon::now();
+
+        return $ref->copy()->startOfWeek(Carbon::MONDAY)->addDays((int) $index)->format('Y-m-d');
+    }
+
+    /**
+     * Resolved schedule date for storage or display (explicit date wins).
+     */
+    public static function resolveScheduleDateForDay(string $dayOfWeek, ?string $scheduleDate = null): ?string
+    {
+        if ($scheduleDate !== null && trim($scheduleDate) !== '') {
+            try {
+                return Carbon::parse($scheduleDate)->format('Y-m-d');
+            } catch (\Throwable) {
+                // fall through to inferred
+            }
+        }
+
+        return self::inferredScheduleDateForDay($dayOfWeek);
     }
 
     /**
@@ -417,6 +452,7 @@ class KinderScheduleSupport
                 'grade_level'    => $gradeLevel,
                 'section_name'   => $sectionName,
                 'day_of_week'    => $day,
+                'schedule_date'  => self::resolveScheduleDateForDay($day, $scheduleDate),
                 'start_time'     => $activity['start'],
                 'end_time'       => $activity['end'],
                 'student_count'  => 0,

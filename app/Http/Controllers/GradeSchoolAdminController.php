@@ -211,6 +211,12 @@ class GradeSchoolAdminController extends Controller
                     isset($users[$s->faculty_id]) ? $users[$s->faculty_id] : null
                 );
                 $data['schedule_date'] = $s->getRawOriginal('schedule_date');
+                if (($data['schedule_date'] === null || $data['schedule_date'] === '')
+                    && \App\Support\KinderScheduleSupport::isKinderGrade($data['grade_level'] ?? '')) {
+                    $data['schedule_date'] = \App\Support\KinderScheduleSupport::inferredScheduleDateForDay(
+                        (string) ($s->day_of_week ?? '')
+                    );
+                }
                 $data['display_date'] = ScheduleDisplaySupport::formatScheduleDate($data['schedule_date']);
                 if (isset($rooms[$s->room_id])) {
                     $data['room'] = $rooms[$s->room_id]->toArray();
@@ -1537,6 +1543,7 @@ class GradeSchoolAdminController extends Controller
         $validated = $request->validate([
             'grade_level'   => 'required|in:Kinder 2,Kinder 1,Nursery',
             'day_of_week'   => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday',
+            'schedule_date' => 'nullable|date',
             'section_name'  => 'required|string|max:100',
             'faculty_id'    => 'required|integer|exists:users,id',
             'activity'      => 'required|array',
@@ -1580,12 +1587,16 @@ class GradeSchoolAdminController extends Controller
         }
 
         try {
+            $toStore = array_fill_keys(\App\Support\KinderScheduleSupport::WEEKDAYS, '');
+            $toStore[$day] = $daySubject;
+
             $count = \App\Support\KinderScheduleSupport::storeWeeklyActivity(
                 (int) $validated['faculty_id'],
                 $validated['grade_level'],
                 $validated['section_name'],
-                $merged,
-                (int) (Auth::id() ?? 0)
+                $toStore,
+                (int) (Auth::id() ?? 0),
+                $validated['schedule_date'] ?? null
             );
 
             $this->syncKinderFacultyLoadSubjects(

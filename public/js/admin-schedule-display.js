@@ -24,9 +24,33 @@
         return '—';
     }
 
+    var KINDER_GRADES = ['Kinder 2', 'Kinder 1', 'Nursery'];
+    var KINDER_WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+    function inferredKinderDate(dayOfWeek) {
+        var day = String(dayOfWeek || '').trim();
+        var idx = KINDER_WEEKDAYS.indexOf(day);
+        if (idx < 0) return '';
+        var now = new Date();
+        var monday = new Date(now);
+        var dow = monday.getDay();
+        var diff = dow === 0 ? -6 : 1 - dow;
+        monday.setDate(monday.getDate() + diff);
+        var target = new Date(monday);
+        target.setDate(monday.getDate() + idx);
+        var m = String(target.getMonth() + 1).padStart(2, '0');
+        var d = String(target.getDate()).padStart(2, '0');
+        var y = target.getFullYear();
+        return m + '/' + d + '/' + y;
+    }
+
     function adminScheduleDate(s) {
         if (!s) return '—';
         if (s.display_date && s.display_date !== '—') return esc(s.display_date);
+        if (!s.schedule_date && KINDER_GRADES.indexOf(s.grade_level) >= 0) {
+            const inferred = inferredKinderDate(s.day_of_week);
+            if (inferred) return esc(inferred);
+        }
         if (!s.schedule_date) return '—';
         try {
             const raw = String(s.schedule_date).substring(0, 10);
