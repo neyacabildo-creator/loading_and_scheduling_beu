@@ -60,10 +60,13 @@
         <div class="header-left">
             <h1 class="page-title">Faculty Loading</h1>
         </div>
-        <button onclick="openAddFacultyLoadModal()" style="background: var(--green-primary); color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 0.5rem; font-weight: 600; font-size: 0.875rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem;">
-            <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
-            Add Faculty Load
-        </button>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <a href="{{ route('grade-school-admin.kinder-schedule') }}" class="action-btn" style="text-decoration:none;background:#4338ca;color:#fff;border:none;padding:0.75rem 1.25rem;border-radius:0.5rem;font-weight:600;font-size:0.875rem;">Kinder Schedule</a>
+            <button onclick="openAddFacultyLoadModal()" style="background: var(--green-primary); color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 0.5rem; font-weight: 600; font-size: 0.875rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem;">
+                <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+                Add Faculty Load
+            </button>
+        </div>
     </div>
 
     @include('partials.admin-teacher-absence-banner')
@@ -196,6 +199,9 @@
                     <label>Grade Level *</label>
                     <select id="addFacultyGradeLevel" required style="width:100%;padding:0.65rem;border:1px solid var(--border-color);border-radius:0.375rem;background:var(--bg-secondary);color:var(--text-primary);">
                         <option value="">-- Select Grade Level --</option>
+                        <option value="Kinder 2">Kinder 2</option>
+                        <option value="Kinder 1">Kinder 1</option>
+                        <option value="Nursery">Nursery</option>
                         <option value="Grade 1">Grade 1</option>
                         <option value="Grade 2">Grade 2</option>
                         <option value="Grade 3">Grade 3</option>
@@ -277,6 +283,9 @@
                     <label>Grade Level</label>
                     <select id="editFacultyGradeLevel" style="width:100%;padding:0.65rem;border:1px solid var(--border-color);border-radius:0.375rem;background:var(--bg-secondary);color:var(--text-primary);" onchange="gsOnEditLoadFieldChange()">
                         <option value="">-- Select Grade Level --</option>
+                        <option value="Kinder 2">Kinder 2</option>
+                        <option value="Kinder 1">Kinder 1</option>
+                        <option value="Nursery">Nursery</option>
                         <option value="Grade 1">Grade 1</option>
                         <option value="Grade 2">Grade 2</option>
                         <option value="Grade 3">Grade 3</option>
@@ -448,8 +457,8 @@
                         <div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:nowrap;">
                             <button onclick="openEditModal(${load.id})" style="padding:0.4rem 0.75rem;border:1px solid var(--border-color);border-radius:0.375rem;cursor:pointer;font-size:0.75rem;font-weight:500;background:var(--bg-secondary);color:var(--text-primary);white-space:nowrap;transition:all 0.2s;" onmouseover="this.style.background='#666';this.style.color='white'" onmouseout="this.style.background='var(--bg-secondary)';this.style.color='var(--text-primary)'">Edit</button>
                             <button onclick="deleteFacultyLoad(${load.id})" style="padding:0.4rem 0.75rem;border:1px solid #c83232;border-radius:0.375rem;cursor:pointer;font-size:0.75rem;font-weight:500;background:transparent;color:#c83232;white-space:nowrap;transition:all 0.2s;" onmouseover="this.style.background='#c83232';this.style.color='white'" onmouseout="this.style.background='transparent';this.style.color='#c83232'">Delete</button>
-                            ${load.faculty_id && load.has_user_account ? `<a href="${masterScheduleBaseUrl}/${load.faculty_id}" style="padding:0.4rem 0.75rem;border:1px solid var(--green-primary);border-radius:0.375rem;font-size:0.75rem;font-weight:500;background:var(--green-primary);color:white;text-decoration:none;display:inline-block;white-space:nowrap;">Schedule</a>` : ''}
-                            ${load.faculty_id && load.has_user_account ? `<button onclick="openScheduleCard(${load.faculty_id})" style="padding:0.4rem 0.75rem;border:1px solid var(--green-primary);border-radius:0.375rem;cursor:pointer;font-size:0.75rem;font-weight:500;background:transparent;color:var(--green-primary);white-space:nowrap;transition:all 0.2s;">View Card</button>` : ''}
+                            ${load.faculty_id && load.has_user_account ? (GS_KINDER_GRADES.includes(load.grade_level) ? `<a href="${kinderScheduleBaseUrl}?faculty_id=${load.faculty_id}&grade_level=${encodeURIComponent(load.grade_level || '')}" style="padding:0.4rem 0.75rem;border:1px solid #4338ca;border-radius:0.375rem;font-size:0.75rem;font-weight:500;background:#4338ca;color:white;text-decoration:none;display:inline-block;white-space:nowrap;">Kinder Schedule</a>` : `<a href="${masterScheduleBaseUrl}/${load.faculty_id}" style="padding:0.4rem 0.75rem;border:1px solid var(--green-primary);border-radius:0.375rem;font-size:0.75rem;font-weight:500;background:var(--green-primary);color:white;text-decoration:none;display:inline-block;white-space:nowrap;">Schedule</a>`) : ''}
+                            ${load.faculty_id && load.has_user_account ? `<button onclick="openScheduleCard(${load.faculty_id}, '${String(load.grade_level || '').replace(/'/g, "\\'")}')" style="padding:0.4rem 0.75rem;border:1px solid var(--green-primary);border-radius:0.375rem;cursor:pointer;font-size:0.75rem;font-weight:500;background:transparent;color:var(--green-primary);white-space:nowrap;transition:all 0.2s;">View Card</button>` : ''}
                         </div>
                     </td>
                 </tr>`;
@@ -493,7 +502,12 @@
         const GS_ALL_SUBJECTS = JSON.parse(document.getElementById('gs-subjects-data')?.textContent || '[]');
         const GS_EDIT_SEL_STYLE = 'width:100%;padding:0.55rem;border:1px solid var(--border-color);border-radius:0.375rem;background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;';
 
+        const GS_KINDER_GRADES = ['Kinder 2', 'Kinder 1', 'Nursery'];
+        const kinderScheduleBaseUrl = @json(url('grade-school-admin/kinder-schedule'));
         const GS_GRADE_SUBJECTS = {
+            'Kinder 2': ['Reading','Language','Filipino','Mathematics','CLVE/PE/Arts'],
+            'Kinder 1': ['Reading','Language','Filipino','Mathematics','CLVE/PE/Arts'],
+            'Nursery': ['Reading','Language','Filipino','Mathematics','CLVE/PE/Arts'],
             'Grade 1': ['Mathematics','Science','English','Filipino','Araling Panlipunan','Christian Living Education','MAPEH','Mother Tongue','Reading'],
             'Grade 2': ['Mathematics','Science','English','Filipino','Araling Panlipunan','Christian Living Education','MAPEH','Mother Tongue','Reading'],
             'Grade 3': ['Mathematics','Science','English','Filipino','Araling Panlipunan','Christian Living Education','MAPEH','Mother Tongue','Reading'],
@@ -945,11 +959,14 @@
         }
 
         /* ===== Schedule Card Modal ===== */
-        function openScheduleCard(teacherId) {
+        function openScheduleCard(teacherId, gradeLevel) {
             const modal   = document.getElementById('scheduleCardModal');
             const frame   = document.getElementById('scheduleCardFrame');
             const spinner = document.getElementById('scheduleCardSpinner');
-            const cardUrl = `{{ url('grade-school-admin/master-schedule') }}/${teacherId}/card`;
+            let cardUrl = `{{ url('grade-school-admin/master-schedule') }}/${teacherId}/card`;
+            if (gradeLevel && GS_KINDER_GRADES.includes(gradeLevel)) {
+                cardUrl += '?grade_level=' + encodeURIComponent(gradeLevel);
+            }
 
             modal.style.display   = 'flex';
             frame.style.display   = 'none';

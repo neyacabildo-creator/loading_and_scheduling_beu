@@ -366,6 +366,13 @@
 
 @php $activeTab = $activeTab ?? 'schedule'; @endphp
 
+@if(session('success'))
+    <div class="st-req-flash success">{{ session('success') }}</div>
+@endif
+@if(session('error'))
+    <div class="st-req-flash error">{{ session('error') }}</div>
+@endif
+
 {{-- New Request Forms --}}
 <div class="st-req-panel">
     <div class="st-req-panel-head">
@@ -639,9 +646,17 @@
                     </td>
                     <td class="st-req-date-cell">
                         @if($isLeave)
-                            {{ !empty($req->date_from) ? \Carbon\Carbon::parse($req->date_from)->format('M d, Y') : '—' }}
-                            @if(!empty($req->date_to) && $req->date_to !== $req->date_from)
-                                – {{ \Carbon\Carbon::parse($req->date_to)->format('M d, Y') }}
+                            @php
+                                try {
+                                    $df = !empty($req->date_from) ? \Carbon\Carbon::parse($req->date_from)->format('M d, Y') : '—';
+                                } catch (\Exception $e) { $df = $req->date_from ?? '—'; }
+                                try {
+                                    $dt = !empty($req->date_to) ? \Carbon\Carbon::parse($req->date_to)->format('M d, Y') : '';
+                                } catch (\Exception $e) { $dt = $req->date_to ?? ''; }
+                            @endphp
+                            {{ $df }}
+                            @if($dt && ($req->date_to ?? '') !== ($req->date_from ?? ''))
+                                – {{ $dt }}
                             @endif
                             @if(!empty($req->total_days))
                                 <span class="st-req-time-sub">{{ $req->total_days }} day(s)</span>
@@ -679,7 +694,19 @@
                             <span style="opacity:.5;">—</span>
                         @endif
                     </td>
-                    <td class="st-req-date-cell">{{ \Carbon\Carbon::parse($req->created_at)->format('M d, Y') }}</td>
+                    <td class="st-req-date-cell">
+                        @php
+                            $submittedLabel = '—';
+                            if (!empty($req->created_at)) {
+                                try {
+                                    $submittedLabel = \Carbon\Carbon::parse($req->created_at)->format('M d, Y');
+                                } catch (\Exception $e) {
+                                    $submittedLabel = substr((string) $req->created_at, 0, 10);
+                                }
+                            }
+                        @endphp
+                        {{ $submittedLabel }}
+                    </td>
                 </tr>
                 @endforeach
             </tbody>

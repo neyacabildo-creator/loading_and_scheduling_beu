@@ -583,6 +583,13 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolAdmin::class, 'scho
         \App\Http\Controllers\GradeSchoolAdminController::class, 'scheduleCreate'
     ])->name('grade-school-admin.schedule.create');
 
+    Route::get('grade-school-admin/kinder-schedule', [
+        \App\Http\Controllers\GradeSchoolAdminController::class, 'kinderScheduleForm'
+    ])->name('grade-school-admin.kinder-schedule');
+    Route::post('grade-school-admin/kinder-schedule', [
+        \App\Http\Controllers\GradeSchoolAdminController::class, 'storeKinderSchedule'
+    ])->name('grade-school-admin.kinder-schedule.store');
+
     // ── Shared Teachers Management (GS Admin) ────────────────────────────
     Route::get('grade-school-admin/shared-teachers', function () {
         $sharedTeachers = (new \App\Models\SharedTeacher)->setConnection('mysql_gs')->newQuery()

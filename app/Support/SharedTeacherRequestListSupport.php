@@ -81,25 +81,38 @@ class SharedTeacherRequestListSupport
                 continue;
             }
 
-            TeacherLeaveRequestSupport::listForTeacher($connection, $facultyId)
-                ->each(function ($row) use ($levelTag, $connection) {
-                    $row->level = $levelTag;
-                    $row->_connection = $connection;
-                    $row->request_kind = 'leave';
-                    $row->leave_type_label = TeacherLeaveRequestSupport::leaveTypeLabel($row->leave_type ?? null);
-                    $rows->push($row);
-                });
+            try {
+                $items = DB::connection($connection)
+                    ->table(TeacherLeaveRequestSupport::TABLE)
+                    ->where('teacher_id', $facultyId)
+                    ->orderByDesc('created_at')
+                    ->get();
+            } catch (\Throwable) {
+                continue;
+            }
+
+            foreach ($items as $row) {
+                $row->level = $levelTag;
+                $row->_connection = $connection;
+                $row->request_kind = 'leave';
+                $row->leave_type_label = TeacherLeaveRequestSupport::leaveTypeLabel($row->leave_type ?? null);
+                $rows->push($row);
+            }
         }
 
-        return $rows->sortByDesc('created_at')->values();
+        return $rows->sortByDesc(fn ($r) => (string) ($r->created_at ?? ''))->values();
     }
 
     public static function countPendingForTeacher(int $facultyId): int
     {
-        $schedulePending = (int) self::listForTeacher($facultyId)->where('status', 'pending')->count();
-        $leavePending = (int) self::listLeaveForTeacher($facultyId)->where('status', 'pending')->count();
+        try {
+            $schedulePending = (int) self::listForTeacher($facultyId)->where('status', 'pending')->count();
+            $leavePending = (int) self::listLeaveForTeacher($facultyId)->where('status', 'pending')->count();
 
-        return $schedulePending + $leavePending;
+            return $schedulePending + $leavePending;
+        } catch (\Throwable) {
+            return 0;
+        }
     }
 
     /**

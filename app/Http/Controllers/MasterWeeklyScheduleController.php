@@ -249,6 +249,18 @@ class MasterWeeklyScheduleController extends Controller
             ->values();
 
         $schoolLevel = FacultyLoadSupport::schoolLevelForConnection();
+        $kinderGrade = \App\Support\KinderScheduleSupport::resolveFacultyKinderGrade(
+            $teacherId,
+            $request->query('grade_level')
+        );
+
+        if ($kinderGrade && $schoolLevel === 'grade_school') {
+            return view('master-weekly-schedule._kinder-card', \App\Support\KinderScheduleSupport::cardViewData(
+                $teacher,
+                $kinderGrade,
+                $request->query('section')
+            ) + ['isAjax' => $request->boolean('ajax')]);
+        }
 
         return view('master-weekly-schedule._card', [
             'teacher'        => $teacher,

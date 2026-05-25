@@ -90,9 +90,16 @@ class SharedTeacherPortalController extends Controller
             ? $request->query('tab')
             : 'schedule';
 
-        $scheduleRequests = \App\Support\SharedTeacherRequestListSupport::listForTeacher($userId);
-        $leaveRequests = \App\Support\SharedTeacherRequestListSupport::listLeaveForTeacher($userId);
-        $allRequests = \App\Support\SharedTeacherRequestListSupport::listAllForTeacher($userId);
+        try {
+            $scheduleRequests = \App\Support\SharedTeacherRequestListSupport::listForTeacher($userId);
+            $leaveRequests = \App\Support\SharedTeacherRequestListSupport::listLeaveForTeacher($userId);
+            $allRequests = \App\Support\SharedTeacherRequestListSupport::listAllForTeacher($userId);
+        } catch (\Throwable $e) {
+            Log::error('Shared teacher requests: ' . $e->getMessage());
+            $scheduleRequests = collect();
+            $leaveRequests = collect();
+            $allRequests = collect();
+        }
 
         return view('shared-teacher.requests', compact(
             'scheduleRequests',

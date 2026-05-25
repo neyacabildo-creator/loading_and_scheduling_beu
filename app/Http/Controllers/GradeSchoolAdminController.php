@@ -791,7 +791,7 @@ class GradeSchoolAdminController extends Controller
             ->pluck('id')->map(fn($id) => (string) $id)->toArray();
 
         // Subjects: from class_schedules + sensible defaults
-        $defaultSubjects = ['Mathematics','Science','English','Filipino','Araling Panlipunan','Christian Living Education','MAPEH','Computer Education','Edukasyon sa Pagpapakatao','Mother Tongue','Reading','Values Education'];
+        $defaultSubjects = ['Reading','Language','Filipino','Mathematics','CLVE/PE/Arts','Mathematics','Science','English','Filipino','Araling Panlipunan','Christian Living Education','MAPEH','Computer Education','Edukasyon sa Pagpapakatao','Mother Tongue','Values Education'];
         $dbSubjects = ClassSchedule::distinct()->pluck('subject')->filter()->values()->toArray();
         $subjects   = collect(array_unique(array_merge($dbSubjects, $defaultSubjects)))->sort()->values()->toArray();
 
@@ -1450,6 +1450,82 @@ class GradeSchoolAdminController extends Controller
         } catch (\Exception $e) {
             Log::error('GS storeSchedule: ' . $e->getMessage());
             return back()->withInput()->withErrors(['error' => 'Error creating schedule: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Kinder 2 / Kinder 1 / Nursery weekly activity schedule form.
+     */
+    public function kinderScheduleForm(Request $request)
+    {
+        $gradeLevel = $request->query('grade_level', 'Kinder 2');
+        if (! \App\Support\KinderScheduleSupport::isKinderGrade($gradeLevel)) {
+            $gradeLevel = 'Kinder 2';
+        }
+
+        $sections = \App\Support\KinderScheduleSupport::sectionsForGrade($gradeLevel);
+        $sectionName = $request->query('section_name', $sections[0] ?? '');
+        if ($sectionName && ! in_array($sectionName, $sections, true)) {
+            $sectionName = $sections[0] ?? '';
+        }
+
+        $facultyId = (int) $request->query('faculty_id', 0);
+        $weeklyActivity = $sectionName
+            ? \App\Support\KinderScheduleSupport::savedWeeklyActivity($gradeLevel, $sectionName, $facultyId ?: null)
+            : \App\Support\KinderScheduleSupport::WEEKLY_ACTIVITY_BY_DAY;
+
+        $teachers = \App\Support\AdminUserAccountsSupport::scopeFacultyAssignable(
+            User::query(),
+            'grade_school'
+        )->orderBy('first_name')->get();
+
+        return view('grade-school-admin.kinder-schedule-form', [
+            'gradeLevel'       => $gradeLevel,
+            'sectionName'      => $sectionName,
+            'sections'         => $sections,
+            'facultyId'        => $facultyId,
+            'teachers'         => $teachers,
+            'routineSlots'     => \App\Support\KinderScheduleSupport::routineSlots($gradeLevel),
+            'weeklyActivity'   => $weeklyActivity,
+            'activitySubjects' => \App\Support\KinderScheduleSupport::ACTIVITY_SUBJECTS,
+            'weekdays'         => \App\Support\KinderScheduleSupport::WEEKDAYS,
+        ]);
+    }
+
+    public function storeKinderSchedule(Request $request)
+    {
+        $validated = $request->validate([
+            'grade_level'   => 'required|in:Kinder 2,Kinder 1,Nursery',
+            'section_name'  => 'required|string|max:100',
+            'faculty_id'    => 'required|integer|exists:users,id',
+            'activity'      => 'required|array',
+            'activity.*'    => 'required|in:' . implode(',', \App\Support\KinderScheduleSupport::ACTIVITY_SUBJECTS),
+        ]);
+
+        $sections = \App\Support\KinderScheduleSupport::sectionsForGrade($validated['grade_level']);
+        if (! in_array($validated['section_name'], $sections, true)) {
+            return back()->withInput()->with('error', 'Invalid section for the selected grade level.');
+        }
+
+        try {
+            $count = \App\Support\KinderScheduleSupport::storeWeeklyActivity(
+                (int) $validated['faculty_id'],
+                $validated['grade_level'],
+                $validated['section_name'],
+                $validated['activity']
+            );
+
+            return redirect()
+                ->route('grade-school-admin.kinder-schedule', [
+                    'grade_level'  => $validated['grade_level'],
+                    'section_name' => $validated['section_name'],
+                    'faculty_id'   => $validated['faculty_id'],
+                ])
+                ->with('success', "Kinder schedule saved ({$count} day(s)). Pending admin approval.");
+        } catch (\Throwable $e) {
+            Log::error('GS storeKinderSchedule: ' . $e->getMessage());
+
+            return back()->withInput()->with('error', 'Could not save kinder schedule: ' . $e->getMessage());
         }
     }
 

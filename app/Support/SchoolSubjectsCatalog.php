@@ -81,6 +81,9 @@ class SchoolSubjectsCatalog
 
     /** @var array<string, list<string>> */
     private const GS_BY_GRADE = [
+        'Kinder 2' => ['Reading', 'Language', 'Filipino', 'Mathematics', 'CLVE/PE/Arts'],
+        'Kinder 1' => ['Reading', 'Language', 'Filipino', 'Mathematics', 'CLVE/PE/Arts'],
+        'Nursery'  => ['Reading', 'Language', 'Filipino', 'Mathematics', 'CLVE/PE/Arts'],
         'Grade 1' => ['SCIENCE', 'COMPUTER', 'READING AND LITERACY', 'LANGUAGE', 'CLVE', 'MAKABANSA', 'MATHEMATICS'],
         'Grade 2' => ['MAKABANSA', 'ENGLISH', 'FILIPINO', 'SCIENCE', 'MATHEMATICS', 'CLVE', 'COMPUTER'],
         'Grade 3' => ['FILIPINO', 'CLVE', 'MAKABANSA', 'SCIENCE', 'MATHEMATICS', 'READING AND LITERACY', 'ENGLISH', 'COMPUTER'],
