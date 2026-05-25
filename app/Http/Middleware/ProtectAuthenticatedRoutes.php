@@ -3,75 +3,57 @@
 namespace App\Http\Middleware;
 
 use App\Support\AuthPublicRoutes;
+use App\Support\AuthSession;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Block direct URL access to app pages without a valid login session.
- * Pasting a dashboard link into another browser has no session cookie → login page.
+ * Default-deny: every URL except login/password reset requires a valid session
+ * bound to this browser. Pasting a dashboard link into another browser has no
+ * cookie → login page. Cached dashboard HTML must not be shown without auth.
  */
 class ProtectAuthenticatedRoutes
 {
-    /** URL path prefixes that require authentication. */
-    private const PROTECTED_PREFIXES = [
-        'admin',
-        'teacher',
-        'grade-school-admin',
-        'grade-school-teacher',
-        'shared-teacher',
-        'principal',
-        'dashboard',
-        'api/admin',
-        'api/teacher',
-        'api/grade-school-admin',
-        'api/grade-school-teacher',
-        'api/shared-teacher',
-        'api/faculty-loads',
-        'api/rooms',
-        'api/teachers',
-        'api/schedules',
-        'api/shared-teachers-panel',
-        'api/stats',
-        'api/verify-setup',
-    ];
-
     public function handle(Request $request, Closure $next): Response
     {
-        if (Auth::check()) {
-            return $next($request);
-        }
-
         if (AuthPublicRoutes::isPublicPath($request)) {
             return $next($request);
         }
 
-        if (! $this->pathRequiresAuth($request)) {
-            return $next($request);
+        if (! $this->hasValidBrowserSession($request)) {
+            if (Auth::check()) {
+                Auth::guard('web')->logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+            }
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Unauthenticated. Please log in.'], 401);
+            }
+
+            return redirect()->guest(route('login'));
         }
 
-        if ($request->expectsJson()) {
-            return response()->json(['message' => 'Unauthenticated. Please log in.'], 401);
-        }
-
-        return redirect()->guest(route('login'));
+        return $next($request);
     }
 
-    private function pathRequiresAuth(Request $request): bool
+    private function hasValidBrowserSession(Request $request): bool
     {
-        $path = trim($request->path(), '/');
-
-        if ($path === '') {
+        if (! Auth::check()) {
             return false;
         }
 
-        foreach (self::PROTECTED_PREFIXES as $prefix) {
-            if ($path === $prefix || str_starts_with($path, $prefix . '/')) {
-                return true;
-            }
+        if (! $request->hasSession() || ! $request->session()->isStarted()) {
+            return false;
         }
 
-        return false;
+        $user = Auth::user();
+        if (! $user) {
+            return false;
+        }
+
+        return AuthSession::isActiveSession($user, $request->session()->getId());
     }
 }

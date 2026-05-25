@@ -50,7 +50,7 @@ class LoginRequest extends FormRequest
             ]);
         }
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        if (! Auth::attempt($this->only('email', 'password'), false)) {
             RateLimiter::hit($this->throttleKey(), 300);
             RateLimiter::hit('login-ip|'.$this->ip(), 300);
 

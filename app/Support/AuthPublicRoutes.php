@@ -16,11 +16,16 @@ class AuthPublicRoutes
         'forgot-password',
         'reset-password',
         'csrf-refresh',
+        'up',
     ];
 
     public static function isPublicPath(Request $request): bool
     {
         $path = trim($request->path(), '/');
+
+        if ($path === '') {
+            return true;
+        }
 
         if (in_array($path, self::PUBLIC_PATHS, true)) {
             return true;

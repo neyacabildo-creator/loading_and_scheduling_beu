@@ -22,12 +22,14 @@ return Application::configure(basePath: dirname(__DIR__))
         // Reject deactivated accounts on every authenticated request
         $middleware->appendToGroup('web', \App\Http\Middleware\CheckUserActive::class);
 
+        // One active session per account (must run before route auth gate)
+        $middleware->appendToGroup('web', \App\Http\Middleware\EnforceSingleSession::class);
+
+        // Default-deny: all pages except login/reset require this browser's session
+        $middleware->appendToGroup('web', \App\Http\Middleware\ProtectAuthenticatedRoutes::class);
+
         // Idle tab timeout (~30 min without heartbeat) — force login again
         $middleware->appendToGroup('web', \App\Http\Middleware\RequireRecentAuthActivity::class);
-
-        // Require login for app URLs; one active session per account (blocks other browsers)
-        $middleware->appendToGroup('web', \App\Http\Middleware\ProtectAuthenticatedRoutes::class);
-        $middleware->appendToGroup('web', \App\Http\Middleware\EnforceSingleSession::class);
 
         $middleware->alias([
             'recent.auth'      => \App\Http\Middleware\RequireRecentAuthActivity::class,

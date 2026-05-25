@@ -24,11 +24,6 @@ class EnforceSingleSession
         $user = AuthSession::freshUser(Auth::user());
         $sessionId = $request->session()->getId();
 
-        if (AuthSession::hasActiveSessionColumn() && empty($user->active_session_id)) {
-            AuthSession::assignActiveSession($user, $sessionId);
-            $user = AuthSession::freshUser($user);
-        }
-
         if (! AuthSession::isActiveSession($user, $sessionId)) {
             AuthSession::clearActiveSession($user);
 

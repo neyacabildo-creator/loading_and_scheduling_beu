@@ -29,6 +29,10 @@
         if (document.visibilityState === 'visible') sendHeartbeat();
     });
 
+    window.addEventListener('pageshow', function (e) {
+        if (e.persisted) sendHeartbeat();
+    });
+
     var loginUrl = @json(route('login'));
     var origFetch = window.fetch;
     if (typeof origFetch === 'function') {

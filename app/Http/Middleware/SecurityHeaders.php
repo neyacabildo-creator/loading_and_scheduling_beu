@@ -19,6 +19,12 @@ class SecurityHeaders
     {
         $response = $next($request);
 
+        if (\Illuminate\Support\Facades\Auth::check()) {
+            $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0, private');
+            $response->headers->set('Pragma', 'no-cache');
+            $response->headers->set('Expires', '0');
+        }
+
         // Prevent the page from being embedded in a frame (clickjacking defence)
         $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
 

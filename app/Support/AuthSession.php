@@ -35,7 +35,13 @@ class AuthSession
 
     public static function assignActiveSession(User $user, string $sessionId): void
     {
+        if (! self::hasActiveSessionColumn() && ! self::usesDatabaseSessions()) {
+            return;
+        }
+
         if (! self::hasActiveSessionColumn()) {
+            self::invalidateOtherSessions((int) $user->id, $sessionId);
+
             return;
         }
 
@@ -88,15 +94,11 @@ class AuthSession
     {
         $user = self::freshUser($user);
 
-        if (! self::hasActiveSessionColumn()) {
-            return false;
+        if (self::hasActiveSessionColumn() && ! empty($user->active_session_id)) {
+            return self::storedSessionIsAlive($user);
         }
 
-        if (empty($user->active_session_id)) {
-            return false;
-        }
-
-        return self::storedSessionIsAlive($user);
+        return self::hasOtherLiveDatabaseSession($user);
     }
 
     /**
@@ -105,21 +107,21 @@ class AuthSession
      */
     public static function isActiveSession(User $user, string $sessionId): bool
     {
-        if (! self::hasActiveSessionColumn()) {
-            return true;
-        }
-
         $user = self::freshUser($user);
 
-        if (empty($user->active_session_id)) {
-            return false;
+        if (self::hasActiveSessionColumn()) {
+            if (empty($user->active_session_id)) {
+                return false;
+            }
+
+            if (! hash_equals((string) $user->active_session_id, $sessionId)) {
+                return false;
+            }
+
+            return self::storedSessionIsAlive($user);
         }
 
-        if (! hash_equals((string) $user->active_session_id, $sessionId)) {
-            return false;
-        }
-
-        return self::storedSessionIsAlive($user);
+        return self::databaseSessionIsCurrentForUser($user, $sessionId);
     }
 
     public static function storedSessionIsAlive(User $user): bool
@@ -174,5 +176,34 @@ class AuthSession
     public static function rotateRememberToken(User $user): void
     {
         $user->forceFill(['remember_token' => Str::random(60)])->save();
+    }
+
+    public static function databaseSessionIsCurrentForUser(User $user, string $sessionId): bool
+    {
+        if (! self::usesDatabaseSessions()) {
+            return true;
+        }
+
+        $cutoff = now()->subMinutes(self::sessionLifetimeMinutes())->getTimestamp();
+
+        return DB::table(self::sessionTable())
+            ->where('id', $sessionId)
+            ->where('user_id', $user->id)
+            ->where('last_activity', '>=', $cutoff)
+            ->exists();
+    }
+
+    public static function hasOtherLiveDatabaseSession(User $user): bool
+    {
+        if (! self::usesDatabaseSessions()) {
+            return false;
+        }
+
+        $cutoff = now()->subMinutes(self::sessionLifetimeMinutes())->getTimestamp();
+
+        return DB::table(self::sessionTable())
+            ->where('user_id', $user->id)
+            ->where('last_activity', '>=', $cutoff)
+            ->exists();
     }
 }
