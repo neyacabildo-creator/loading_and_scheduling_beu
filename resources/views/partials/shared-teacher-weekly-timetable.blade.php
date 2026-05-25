@@ -5,6 +5,16 @@
     $teacherName = $stWeeklyTimetable['teacherName'] ?? 'Shared Teacher';
     $jhHas = $jh['has_rows'] ?? false;
     $gsHas = $gs['has_rows'] ?? false;
+    $scheduleView = $scheduleView ?? 'current';
+    $selectedDate = $selectedDate ?? null;
+    $buckets = $stScheduleDateBuckets ?? ['saved' => [], 'future' => [], 'past' => []];
+    $viewLabels = [
+        'current' => 'Current schedules',
+        'saved' => 'Saved schedules',
+        'future' => 'Upcoming schedules',
+        'past' => 'Past schedules',
+        'last' => 'Last schedules',
+    ];
 @endphp
 
 @include('partials.admin-print-export-styles')
@@ -27,15 +37,40 @@
     .st-pe-subject-badge { display: inline-block; background: #d1fae5; color: #065f46; border-radius: 9999px; padding: 0.15rem 0.65rem; font-size: 0.75rem; font-weight: 600; margin-top: 0.35rem; }
     .st-pe-empty { text-align: center; padding: 2.5rem 1rem; color: var(--text-secondary); font-size: 0.875rem; }
     .st-pe-print-btn { padding: 0.45rem 1rem; background: transparent; border: 1px solid var(--green-primary); color: var(--green-primary); border-radius: 0.4rem; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+    .st-pe-date-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border-color); background: var(--bg-primary); }
+    .st-pe-date-bar label { font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+    .st-pe-date-bar select { padding: 0.4rem 0.65rem; border: 1px solid var(--border-color); border-radius: 0.375rem; font-size: 0.8rem; background: var(--bg-secondary); color: var(--text-primary); }
     @media print {
-        .st-pe-toolbar, .st-pe-tabs, .st-pe-print-btn { display: none !important; }
-        .st-pe-body.hidden { display: block !important; }
+        .sidebar, .st-pe-toolbar, .st-pe-tabs, .st-pe-print-btn, .st-pe-date-bar, .no-print { display: none !important; }
         .st-pe-panel { border: none; }
         .pe-print-header { display: block !important; }
+        #stWeeklyPrintArea, #stWeeklyPrintArea * { visibility: visible !important; }
+        #stWeeklyPrintArea .st-pe-body.hidden { display: none !important; visibility: hidden !important; }
     }
 </style>
 
 <div class="st-pe-panel" id="stWeeklyPrintArea">
+    <form method="get" action="{{ route('shared-teacher.dashboard') }}" class="st-pe-date-bar no-print">
+        <label for="st-schedule-view">View</label>
+        <select name="view" id="st-schedule-view" onchange="this.form.submit()">
+            @foreach($viewLabels as $key => $label)
+                <option value="{{ $key }}" @selected($scheduleView === $key)>{{ $label }}</option>
+            @endforeach
+        </select>
+        <label for="st-schedule-date">Date</label>
+        <select name="date" id="st-schedule-date" onchange="this.form.submit()">
+            <option value="">— All in this view —</option>
+            @foreach(array_merge($buckets['saved'] ?? [], $buckets['future'] ?? [], $buckets['past'] ?? []) as $d)
+                <option value="{{ $d }}" @selected($selectedDate === $d)>{{ \Carbon\Carbon::parse($d)->format('M d, Y') }}</option>
+            @endforeach
+        </select>
+        @if($selectedDate || $scheduleView !== 'current')
+            <a href="{{ route('shared-teacher.dashboard') }}" style="font-size:0.78rem;font-weight:600;color:var(--green-primary);">Reset</a>
+        @endif
+        <span style="font-size:0.75rem;color:var(--text-secondary);margin-left:auto;">
+            {{ $viewLabels[$scheduleView] ?? 'Schedules' }}@if($selectedDate) · {{ \Carbon\Carbon::parse($selectedDate)->format('F d, Y') }}@endif
+        </span>
+    </form>
     <div class="st-pe-toolbar no-print">
         <h2>Weekly Timetable</h2>
         <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
@@ -43,7 +78,7 @@
                 <button type="button" class="st-pe-tab jh active" data-target="st-pe-jh">Junior High</button>
                 <button type="button" class="st-pe-tab gs" data-target="st-pe-gs">Grade School</button>
             </div>
-            <button type="button" class="st-pe-print-btn" onclick="window.print()">Print Schedule</button>
+            <button type="button" class="st-pe-print-btn" id="stPrintScheduleBtn">Print Schedule</button>
         </div>
     </div>
 
@@ -56,7 +91,7 @@
             $cellMap = $presentation['cell_map'] ?? collect();
             $hasContent = $isJh ? $jhHas : $gsHas;
         @endphp
-        <div class="st-pe-body {{ $loop->first ? '' : 'hidden' }}" id="st-pe-{{ $key }}">
+        <div class="st-pe-body {{ $loop->first ? '' : 'hidden' }}" id="st-pe-{{ $key }}" data-school="{{ $key }}">
             @if($hasContent)
                 <div class="st-pe-screen-head">
                     <p class="photo-school">Saint Paul University Philippines · {{ $division }}</p>
@@ -157,5 +192,19 @@
             if (target) target.classList.remove('hidden');
         });
     });
+
+    var printBtn = document.getElementById('stPrintScheduleBtn');
+    if (printBtn) {
+        printBtn.addEventListener('click', function () {
+            var area = document.getElementById('stWeeklyPrintArea');
+            if (!area) {
+                window.print();
+                return;
+            }
+            area.setAttribute('id', 'pe-printable');
+            window.print();
+            area.setAttribute('id', 'stWeeklyPrintArea');
+        });
+    }
 })();
 </script>

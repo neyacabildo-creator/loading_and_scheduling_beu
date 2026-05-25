@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\ClassSchedule;
+use App\Models\User;
 
 class FacultyLoadStats
 {
@@ -16,31 +17,26 @@ class FacultyLoadStats
             ->where('admin_approved', true)
             ->whereIn('status', ['active', 'approved']);
 
-        if (!empty($gradeLevel)) {
+        if (! empty($gradeLevel)) {
             $query->where('grade_level', $gradeLevel);
         }
 
-        $schedules = $query->get(['subject', 'start_time', 'end_time']);
+        $schedules = $query->get(['subject', 'day_of_week', 'start_time', 'end_time', 'grade_level']);
 
         $selectedSubjects = collect(explode(',', (string) $subjectsCsv))
             ->map(fn ($s) => strtolower(trim($s)))
             ->filter()
             ->values();
 
-        $totalMins = 0;
-        foreach ($schedules as $schedule) {
-            $subject = strtolower(trim((string) $schedule->subject));
-            if ($selectedSubjects->isNotEmpty() && !$selectedSubjects->contains($subject)) {
-                continue;
+        $filtered = $schedules->filter(function ($schedule) use ($selectedSubjects) {
+            if ($selectedSubjects->isEmpty()) {
+                return true;
             }
 
-            $duration = self::timeToMinutes($schedule->end_time) - self::timeToMinutes($schedule->start_time);
-            if ($duration > 0) {
-                $totalMins += $duration;
-            }
-        }
+            return $selectedSubjects->contains(strtolower(trim((string) $schedule->subject)));
+        });
 
-        return round($totalMins / 60, 2);
+        return FacultyAvailabilitySupport::weeklyLoadHours($filtered);
     }
 
     /**
@@ -60,14 +56,10 @@ class FacultyLoadStats
             $query->where('grade_level', $gradeLevel);
         }
 
-        $currentDay  = now()->format('l');
-        $currentTime = now()->format('H:i');
-
-        return $query->get(['day_of_week', 'start_time', 'end_time'])->filter(function ($s) use ($currentDay, $currentTime) {
-            return strcasecmp($s->day_of_week ?? '', $currentDay) === 0
-                && substr((string) $s->start_time, 0, 5) <= $currentTime
-                && substr((string) $s->end_time, 0, 5) > $currentTime;
-        })->count();
+        return FacultyAvailabilitySupport::countOngoingClasses(
+            $query->get(['day_of_week', 'start_time', 'end_time', 'grade_level']),
+            $gradeLevel
+        );
     }
 
     public static function resolveStatus(int $facultyId): string
@@ -76,26 +68,25 @@ class FacultyLoadStats
             return 'available';
         }
 
-        $allScheds = ClassSchedule::where('faculty_id', $facultyId)
+        $connection = (new ClassSchedule)->getConnectionName();
+        $allScheds = ClassSchedule::on($connection)
+            ->where('faculty_id', $facultyId)
             ->where('admin_approved', true)
             ->whereIn('status', ['active', 'approved'])
-            ->get(['day_of_week', 'start_time', 'end_time']);
+            ->get(['day_of_week', 'start_time', 'end_time', 'grade_level']);
 
-        $dayCounts = $allScheds->groupBy('day_of_week')->map(fn ($g) => $g->count());
-        if (($dayCounts->max() ?? 0) > 5) {
-            return 'overloaded';
-        }
+        $presence = TeacherPresenceSupport::activeStatusForTeacher($connection, $facultyId);
+        $isShared = User::where('id', $facultyId)->whereHas('role', fn ($q) => $q->where('name', 'shared_teacher'))->exists();
+        $sharedCount = $isShared ? FacultyLoadSupport::countLoadsForTeacher($facultyId) : null;
 
-        $currentTime = now()->format('H:i');
-        $currentDay  = now()->format('l');
-
-        $inClassNow = $allScheds->contains(function ($s) use ($currentDay, $currentTime) {
-            return strcasecmp($s->day_of_week ?? '', $currentDay) === 0
-                && substr((string) $s->start_time, 0, 5) <= $currentTime
-                && substr((string) $s->end_time, 0, 5) > $currentTime;
-        });
-
-        return $inClassNow ? 'not_available' : 'available';
+        return FacultyAvailabilitySupport::computeLiveStats(
+            $connection,
+            $facultyId,
+            $allScheds,
+            $presence,
+            $isShared,
+            $sharedCount
+        )['status'];
     }
 
     private static function timeToMinutes(?string $time): int

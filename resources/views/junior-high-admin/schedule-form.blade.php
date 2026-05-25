@@ -22,7 +22,7 @@
 .sf-teacher:focus{outline:none;border-color:var(--green-primary);}
 .sf-submit-btn{padding:.75rem 2rem;background:linear-gradient(135deg,var(--green-primary),#0d3d20);color:#fff;border:none;border-radius:.5rem;cursor:pointer;font-weight:600;font-size:.9rem;transition:all .2s;}
 .sf-submit-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(45,122,80,.3);}
-.sf-add-subject-btn{display:none;}/* removed ù kept for any future use */
+.sf-add-subject-btn{display:none;}/* removed ? kept for any future use */
 .sf-conflict-warn{font-size:.67rem;color:#dc2626;margin-top:.2rem;display:none;line-height:1.3;}
 .sf-teacher.sf-conflict{border-color:#dc2626 !important;background:rgba(220,38,38,.05) !important;}
 .sf-shared-panel{margin-top:.3rem;border-top:1px dashed var(--border-color);padding-top:.28rem;}
@@ -133,6 +133,7 @@
 <script id="sf-jh-teacher-conflicts" type="application/json">{!! json_encode($teacherConflicts ?? []) !!}</script>
 <script id="sf-jh-shared-teachers" type="application/json">{!! json_encode($sharedTeachers ?? []) !!}</script>
 <script id="sf-jh-teachers-by-subject" type="application/json">{!! json_encode($teachersBySubject ?? []) !!}</script>
+<script id="sf-jh-unavailable-faculty" type="application/json">{!! json_encode($unavailableFaculty ?? []) !!}</script>
 <script>
 const JH_SECTIONS = {
     'Grade 7':  ['SERAPHIM','CHERUBIM','MICHAEL','RAPHAEL','GABRIEL'],
@@ -166,9 +167,9 @@ function sfUpdateSections() {
     for (let i = 0; i < 5; i++) {
         const badge = document.getElementById('sfBadge' + i);
         const hdr   = document.getElementById('sfH' + i);
-        if (badge) badge.textContent = grade || 'ù';
+        if (badge) badge.textContent = grade || '?';
         if (hdr) {
-            hdr.innerHTML = '<span class="sf-grade-badge" id="sfBadge' + i + '">' + (grade || 'ù') + '</span><br>' + secs[i];
+            hdr.innerHTML = '<span class="sf-grade-badge" id="sfBadge' + i + '">' + (grade || '?') + '</span><br>' + secs[i];
         }
         // Update hidden section data on cells (store via data-section on inputs)
         document.querySelectorAll('[name^="slots["][name$="[' + i + '][subject]"]').forEach(inp => {
@@ -193,6 +194,7 @@ var SF_JH_TEACHERS_BY_GRADE = JSON.parse(document.getElementById('sf-jh-teachers
 var SF_JH_TEACHERS_BY_GRADE_SUBJECT = JSON.parse(document.getElementById('sf-jh-teachers-by-grade-subject')?.textContent || '{}');
 var SF_JH_ALL_TEACHERS = JSON.parse(document.getElementById('sf-jh-all-teachers')?.textContent || '[]');
 var SF_JH_TEACHERS_BY_SUBJECT = JSON.parse(document.getElementById('sf-jh-teachers-by-subject')?.textContent || '{}');
+var SF_JH_UNAVAILABLE_FACULTY = JSON.parse(document.getElementById('sf-jh-unavailable-faculty')?.textContent || '{}');
 
 // Rebuild a single teacher <select> based on current grade + its paired subject <select>
 function sfRebuildTeacherSel(teacherSel) {
@@ -239,6 +241,9 @@ function sfRebuildTeacherSel(teacherSel) {
             include = allowedIds.includes(id);
         }
         if (include) {
+            if (SF_JH_UNAVAILABLE_FACULTY[id] && id !== String(currentVal)) {
+                return;
+            }
             var opt = document.createElement('option');
             opt.value = t.id;
             opt.textContent = t.name;
@@ -520,7 +525,7 @@ sfUpdateSections();
                 var chip = document.createElement('span');
                 chip.className = 'sf-shared-item';
                 chip.textContent = st.teacher_name;
-                chip.title = (st.department || 'Shared') + ' ù click to assign';
+                chip.title = (st.department || 'Shared') + ' ? click to assign';
                 chip.dataset.stSubjects = JSON.stringify(stSubjects);
                 // Hidden by default; shown when subject matches
                 chip.style.display = 'none';

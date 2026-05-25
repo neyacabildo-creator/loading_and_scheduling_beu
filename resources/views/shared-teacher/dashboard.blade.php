@@ -291,10 +291,15 @@
         <div class="st-stat-body">
             <div class="stat-label">Pending Requests</div>
             <div class="stat-value" style="color:{{ $pendingRequests > 0 ? '#b45309' : 'var(--text-primary)' }};">{{ $pendingRequests }}</div>
-            <div class="stat-sub"><a href="{{ route('shared-teacher.requests') }}" style="color:var(--green-primary);text-decoration:none;font-weight:600;">View requests →</a></div>
+            <div class="stat-sub"><a href="{{ route('shared-teacher.requests') }}" style="color:var(--green-primary);text-decoration:none;font-weight:600;">My requests →</a></div>
         </div>
     </div>
 </div>
 
-@include('partials.shared-teacher-weekly-timetable', ['stWeeklyTimetable' => $stWeeklyTimetable ?? []])
+@include('partials.shared-teacher-weekly-timetable', [
+    'stWeeklyTimetable' => $stWeeklyTimetable ?? [],
+    'scheduleView' => $scheduleView ?? 'current',
+    'selectedDate' => $selectedDate ?? null,
+    'stScheduleDateBuckets' => $stScheduleDateBuckets ?? ['saved' => [], 'future' => [], 'past' => []],
+])
 @endsection

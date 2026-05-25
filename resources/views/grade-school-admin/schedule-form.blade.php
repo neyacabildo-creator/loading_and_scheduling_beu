@@ -136,6 +136,7 @@
 <script id="sf-gs-teacher-conflicts" type="application/json">{!! json_encode($teacherConflicts ?? []) !!}</script>
 <script id="sf-gs-shared-teachers" type="application/json">{!! json_encode($sharedTeachers ?? []) !!}</script>
 <script id="sf-gs-teachers-by-subject" type="application/json">{!! json_encode($teachersBySubject ?? []) !!}</script>
+<script id="sf-gs-unavailable-faculty" type="application/json">{!! json_encode($unavailableFaculty ?? []) !!}</script>
 <script>
 (function () {
     var gradeSelect = document.getElementById('grade_level');
@@ -146,6 +147,7 @@
     var SF_GS_TEACHERS_BY_GRADE_SUBJECT = JSON.parse(document.getElementById('sf-gs-teachers-by-grade-subject')?.textContent || '{}');
     var SF_GS_ALL_TEACHERS              = JSON.parse(document.getElementById('sf-gs-all-teachers')?.textContent || '[]');
     var SF_GS_TEACHERS_BY_SUBJECT       = JSON.parse(document.getElementById('sf-gs-teachers-by-subject')?.textContent || '{}');
+    var SF_GS_UNAVAILABLE_FACULTY       = JSON.parse(document.getElementById('sf-gs-unavailable-faculty')?.textContent || '{}');
 
     // Aliases: form display value ? possible keys in SF_GS_TEACHERS_BY_SUBJECT
     var GS_SUBJECT_ALIASES = {
@@ -235,6 +237,9 @@
                 include = allowedIds.includes(id);
             }
             if (include) {
+                if (SF_GS_UNAVAILABLE_FACULTY[id] && id !== String(currentVal)) {
+                    return;
+                }
                 var opt = document.createElement('option');
                 opt.value = t.id;
                 opt.textContent = t.name;

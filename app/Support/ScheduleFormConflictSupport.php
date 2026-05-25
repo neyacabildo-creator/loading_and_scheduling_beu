@@ -10,6 +10,30 @@ use App\Models\User;
  */
 class ScheduleFormConflictSupport
 {
+    public static function facultyAvailabilityConflictMessage(int $facultyId, string $connection): ?string
+    {
+        if ($facultyId <= 0) {
+            return null;
+        }
+
+        if (FacultyAvailabilitySupport::canAssignFaculty($connection, $facultyId)) {
+            return null;
+        }
+
+        $teacher = User::find($facultyId);
+        $name = $teacher ? trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name : "Teacher #{$facultyId}";
+        $presence = TeacherPresenceSupport::activeStatusForTeacher($connection, $facultyId);
+        if ($presence) {
+            return "{$name} is {$presence['label']} and cannot be scheduled.";
+        }
+
+        if (FacultyAvailabilitySupport::isDuringSchoolBreak(FacultyAvailabilitySupport::schoolLevelForConnection($connection))) {
+            return "{$name} is not available during break periods.";
+        }
+
+        return "{$name} is not available (in class or overloaded).";
+    }
+
     /**
      * @param  array<int, array{subject: string, faculty_id: string|null}>  $cellRows
      * @return string|null Error message when duplicate found
@@ -391,6 +415,12 @@ class ScheduleFormConflictSupport
                         continue;
                     }
 
+                    $availMsg = self::facultyAvailabilityConflictMessage((int) $primaryFaculty, 'mysql_jh');
+                    if ($availMsg) {
+                        $conflicts[] = "{$sectionName} at {$startTime}: {$availMsg}";
+                        continue;
+                    }
+
                     $slotKey = $primaryFaculty . '|' . $timeKey;
                     if (isset($seenTeacherSlots[$slotKey])) {
                         $teacher = User::find((int) $primaryFaculty);
@@ -508,6 +538,12 @@ class ScheduleFormConflictSupport
                     $primaryFaculty = $row['faculty_id'];
                     if (! $primaryFaculty) {
                         $conflicts[] = "{$displaySec}: subject \"{$row['subject']}\" has no teacher assigned.";
+                        continue;
+                    }
+
+                    $availMsg = self::facultyAvailabilityConflictMessage((int) $primaryFaculty, 'mysql_gs');
+                    if ($availMsg) {
+                        $conflicts[] = "{$displaySec} at {$startTime}: {$availMsg}";
                         continue;
                     }
 

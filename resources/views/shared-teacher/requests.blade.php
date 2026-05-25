@@ -1,7 +1,7 @@
 {{-- resources/views/shared-teacher/requests.blade.php --}}
 @extends('layouts.shared-teacher')
 
-@section('title', 'Schedule Requests')
+@section('title', 'My Request')
 
 @push('styles')
 <style>
@@ -304,6 +304,52 @@
         color: var(--text-secondary);
         white-space: nowrap;
     }
+    .st-req-type-tabs {
+        display: flex;
+        gap: 0.35rem;
+        flex-wrap: wrap;
+        margin-bottom: 1.25rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .st-req-type-tab {
+        padding: 0.5rem 1rem;
+        border-radius: 9999px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-primary);
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        cursor: pointer;
+        text-decoration: none;
+        font-family: inherit;
+    }
+    .st-req-type-tab.active {
+        background: var(--green-primary);
+        border-color: var(--green-primary);
+        color: #fff;
+    }
+    .st-req-type-tab.leave.active {
+        background: #b45309;
+        border-color: #b45309;
+    }
+    .st-req-form-pane { display: none; }
+    .st-req-form-pane.active { display: block; }
+    .st-req-kind-badge {
+        display: inline-block;
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 0.15rem 0.5rem;
+        border-radius: 9999px;
+        background: rgba(99, 102, 241, 0.12);
+        color: #4338ca;
+    }
+    .st-req-kind-badge.leave {
+        background: rgba(180, 83, 9, 0.12);
+        color: #b45309;
+    }
 </style>
 @endpush
 
@@ -311,22 +357,30 @@
 <div class="st-req-hero">
     <div class="st-dash-hero-inner">
         <div class="st-dash-hero-text">
-            <h1>Schedule Requests</h1>
-            <p>Submit a new request to your JH or GS admin, and track the status of previous requests.</p>
+            <h1>My Request</h1>
+            <p>Submit schedule changes or absence/leave requests to your JH or GS admin, and track everything in one place.</p>
         </div>
         @include('partials.shared-teacher-header-actions')
     </div>
 </div>
 
-{{-- New Request Form --}}
+@php $activeTab = $activeTab ?? 'schedule'; @endphp
+
+{{-- New Request Forms --}}
 <div class="st-req-panel">
     <div class="st-req-panel-head">
         <div class="st-req-panel-title">
             <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-            New Schedule Request
+            New Request
         </div>
     </div>
     <div class="st-req-panel-body">
+        <div class="st-req-type-tabs">
+            <a href="{{ route('shared-teacher.requests', ['tab' => 'schedule']) }}" class="st-req-type-tab {{ $activeTab === 'schedule' ? 'active' : '' }}">Schedule Request</a>
+            <a href="{{ route('shared-teacher.requests', ['tab' => 'leave']) }}" class="st-req-type-tab leave {{ $activeTab === 'leave' ? 'active' : '' }}">Absence / Leave</a>
+        </div>
+
+        <div class="st-req-form-pane {{ $activeTab === 'schedule' ? 'active' : '' }}" id="stPaneSchedule">
         <form method="POST" action="{{ route('shared-teacher.requests.store') }}" id="stReqForm">
             @csrf
 
@@ -441,6 +495,76 @@
                 <span class="st-req-submit-hint">Your request will be reviewed by the admin of the selected school level.</span>
             </div>
         </form>
+        </div>
+
+        <div class="st-req-form-pane {{ $activeTab === 'leave' ? 'active' : '' }}" id="stPaneLeave">
+        <form method="POST" action="{{ route('shared-teacher.requests.leave.store') }}" id="stLeaveForm">
+            @csrf
+            <div class="st-req-section">
+                <div class="st-req-section-head">
+                    <span class="st-req-section-num">1</span>
+                    <div>
+                        <div class="st-req-section-title">Send To</div>
+                        <div class="st-req-section-desc">Choose which school admin will review your absence or leave</div>
+                    </div>
+                </div>
+                <div class="form-field st-req-field">
+                    <label class="form-label">School Level <span class="st-req-required">*</span></label>
+                    <select name="school_level" class="form-input" required>
+                        <option value="">— Select admin —</option>
+                        <option value="jh" {{ old('school_level') === 'jh' ? 'selected' : '' }}>Junior High School Admin</option>
+                        <option value="gs" {{ old('school_level') === 'gs' ? 'selected' : '' }}>Grade School Admin</option>
+                    </select>
+                </div>
+            </div>
+            <div class="st-req-section">
+                <div class="st-req-section-head">
+                    <span class="st-req-section-num">2</span>
+                    <div>
+                        <div class="st-req-section-title">Leave Details</div>
+                        <div class="st-req-section-desc">Shown in admin All Requests → Absence / Leave</div>
+                    </div>
+                </div>
+                <div class="req-form-grid" style="margin-bottom:1rem;">
+                    <div class="form-field st-req-field" style="grid-column:1/-1;">
+                        <label class="form-label">Leave Type <span class="st-req-required">*</span></label>
+                        <select name="leave_type" class="form-input" required>
+                            <option value="">— Select type —</option>
+                            <option value="absent" {{ old('leave_type') === 'absent' ? 'selected' : '' }}>Absent (single day)</option>
+                            <option value="sick_leave" {{ old('leave_type') === 'sick_leave' ? 'selected' : '' }}>Sick Leave</option>
+                            <option value="vacation_leave" {{ old('leave_type') === 'vacation_leave' ? 'selected' : '' }}>Vacation Leave</option>
+                            <option value="emergency_leave" {{ old('leave_type') === 'emergency_leave' ? 'selected' : '' }}>Emergency Leave</option>
+                            <option value="official_business" {{ old('leave_type') === 'official_business' ? 'selected' : '' }}>Official Business</option>
+                            <option value="leave_other" {{ old('leave_type') === 'leave_other' ? 'selected' : '' }}>Other</option>
+                        </select>
+                    </div>
+                    <div class="form-field st-req-field">
+                        <label class="form-label">Date From <span class="st-req-required">*</span></label>
+                        <input type="date" name="date_from" class="form-input" value="{{ old('date_from') }}" required>
+                    </div>
+                    <div class="form-field st-req-field">
+                        <label class="form-label">Date To <span class="st-req-required">*</span></label>
+                        <input type="date" name="date_to" class="form-input" value="{{ old('date_to') }}" required>
+                    </div>
+                </div>
+                <div class="form-field st-req-field">
+                    <label class="form-label">Reason <span class="st-req-required">*</span></label>
+                    <textarea name="reason" class="form-input" rows="3" required minlength="3" placeholder="Explain your absence or leave…" style="resize:vertical;">{{ old('reason') }}</textarea>
+                </div>
+                <div class="form-field st-req-field" style="margin-top:0.75rem;">
+                    <label class="form-label">Additional Notes <span style="color:var(--text-secondary);font-weight:400;">(optional)</span></label>
+                    <textarea name="proposed_changes" class="form-input" rows="2" placeholder="Supporting details for the admin…" style="resize:vertical;">{{ old('proposed_changes') }}</textarea>
+                </div>
+            </div>
+            <div class="req-submit-row">
+                <button type="submit" class="st-req-submit-btn" style="background:linear-gradient(135deg,#b45309 0%,#92400e 100%);box-shadow:0 2px 8px rgba(180,83,9,.25);">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                    Submit Absence / Leave
+                </button>
+                <span class="st-req-submit-hint">While approved, you will show as not available on faculty load and scheduling.</span>
+            </div>
+        </form>
+        </div>
     </div>
 </div>
 
@@ -451,11 +575,11 @@
             <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
             My Request History
         </div>
-        @if(!$requests->isEmpty())
+        @if(!($allRequests ?? collect())->isEmpty())
             @php
-                $totalPending  = $requests->where('status','pending')->count();
-                $totalApproved = $requests->where('status','approved')->count();
-                $totalRejected = $requests->where('status','rejected')->count();
+                $totalPending  = ($allRequests ?? collect())->where('status','pending')->count();
+                $totalApproved = ($allRequests ?? collect())->where('status','approved')->count();
+                $totalRejected = ($allRequests ?? collect())->where('status','rejected')->count();
             @endphp
             <div class="st-req-history-stats">
                 @if($totalPending > 0)<span class="status-pending">{{ $totalPending }} pending</span>@endif
@@ -465,24 +589,23 @@
         @endif
     </div>
 
-    @if($requests->isEmpty())
+    @if(($allRequests ?? collect())->isEmpty())
         <div class="req-history-empty">
             <svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
             </svg>
             <p style="font-size:.95rem;font-weight:600;color:var(--text-primary);">No requests submitted yet</p>
-            <p style="font-size:.82rem;margin-top:.25rem;">Use the form above to send your first schedule request.</p>
+            <p style="font-size:.82rem;margin-top:.25rem;">Use the forms above to submit a schedule or absence/leave request.</p>
         </div>
     @else
     <div class="st-req-history-table-wrap">
         <table class="st-req-history-table">
             <thead>
                 <tr>
+                    <th>Type</th>
                     <th>Level</th>
-                    <th>Subject</th>
-                    <th>Room</th>
-                    <th>Date</th>
-                    <th>Day &amp; Time</th>
+                    <th>Details</th>
+                    <th>Date / Period</th>
                     <th>Notes</th>
                     <th>Status</th>
                     <th>Admin Response</th>
@@ -490,50 +613,64 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach($requests as $req)
+                @foreach($allRequests as $req)
                 @php
+                    $isLeave = ($req->request_kind ?? '') === 'leave';
                     $roomLabel = trim(($req->grade_level ?? '') . ' ' . ($req->section_name ?? ''));
                 @endphp
                 <tr>
+                    <td>
+                        <span class="st-req-kind-badge {{ $isLeave ? 'leave' : '' }}">{{ $isLeave ? 'Leave' : 'Schedule' }}</span>
+                    </td>
                     <td>
                         <span class="{{ ($req->level ?? '') === 'jh' ? 'badge-jh' : 'badge-gs' }}">
                             {{ ($req->level ?? '') === 'jh' ? 'JH' : 'GS' }}
                         </span>
                     </td>
-                    <td class="st-req-subject">{{ $req->subject ?? '—' }}</td>
-                    <td>
-                        @if($roomLabel !== '')
-                            <span class="st-req-room-cell">{{ $roomLabel }}</span>
+                    <td class="st-req-subject">
+                        @if($isLeave)
+                            {{ $req->leave_type_label ?? ucfirst(str_replace('_', ' ', $req->leave_type ?? 'Leave')) }}
                         @else
-                            <span style="color:var(--text-secondary);">—</span>
+                            {{ $req->subject ?? '—' }}
+                            @if($roomLabel !== '')
+                                <span class="st-req-time-sub">{{ $roomLabel }}</span>
+                            @endif
                         @endif
                     </td>
                     <td class="st-req-date-cell">
-                        @if(!empty($req->schedule_date))
+                        @if($isLeave)
+                            {{ !empty($req->date_from) ? \Carbon\Carbon::parse($req->date_from)->format('M d, Y') : '—' }}
+                            @if(!empty($req->date_to) && $req->date_to !== $req->date_from)
+                                – {{ \Carbon\Carbon::parse($req->date_to)->format('M d, Y') }}
+                            @endif
+                            @if(!empty($req->total_days))
+                                <span class="st-req-time-sub">{{ $req->total_days }} day(s)</span>
+                            @endif
+                        @elseif(!empty($req->schedule_date))
                             {{ \Carbon\Carbon::parse($req->schedule_date)->format('M d, Y') }}
+                            @if($req->day_of_week)
+                                <span class="st-req-time-sub">{{ $req->day_of_week }}</span>
+                            @endif
                         @elseif(!empty($req->schedule_date_label))
                             {{ $req->schedule_date_label }}
                         @else
-                            —
-                        @endif
-                    </td>
-                    <td>
-                        {{ $req->day_of_week ?: '—' }}
-                        @if($req->preferred_start_time)
-                            <span class="st-req-time-sub">
-                                @php
-                                    try { echo \Carbon\Carbon::createFromFormat('H:i:s', $req->preferred_start_time)->format('h:i A'); } catch(\Exception $e) { echo $req->preferred_start_time; }
-                                @endphp
-                                @if($req->preferred_end_time)
-                                    –
+                            {{ $req->day_of_week ?: '—' }}
+                            @if($req->preferred_start_time)
+                                <span class="st-req-time-sub">
                                     @php
-                                        try { echo \Carbon\Carbon::createFromFormat('H:i:s', $req->preferred_end_time)->format('h:i A'); } catch(\Exception $e) { echo $req->preferred_end_time; }
+                                        try { echo \Carbon\Carbon::createFromFormat('H:i:s', $req->preferred_start_time)->format('h:i A'); } catch(\Exception $e) { echo $req->preferred_start_time; }
                                     @endphp
-                                @endif
-                            </span>
+                                    @if($req->preferred_end_time)
+                                        –
+                                        @php
+                                            try { echo \Carbon\Carbon::createFromFormat('H:i:s', $req->preferred_end_time)->format('h:i A'); } catch(\Exception $e) { echo $req->preferred_end_time; }
+                                        @endphp
+                                    @endif
+                                </span>
+                            @endif
                         @endif
                     </td>
-                    <td class="st-req-notes-cell">{{ $req->description ?? '—' }}</td>
+                    <td class="st-req-notes-cell">{{ $isLeave ? ($req->reason ?? '—') : ($req->description ?? '—') }}</td>
                     <td><span class="status-{{ $req->status ?? 'pending' }}">{{ ucfirst($req->status ?? 'pending') }}</span></td>
                     <td class="st-req-admin-response">
                         @if($req->admin_notes)

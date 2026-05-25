@@ -149,6 +149,15 @@ class ScheduleFormSupport
             $useFullTeacherName
         );
 
+        $facultyIds = collect($allTeachersForDropdown)
+            ->pluck('id')
+            ->merge(collect($sharedTeachers)->pluck('faculty_id'))
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
         return compact(
             'rooms',
             'teachers',
@@ -160,6 +169,7 @@ class ScheduleFormSupport
             'teachersBySubject',
             'allTeachersForDropdown'
         ) + [
+            'unavailableFaculty' => FacultyAvailabilitySupport::unavailableFacultyMap($connection, $facultyIds),
             'scheduleFormRows' => SchoolScheduleSlots::scheduleFormRows(
                 $schoolLevel,
                 $schoolLevel === 'junior_high' ? 'Monday' : null

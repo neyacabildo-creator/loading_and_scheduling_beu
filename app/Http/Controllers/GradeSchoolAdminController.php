@@ -826,14 +826,13 @@ class GradeSchoolAdminController extends Controller
 
             // Pre-fetch approved schedules for all faculty IDs to compute live stats
             $allFacultyIds = $loads->pluck('faculty_id')->filter()->unique()->values()->toArray();
-            $today = now()->format('l'); // e.g. "Monday", "Tuesday"
-            $approvedScheds = ClassSchedule::whereIn('faculty_id', $allFacultyIds)
+            $approvedScheds = ClassSchedule::on('mysql_gs')->whereIn('faculty_id', $allFacultyIds)
                 ->where('admin_approved', true)
-                ->where('status', 'active')
-                ->get(['faculty_id', 'subject', 'section_name', 'day_of_week', 'start_time', 'end_time'])
+                ->whereIn('status', ['active', 'approved'])
+                ->get(['faculty_id', 'subject', 'section_name', 'day_of_week', 'start_time', 'end_time', 'grade_level'])
                 ->groupBy('faculty_id');
 
-            $result = $loads->map(function ($load) use ($users, $sharedTeacherIds, $approvedScheds, $today) {
+            $result = $loads->map(function ($load) use ($users, $sharedTeacherIds, $approvedScheds) {
                 $data = $load->toArray();
                 $user = $users[$load->faculty_id] ?? null;
                 $data['faculty'] = $user
@@ -846,46 +845,22 @@ class GradeSchoolAdminController extends Controller
                 $presence = $load->faculty_id
                     ? \App\Support\TeacherPresenceSupport::activeStatusForTeacherWithDays('mysql_gs', (int) $load->faculty_id)
                     : null;
-                // Compute live classes_assigned, load_hours, and status from approved schedules
                 if ($load->faculty_id) {
                     $allScheds = collect($approvedScheds->get($load->faculty_id, []));
-
-                    // Today's schedules for display stats
-                    $scheds = $allScheds->filter(fn($s) => strcasecmp($s->day_of_week ?? '', $today) === 0);
-                    $data['classes_assigned'] = $scheds->count();
-                    $totalMinutes = $scheds->sum(function ($s) {
-                        $start = strtotime($s->start_time ?? '00:00');
-                        $end   = strtotime($s->end_time   ?? '00:00');
-                        return max(0, ($end - $start) / 60);
-                    });
-                    $data['load_hours'] = round($totalMinutes / 60, 1);
-
-                    // Detect overload: any day with >5 approved subjects
-                    $dayCounts     = $allScheds->groupBy('day_of_week')->map(fn($g) => $g->count());
-                    $maxDayCount   = $dayCounts->max() ?? 0;
-                    $overloadedDay = $dayCounts->filter(fn($c) => $c > 5)->keys()->first();
-                    $data['max_day_count']  = $maxDayCount;
-                    $data['overloaded_day'] = $overloadedDay;
-
-                    if ($maxDayCount > 5) {
-                        $data['status'] = 'overloaded';
-                    } elseif ($scheds->count() > 0) {
-                        $data['status'] = 'not_available';
-                    } else {
-                        $data['status'] = 'available';
-                    }
-
                     $sharedCount = FacultyLoadSupport::countLoadsForTeacher((int) $load->faculty_id);
                     $data['shared_load_count'] = $sharedCount;
                     $data['shared_load_conflict'] = ($data['is_shared_teacher'] ?? false)
                         && $sharedCount > FacultyLoadSupport::SHARED_TEACHER_MAX_LOADS;
-                    if ($data['shared_load_conflict']) {
-                        $data['status'] = 'overloaded';
-                    }
 
-                    if ($presence) {
-                        $data = \App\Support\TeacherPresenceSupport::applyPresenceToFacultyLoadRow($data, $presence);
-                    }
+                    $data = \App\Support\FacultyAvailabilitySupport::enrichFacultyLoadRow(
+                        $data,
+                        'mysql_gs',
+                        (int) $load->faculty_id,
+                        $allScheds,
+                        $presence,
+                        (bool) ($data['is_shared_teacher'] ?? false),
+                        $sharedCount
+                    );
                 }
 
                 $data['load_hours_label'] = FacultyLoadSupport::formatHoursLabel($data['load_hours'] ?? 0);

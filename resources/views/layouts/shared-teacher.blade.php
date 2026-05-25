@@ -202,13 +202,9 @@
             </a>
 
             <div class="nav-section">Schedules</div>
-            <a href="{{ route('shared-teacher.settings') }}" class="nav-item {{ request()->routeIs('shared-teacher.settings') ? 'active' : '' }}">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                <span>My Profile</span>
-            </a>
-            <a href="{{ route('shared-teacher.requests') }}" class="nav-item {{ request()->routeIs('shared-teacher.requests') ? 'active' : '' }}" style="position:relative;">
+            <a href="{{ route('shared-teacher.requests') }}" class="nav-item {{ request()->routeIs('shared-teacher.requests*') ? 'active' : '' }}" style="position:relative;">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
-                <span>Schedule Requests</span>
+                <span>My Request</span>
                 @php
                     try {
                         $stPending = \App\Support\SharedTeacherRequestListSupport::countPendingForTeacher((int) Auth::id());
@@ -221,14 +217,14 @@
         </nav>
         <div class="sidebar-footer">
             <div class="user-card">
-                <div class="user-avatar" style="overflow:hidden;">
+                <a href="{{ route('shared-teacher.settings') }}" class="user-avatar" title="My Profile" style="overflow:hidden;text-decoration:none;color:inherit;flex-shrink:0;">
                     @php $stUser = Auth::user(); $stPhoto = \App\Support\UserProfileSupport::photoUrl($stUser); @endphp
                     @if($stPhoto)
                         <img src="{{ $stPhoto }}" alt="" style="width:100%;height:100%;object-fit:cover;">
                     @else
                         {{ \App\Support\UserProfileSupport::initials($stUser) }}
                     @endif
-                </div>
+                </a>
                 <div class="user-info">
                     <div class="user-name">{{ \App\Support\UserProfileSupport::displayName(Auth::user()) }}</div>
                     <div class="user-role">Shared Teacher</div>

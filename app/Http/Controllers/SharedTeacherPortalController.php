@@ -19,27 +19,36 @@ class SharedTeacherPortalController extends Controller
     /**
      * Dashboard: show this shared teacher's schedules in both JH and GS.
      */
-    public function dashboard()
+    public function dashboard(Request $request)
     {
         $userId = Auth::id();
+        $scheduleView = in_array($request->query('view'), ['current', 'saved', 'future', 'past', 'last'], true)
+            ? $request->query('view')
+            : 'current';
+        $selectedDate = $request->query('date') ? substr((string) $request->query('date'), 0, 10) : null;
 
-        // JH class schedules
-        $jhSchedules = DB::connection('mysql_jh')
-            ->table('class_schedules')
-            ->where('faculty_id', $userId)
-            ->where('admin_approved', true)
-            ->orderBy('day_of_week')
-            ->orderBy('start_time')
-            ->get();
+        $fetchSchedules = function (string $connection) use ($userId) {
+            return DB::connection($connection)
+                ->table('class_schedules')
+                ->where('faculty_id', $userId)
+                ->where('admin_approved', true)
+                ->orderBy('schedule_date')
+                ->orderBy('day_of_week')
+                ->orderBy('start_time')
+                ->get();
+        };
 
-        // GS class schedules
-        $gsSchedules = DB::connection('mysql_gs')
-            ->table('class_schedules')
-            ->where('faculty_id', $userId)
-            ->where('admin_approved', true)
-            ->orderBy('day_of_week')
-            ->orderBy('start_time')
-            ->get();
+        $jhSchedules = \App\Support\SharedTeacherTimetableSupport::filterSchedulesForView(
+            $fetchSchedules('mysql_jh'),
+            $scheduleView,
+            $selectedDate
+        );
+
+        $gsSchedules = \App\Support\SharedTeacherTimetableSupport::filterSchedulesForView(
+            $fetchSchedules('mysql_gs'),
+            $scheduleView,
+            $selectedDate
+        );
 
         // Count pending requests from both school-level DBs
         $pendingRequests = \App\Support\SharedTeacherRequestListSupport::countPendingForTeacher((int) $userId);
@@ -58,24 +67,82 @@ class SharedTeacherPortalController extends Controller
             'gs'          => \App\Support\SharedTeacherTimetableSupport::buildWeeklyPresentation($gsSchedules, $gsWeeklyGrid, 'grade_school'),
         ];
 
+        $stScheduleDateBuckets = \App\Support\SharedTeacherTimetableSupport::scheduleDateBuckets((int) $userId, $weeklySchoolYear);
+
         return view('shared-teacher.dashboard', compact(
             'jhSchedules',
             'gsSchedules',
             'pendingRequests',
-            'stWeeklyTimetable'
+            'stWeeklyTimetable',
+            'scheduleView',
+            'selectedDate',
+            'stScheduleDateBuckets'
         ));
     }
 
     /**
      * List the current user's schedule requests (merged from both DBs).
      */
-    public function requests()
+    public function requests(Request $request)
     {
-        $userId = Auth::id();
+        $userId = (int) Auth::id();
+        $activeTab = in_array($request->query('tab'), ['schedule', 'leave'], true)
+            ? $request->query('tab')
+            : 'schedule';
 
-        $requests = \App\Support\SharedTeacherRequestListSupport::listForTeacher((int) $userId);
+        $scheduleRequests = \App\Support\SharedTeacherRequestListSupport::listForTeacher($userId);
+        $leaveRequests = \App\Support\SharedTeacherRequestListSupport::listLeaveForTeacher($userId);
+        $allRequests = \App\Support\SharedTeacherRequestListSupport::listAllForTeacher($userId);
 
-        return view('shared-teacher.requests', compact('requests'));
+        return view('shared-teacher.requests', compact(
+            'scheduleRequests',
+            'leaveRequests',
+            'allRequests',
+            'activeTab'
+        ));
+    }
+
+    /**
+     * Submit absence/leave request to JH or GS admin database.
+     */
+    public function storeLeaveRequest(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'school_level' => 'required|in:jh,gs',
+                'leave_type'   => 'required|in:' . implode(',', array_merge(
+                    \App\Support\TeacherLeaveRequestSupport::LEAVE_TYPES,
+                    ['leave_other']
+                )),
+                'date_from'    => 'required|date',
+                'date_to'      => 'required|date|after_or_equal:date_from',
+                'reason'       => 'required|string|min:3|max:1000',
+                'proposed_changes' => 'nullable|string|max:1000',
+            ]);
+
+            $conn = $validated['school_level'] === 'jh' ? 'mysql_jh' : 'mysql_gs';
+
+            $result = \App\Support\TeacherLeaveRequestSupport::store($request, $conn);
+
+            if (! ($result['success'] ?? false)) {
+                return redirect()->route('shared-teacher.requests', ['tab' => 'leave'])
+                    ->withInput()
+                    ->with('error', $result['message'] ?? 'Could not submit leave request.');
+            }
+
+            return redirect()->route('shared-teacher.requests', ['tab' => 'leave'])
+                ->with('success', $result['message'] ?? 'Absence/leave request submitted.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()->route('shared-teacher.requests', ['tab' => 'leave'])
+                ->withInput()
+                ->with('error', collect($e->errors())->flatten()->first() ?? 'Validation failed.');
+        } catch (\Throwable $e) {
+            Log::error('Shared teacher storeLeaveRequest: ' . $e->getMessage());
+
+            return redirect()->route('shared-teacher.requests', ['tab' => 'leave'])
+                ->withInput()
+                ->with('error', 'Error submitting leave request: ' . $e->getMessage());
+        }
     }
 
     /**

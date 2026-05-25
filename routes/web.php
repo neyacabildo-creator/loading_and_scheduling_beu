@@ -467,6 +467,8 @@ Route::middleware('auth')->group(function () {
             ->name('shared-teacher.requests.schedules');
         Route::post('requests', [\App\Http\Controllers\SharedTeacherPortalController::class, 'storeRequest'])
             ->name('shared-teacher.requests.store');
+        Route::post('requests/leave', [\App\Http\Controllers\SharedTeacherPortalController::class, 'storeLeaveRequest'])
+            ->name('shared-teacher.requests.leave.store');
         Route::get('settings', function () {
             return view('shared-teacher.settings');
         })->name('shared-teacher.settings');

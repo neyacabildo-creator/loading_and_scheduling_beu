@@ -69,9 +69,54 @@ class SharedTeacherRequestListSupport
             ->values();
     }
 
+    /**
+     * Absence/leave requests from both school databases.
+     */
+    public static function listLeaveForTeacher(int $facultyId): Collection
+    {
+        $rows = collect();
+
+        foreach (['mysql_jh' => 'jh', 'mysql_gs' => 'gs'] as $connection => $levelTag) {
+            if (! Schema::connection($connection)->hasTable(TeacherLeaveRequestSupport::TABLE)) {
+                continue;
+            }
+
+            TeacherLeaveRequestSupport::listForTeacher($connection, $facultyId)
+                ->each(function ($row) use ($levelTag, $connection) {
+                    $row->level = $levelTag;
+                    $row->_connection = $connection;
+                    $row->request_kind = 'leave';
+                    $row->leave_type_label = TeacherLeaveRequestSupport::leaveTypeLabel($row->leave_type ?? null);
+                    $rows->push($row);
+                });
+        }
+
+        return $rows->sortByDesc('created_at')->values();
+    }
+
     public static function countPendingForTeacher(int $facultyId): int
     {
-        return (int) self::listForTeacher($facultyId)->where('status', 'pending')->count();
+        $schedulePending = (int) self::listForTeacher($facultyId)->where('status', 'pending')->count();
+        $leavePending = (int) self::listLeaveForTeacher($facultyId)->where('status', 'pending')->count();
+
+        return $schedulePending + $leavePending;
+    }
+
+    /**
+     * Combined schedule + leave history for shared-teacher "My Request" page.
+     */
+    public static function listAllForTeacher(int $facultyId): Collection
+    {
+        $schedule = self::listForTeacher($facultyId)->map(function ($row) {
+            $row->request_kind = 'schedule';
+
+            return $row;
+        });
+
+        return $schedule
+            ->concat(self::listLeaveForTeacher($facultyId))
+            ->sortByDesc('created_at')
+            ->values();
     }
 
     /**

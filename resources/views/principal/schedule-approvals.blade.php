@@ -120,12 +120,14 @@
             <tbody>
                 @foreach($jhSchedules as $s)
                 @php
+                    $jhTime = ($s->start_time ? substr($s->start_time, 0, 5) : '') . ' ' . ($s->end_time ? substr($s->end_time, 0, 5) : '');
                     $jhSearch = strtolower(implode(' ', array_filter([
                         (string) $s->id,
                         $s->faculty_name ?? '',
                         $s->subject ?? '',
                         $s->grade_section ?? '',
                         $s->day_of_week ?? '',
+                        $jhTime,
                         $s->room_label ?? '',
                         $s->approver_name ?? '',
                     ])));
@@ -214,12 +216,14 @@
             <tbody>
                 @foreach($gsSchedules as $s)
                 @php
+                    $gsTime = ($s->start_time ? substr($s->start_time, 0, 5) : '') . ' ' . ($s->end_time ? substr($s->end_time, 0, 5) : '');
                     $gsSearch = strtolower(implode(' ', array_filter([
                         (string) $s->id,
                         $s->faculty_name ?? '',
                         $s->subject ?? '',
                         $s->grade_section ?? '',
                         $s->day_of_week ?? '',
+                        $gsTime,
                         $s->room_label ?? '',
                         $s->approver_name ?? '',
                     ])));
@@ -343,8 +347,19 @@ function saFillSelect(id, values, labelFn, sortOrder) {
     });
 }
 
+function saNormalizeSearch(text) {
+    return String(text || '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function saSearchMatches(haystack, query) {
+    if (!query) return true;
+    const h = saNormalizeSearch(haystack);
+    const tokens = saNormalizeSearch(query).split(' ').filter(Boolean);
+    return tokens.every(function (tok) { return h.includes(tok); });
+}
+
 function saApplyFilters(school) {
-    const q = (document.getElementById(school + '-sa-search')?.value || '').toLowerCase().trim();
+    const q = saNormalizeSearch(document.getElementById(school + '-sa-search')?.value || '');
     const day = (document.getElementById(school + '-sa-day')?.value || '').toLowerCase();
     const grade = (document.getElementById(school + '-sa-grade')?.value || '').toLowerCase();
     const subject = (document.getElementById(school + '-sa-subject')?.value || '').toLowerCase();
@@ -354,7 +369,7 @@ function saApplyFilters(school) {
 
     rows.forEach(function (row) {
         let show = true;
-        if (q && !(row.dataset.search || '').includes(q)) show = false;
+        if (!saSearchMatches(row.dataset.search || '', q)) show = false;
         if (day && row.dataset.day !== day) show = false;
         if (grade && row.dataset.grade !== grade) show = false;
         if (subject && row.dataset.subject !== subject) show = false;

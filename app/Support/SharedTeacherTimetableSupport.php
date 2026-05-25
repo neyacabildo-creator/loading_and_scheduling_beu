@@ -151,4 +151,78 @@ class SharedTeacherTimetableSupport
 
         return null;
     }
+
+    /**
+     * Distinct schedule dates for a teacher (both connections merged).
+     *
+     * @return array{saved: list<string>, future: list<string>, past: list<string>}
+     */
+    public static function scheduleDateBuckets(int $facultyId, string $schoolYear = '2025-2026'): array
+    {
+        $today = now()->toDateString();
+        $dates = collect();
+
+        foreach (['mysql_jh', 'mysql_gs'] as $connection) {
+            if (! Schema::connection($connection)->hasTable('class_schedules')) {
+                continue;
+            }
+            $query = DB::connection($connection)
+                ->table('class_schedules')
+                ->where('faculty_id', $facultyId)
+                ->where('admin_approved', true)
+                ->whereNotNull('schedule_date');
+
+            if (Schema::connection($connection)->hasColumn('class_schedules', 'school_year')) {
+                $query->where('school_year', $schoolYear);
+            }
+
+            $dates = $dates->merge(
+                $query->distinct()->pluck('schedule_date')->map(fn ($d) => substr((string) $d, 0, 10))
+            );
+        }
+
+        $unique = $dates->filter()->unique()->sort()->values();
+
+        return [
+            'saved'  => $unique->filter(fn ($d) => $d <= $today)->values()->all(),
+            'future' => $unique->filter(fn ($d) => $d > $today)->values()->all(),
+            'past'   => $unique->filter(fn ($d) => $d < $today)->values()->all(),
+        ];
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, object>  $schedules
+     * @return \Illuminate\Support\Collection<int, object>
+     */
+    public static function filterSchedulesForView(
+        Collection $schedules,
+        string $view,
+        ?string $selectedDate = null
+    ): Collection {
+        $today = now()->toDateString();
+
+        if ($selectedDate) {
+            return $schedules->filter(fn ($s) => substr((string) ($s->schedule_date ?? ''), 0, 10) === $selectedDate);
+        }
+
+        if ($view === 'last') {
+            $lastDate = $schedules
+                ->map(fn ($s) => substr((string) ($s->schedule_date ?? ''), 0, 10))
+                ->filter(fn ($d) => $d !== '' && $d < $today)
+                ->max();
+
+            if (! $lastDate) {
+                return collect();
+            }
+
+            return $schedules->filter(fn ($s) => substr((string) ($s->schedule_date ?? ''), 0, 10) === $lastDate);
+        }
+
+        return match ($view) {
+            'future' => $schedules->filter(fn ($s) => substr((string) ($s->schedule_date ?? ''), 0, 10) > $today),
+            'past' => $schedules->filter(fn ($s) => substr((string) ($s->schedule_date ?? ''), 0, 10) < $today),
+            'saved' => $schedules->filter(fn ($s) => substr((string) ($s->schedule_date ?? ''), 0, 10) <= $today),
+            default => $schedules,
+        };
+    }
 }
