@@ -13,7 +13,7 @@
 <div class="ks-header">
     <div>
         <h1 style="margin:0 0 0.35rem;font-size:1.5rem;font-weight:800;">Kinder Class Schedule</h1>
-        <p style="margin:0;color:var(--text-secondary);font-size:0.875rem;">Assign one activity subject per weekday (Reading, Language, Filipino, Mathematics, CLVE/PE/Arts).</p>
+        <p style="margin:0;color:var(--text-secondary);font-size:0.875rem;">Assign one subject per weekday (Reading, Language, Filipino, Mathematics, CLVE/PE/Arts).</p>
     </div>
     <a href="{{ route('grade-school-admin.faculty-loading') }}" class="action-btn" style="text-decoration:none;">← Faculty Loads</a>
 </div>
@@ -36,7 +36,7 @@
         <h3>Section &amp; Teacher</h3>
         <div class="ks-grid">
             <div>
-                <label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:0.35rem;">Grade Level *</label>
+                <label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:0.35rem;">Grade Level </label>
                 <select name="grade_level" id="ksGrade" required style="width:100%;padding:0.55rem;border:1px solid var(--border-color);border-radius:0.375rem;">
                     @foreach(\App\Support\KinderScheduleSupport::GRADES as $g)
                         <option value="{{ $g }}" @selected(old('grade_level', $gradeLevel) === $g)>{{ $g }}</option>
@@ -44,7 +44,7 @@
                 </select>
             </div>
             <div>
-                <label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:0.35rem;">Room / Section *</label>
+                <label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:0.35rem;">Room / Section </label>
                 <select name="section_name" id="ksSection" required style="width:100%;padding:0.55rem;border:1px solid var(--border-color);border-radius:0.375rem;">
                     @foreach($sections as $sec)
                         <option value="{{ $sec }}" @selected(old('section_name', $sectionName) === $sec)>{{ $sec }}</option>
@@ -52,7 +52,7 @@
                 </select>
             </div>
             <div>
-                <label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:0.35rem;">Teacher *</label>
+                <label style="font-size:0.75rem;font-weight:700;display:block;margin-bottom:0.35rem;">Teacher </label>
                 <select name="faculty_id" required style="width:100%;padding:0.55rem;border:1px solid var(--border-color);border-radius:0.375rem;">
                     <option value="">— Select —</option>
                     @foreach($teachers as $t)
@@ -66,7 +66,7 @@
     </div>
 
     <div class="ks-panel">
-        <h3>Weekly Activity</h3>
+        <h3>Weekly Subjects</h3>
         @include('partials.kinder-weekly-activity-table', [
             'gradeTitle' => strtoupper($gradeLevel),
             'weeklyActivity' => $weeklyActivity,

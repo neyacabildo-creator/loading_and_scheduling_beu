@@ -141,6 +141,59 @@ class MasterWeeklyScheduleController extends Controller
         return $this->downloadScheduleFile($request, $teacherId);
     }
 
+    public function downloadKinderGS(Request $request, int $teacherId)
+    {
+        $schoolLevel = FacultyLoadSupport::schoolLevelForConnection();
+        if ($schoolLevel !== 'grade_school' || ! FacultyLoadSupport::facultyIdHasRegisteredAccount($teacherId, $schoolLevel)) {
+            abort(404);
+        }
+
+        $teacher = User::findOrFail($teacherId);
+        $kinderGrade = \App\Support\KinderScheduleSupport::resolveFacultyKinderGrade(
+            $teacherId,
+            $request->query('grade_level')
+        );
+        if (! $kinderGrade) {
+            abort(404, 'Not a kinder faculty assignment.');
+        }
+
+        $sections = \App\Support\KinderScheduleSupport::sectionsForGrade($kinderGrade);
+        $section = $request->query('section') ?? $request->query('section_name');
+        if (! $section || ! in_array($section, $sections, true)) {
+            $section = $sections[0] ?? '';
+        }
+
+        $weekly = \App\Support\KinderScheduleSupport::savedWeeklyActivity($kinderGrade, $section, $teacherId);
+        $facultyName = trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name;
+        $safeName = preg_replace('/[^A-Za-z0-9_-]+/', '-', $facultyName) ?: 'teacher';
+        $filename = 'kinder-schedule-' . $safeName . '-' . str_replace(' ', '-', $kinderGrade) . '.csv';
+
+        return response()->streamDownload(function () use ($kinderGrade, $section, $facultyName, $weekly) {
+            $out = fopen('php://output', 'w');
+            fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($out, ['TEACHERS-IN-CHARGE']);
+            fputcsv($out, ['Faculty', $facultyName]);
+            fputcsv($out, ['Grade Level', $kinderGrade]);
+            fputcsv($out, ['Section', $section]);
+            fputcsv($out, []);
+
+            foreach (\App\Support\KinderScheduleSupport::teachersInChargeTables() as $table) {
+                fputcsv($out, array_merge([$table['title']], $table['columns']));
+                foreach ($table['rows'] as $row) {
+                    fputcsv($out, array_merge([$row['label']], $row['values']));
+                }
+                fputcsv($out, []);
+            }
+
+            fputcsv($out, ['WEEKLY SUBJECT SCHEDULE']);
+            fputcsv($out, ['TIME', 'SUBJECT']);
+            foreach (\App\Support\KinderScheduleSupport::WEEKDAYS as $day) {
+                fputcsv($out, [strtoupper($day), $weekly[$day] ?? '']);
+            }
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
     private function downloadScheduleFile(Request $request, int $teacherId)
     {
         $schoolLevel = FacultyLoadSupport::schoolLevelForConnection();
@@ -255,11 +308,16 @@ class MasterWeeklyScheduleController extends Controller
         );
 
         if ($kinderGrade && $schoolLevel === 'grade_school') {
-            return view('master-weekly-schedule._kinder-card', \App\Support\KinderScheduleSupport::cardViewData(
-                $teacher,
-                $kinderGrade,
-                $request->query('section')
-            ) + ['isAjax' => $request->boolean('ajax')]);
+            $section = $request->query('section') ?? $request->query('section_name');
+            $data = \App\Support\KinderScheduleSupport::cardViewData($teacher, $kinderGrade, $section);
+            $data['isAjax'] = $request->boolean('ajax');
+            $data['downloadUrl'] = route('grade-school-admin.master-schedule.kinder-download', [
+                'teacherId'   => $teacherId,
+                'grade_level' => $kinderGrade,
+                'section'     => $data['sectionName'] ?? '',
+            ]);
+
+            return view('master-weekly-schedule._kinder-card', $data);
         }
 
         return view('master-weekly-schedule._card', [

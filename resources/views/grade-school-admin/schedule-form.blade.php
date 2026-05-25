@@ -85,22 +85,19 @@
 
     <!-- Kinder: MonùFri activity only -->
     <div class="sf-card" id="gsKinderPanel" style="display:none;">
-        <h3 style="margin:0 0 1rem;font-size:1rem;font-weight:800;color:var(--green-primary);">Kinder Weekly Activity</h3>
-        <p style="font-size:.8rem;color:var(--text-secondary);margin:0 0 1rem;">Choose grade, room/section, and teacher. Assign one activity subject per weekday (no duplicate subjects in the same week).</p>
+        <h3 style="margin:0 0 1rem;font-size:1rem;font-weight:800;color:var(--green-primary);">Kinder Weekly Schedule</h3>
+        <p style="font-size:.8rem;color:var(--text-secondary);margin:0 0 1rem;">Choose grade, room/section, and teacher. Assign one subject per weekday (no duplicate subjects in the same week).</p>
         <div class="sf-controls" style="margin-bottom:1rem;">
             <div class="sf-control-group">
                 <label for="kinder_section_name">Room / Section</label>
                 <select name="section_name" id="kinder_section_name" class="sf-select" data-kinder-required="1">
-                    <option value="">ù Select section ù</option>
+                    <option value="">Select section</option>
                 </select>
             </div>
             <div class="sf-control-group">
                 <label for="kinder_faculty_id">Teacher</label>
                 <select name="faculty_id" id="kinder_faculty_id" class="sf-select" data-kinder-required="1">
-                    <option value="">ù Select teacher ù</option>
-                    @foreach($allTeachersForDropdown as $t)
-                        <option value="{{ $t['id'] }}" {{ (int) old('faculty_id') === (int) $t['id'] ? 'selected' : '' }}>{{ $t['name'] }}</option>
-                    @endforeach
+                    <option value="">Select teacher</option>
                 </select>
             </div>
         </div>
@@ -187,7 +184,7 @@
         if (!sel) return;
         var list = KINDER_SECTIONS[grade] || [];
         var current = sel.value;
-        sel.innerHTML = '<option value="">ù Select section ù</option>';
+        sel.innerHTML = '<option value="">Select section</option>';
         list.forEach(function (sec) {
             var opt = document.createElement('option');
             opt.value = sec;
@@ -203,6 +200,37 @@
     var SF_GS_ALL_TEACHERS              = JSON.parse(document.getElementById('sf-gs-all-teachers')?.textContent || '[]');
     var SF_GS_TEACHERS_BY_SUBJECT       = JSON.parse(document.getElementById('sf-gs-teachers-by-subject')?.textContent || '{}');
     var SF_GS_UNAVAILABLE_FACULTY       = JSON.parse(document.getElementById('sf-gs-unavailable-faculty')?.textContent || '{}');
+
+    function gsRebuildKinderTeachers(grade) {
+        var sel = document.getElementById('kinder_faculty_id');
+        if (!sel) return;
+        var current = sel.value || '';
+        var allowedIds = (SF_GS_TEACHERS_BY_GRADE[grade] || []).map(String);
+        sel.innerHTML = '<option value="">Select teacher</option>';
+        var added = {};
+        SF_GS_ALL_TEACHERS.forEach(function (t) {
+            var id = String(t.id);
+            if (!grade) return;
+            if (allowedIds.length > 0 && !allowedIds.includes(id) && id !== String(current)) return;
+            if (SF_GS_UNAVAILABLE_FACULTY[id] && id !== String(current)) return;
+            var opt = document.createElement('option');
+            opt.value = t.id;
+            opt.textContent = t.name;
+            if (id === String(current)) opt.selected = true;
+            sel.appendChild(opt);
+            added[id] = true;
+        });
+        if (current && !added[String(current)]) {
+            var kept = SF_GS_ALL_TEACHERS.find(function (t) { return String(t.id) === String(current); });
+            if (kept) {
+                var opt = document.createElement('option');
+                opt.value = kept.id;
+                opt.textContent = kept.name;
+                opt.selected = true;
+                sel.appendChild(opt);
+            }
+        }
+    }
 
     // Aliases: form display value ? possible keys in SF_GS_TEACHERS_BY_SUBJECT
     var GS_SUBJECT_ALIASES = {
@@ -349,7 +377,10 @@
             gsUpdateSections(grade);
             gsFilterTeachersByGrade(grade);
         }
-        if (kinder) gsUpdateKinderSections(grade);
+        if (kinder) {
+            gsUpdateKinderSections(grade);
+            gsRebuildKinderTeachers(grade);
+        }
 
         var overlay = document.getElementById('gsGridOverlay');
         var submitBtn = document.getElementById('sfSubmitBtn');

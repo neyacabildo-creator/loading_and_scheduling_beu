@@ -536,6 +536,7 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolAdmin::class, 'scho
     Route::get('grade-school-admin/master-schedule/{teacherId}', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'manageGS'])->name('grade-school-admin.master-schedule.manage');
     Route::get('grade-school-admin/master-schedule/{teacherId}/card', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'cardViewGS'])->name('grade-school-admin.master-schedule.card');
     Route::get('grade-school-admin/master-schedule/{teacherId}/download', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'downloadGS'])->name('grade-school-admin.master-schedule.download');
+    Route::get('grade-school-admin/master-schedule/{teacherId}/kinder-download', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'downloadKinderGS'])->name('grade-school-admin.master-schedule.kinder-download');
     Route::post('grade-school-admin/master-schedule/{teacherId}', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'save'])->name('grade-school-admin.master-schedule.save');
     Route::delete('grade-school-admin/master-schedule/{teacherId}', [\App\Http\Controllers\MasterWeeklyScheduleController::class, 'clear'])->name('grade-school-admin.master-schedule.clear');
 

@@ -1479,47 +1479,29 @@ class GradeSchoolAdminController extends Controller
     }
 
     /**
-     * Kinder 2 / Kinder 1 / Nursery weekly activity schedule form.
+     * Legacy URL: open printable Teachers-in-Charge card or Create Schedule for editing.
      */
     public function kinderScheduleForm(Request $request)
     {
-        $gradeLevel = $request->query('grade_level', 'Kinder 2');
-        if (! \App\Support\KinderScheduleSupport::isKinderGrade($gradeLevel)) {
-            $gradeLevel = 'Kinder 2';
-        }
-
-        $sections = \App\Support\KinderScheduleSupport::sectionsForGrade($gradeLevel);
-        $sectionName = $request->query('section_name', $sections[0] ?? '');
-        if ($sectionName && ! in_array($sectionName, $sections, true)) {
-            $sectionName = $sections[0] ?? '';
-        }
-
         $facultyId = (int) $request->query('faculty_id', 0);
-        $weeklyActivity = $sectionName
-            ? \App\Support\KinderScheduleSupport::savedWeeklyActivity($gradeLevel, $sectionName, $facultyId ?: null)
-            : \App\Support\KinderScheduleSupport::WEEKLY_ACTIVITY_BY_DAY;
+        if ($facultyId > 0) {
+            $params = ['teacherId' => $facultyId];
+            if ($request->filled('grade_level')) {
+                $params['grade_level'] = $request->query('grade_level');
+            }
+            if ($request->filled('section_name')) {
+                $params['section'] = $request->query('section_name');
+            }
 
-        $teachers = \App\Support\AdminUserAccountsSupport::scopeFacultyAssignable(
-            User::query(),
-            'grade_school'
-        )->orderBy('first_name')->get();
+            return redirect()->route('grade-school-admin.master-schedule.card', $params);
+        }
 
-        return view('grade-school-admin.kinder-schedule-form', [
-            'gradeLevel'       => $gradeLevel,
-            'sectionName'      => $sectionName,
-            'sections'         => $sections,
-            'facultyId'        => $facultyId,
-            'teachers'         => $teachers,
-            'routineSlots'     => \App\Support\KinderScheduleSupport::routineSlots($gradeLevel),
-            'weeklyActivity'   => $weeklyActivity,
-            'activitySubjects' => \App\Support\KinderScheduleSupport::ACTIVITY_SUBJECTS,
-            'weekdays'         => \App\Support\KinderScheduleSupport::WEEKDAYS,
-        ]);
+        return redirect()->route('grade-school-admin.schedule.create');
     }
 
     public function storeKinderSchedule(Request $request)
     {
-        return $this->persistKinderWeeklySchedule($request, 'grade-school-admin.kinder-schedule');
+        return $this->persistKinderWeeklySchedule($request, 'grade-school-admin.schedule.create');
     }
 
     /**
