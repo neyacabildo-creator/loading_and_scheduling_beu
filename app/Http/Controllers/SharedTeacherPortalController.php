@@ -48,10 +48,18 @@ class SharedTeacherPortalController extends Controller
             + DB::connection('mysql_gs')->table(self::TBL)
                 ->where('faculty_id', $userId)->where('status', 'pending')->count();
 
+        $weeklySchoolYear = '2025-2026';
+        $jhWeeklyGrid = \App\Support\SharedTeacherTimetableSupport::fetchMasterWeeklyGrid('mysql_jh', (int) $userId, $weeklySchoolYear);
+        $gsWeeklyGrid = \App\Support\SharedTeacherTimetableSupport::fetchMasterWeeklyGrid('mysql_gs', (int) $userId, $weeklySchoolYear);
+
+        $user = Auth::user();
+        $teacherName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: ($user->name ?? 'Shared Teacher');
+
         $stWeeklyTimetable = [
-            'days' => \App\Http\Controllers\MasterWeeklyScheduleController::days(),
-            'jh'   => \App\Support\SharedTeacherTimetableSupport::buildGrid($jhSchedules, 'junior_high'),
-            'gs'   => \App\Support\SharedTeacherTimetableSupport::buildGrid($gsSchedules, 'grade_school'),
+            'schoolYear'  => $weeklySchoolYear,
+            'teacherName' => $teacherName,
+            'jh'          => \App\Support\SharedTeacherTimetableSupport::buildWeeklyPresentation($jhSchedules, $jhWeeklyGrid, 'junior_high'),
+            'gs'          => \App\Support\SharedTeacherTimetableSupport::buildWeeklyPresentation($gsSchedules, $gsWeeklyGrid, 'grade_school'),
         ];
 
         return view('shared-teacher.dashboard', compact(
