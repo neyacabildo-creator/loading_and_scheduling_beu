@@ -73,9 +73,6 @@ class PrincipalController extends Controller
             $rUsers = $rIds->isNotEmpty() ? User::whereIn('id', $rIds)->get()->keyBy('id') : collect();
             $recentRequests->each(fn($r) => $r->setRelation('requester', $rUsers->get($r->requester_id)));
 
-            // Recent combined audit activity (last 8 entries across both school DBs)
-            $recentActivity = $this->recentCombinedActivity(8);
-
             return view('principal.dashboard', compact(
                 'totalFaculty', 'totalAdmins',
                 'jhFaculty', 'gsFaculty',
@@ -86,7 +83,7 @@ class PrincipalController extends Controller
                 'pendingSchedules',
                 'principalScheduleFlags',
                 'totalRooms', 'jhRooms', 'gsRooms', 'roomsData',
-                'recentRequests', 'recentActivity'
+                'recentRequests'
             ));
         } catch (\Exception $e) {
             Log::error('Principal dashboard error: ' . $e->getMessage());
@@ -102,7 +99,6 @@ class PrincipalController extends Controller
                 'totalRooms'       => 0, 'jhRooms' => 0, 'gsRooms' => 0,
                 'roomsData'        => collect(),
                 'recentRequests'   => collect(),
-                'recentActivity'   => collect(),
             ]);
         }
     }
@@ -119,24 +115,6 @@ class PrincipalController extends Controller
         } catch (\Exception $e) {
             return 0;
         }
-    }
-
-    /** Pull the N most recent audit log entries from both school DBs combined. */
-    private function recentCombinedActivity(int $limit = 10): \Illuminate\Support\Collection
-    {
-        $rows = collect();
-        foreach (['mysql_jh' => 'Junior High', 'mysql_gs' => 'Grade School'] as $conn => $label) {
-            try {
-                $entries = DB::connection($conn)
-                    ->table('audit_logs')
-                    ->orderByDesc('changed_at')
-                    ->limit($limit)
-                    ->get()
-                    ->map(fn($row) => (array) $row + ['_school' => $label]);
-                $rows = $rows->concat($entries);
-            } catch (\Exception) {}
-        }
-        return $rows->sortByDesc('changed_at')->take($limit)->values();
     }
 
     // ── Permission Requests ──────────────────────────────────────────────────
