@@ -516,9 +516,9 @@
                     </div>
                 </div>
                 <div class="form-field st-req-field">
-                    <label class="form-label">School Level <span class="st-req-required">*</span></label>
+                    <label class="form-label">Send to Admin <span class="st-req-required">*</span></label>
                     <select name="school_level" class="form-input" required>
-                        <option value="">— Select admin —</option>
+                        <option value="">— Select which admin —</option>
                         <option value="jh" {{ old('school_level') === 'jh' ? 'selected' : '' }}>Junior High School Admin</option>
                         <option value="gs" {{ old('school_level') === 'gs' ? 'selected' : '' }}>Grade School Admin</option>
                     </select>
@@ -610,7 +610,7 @@
             <thead>
                 <tr>
                     <th>Type</th>
-                    <th>Level</th>
+                    <th>Sent To</th>
                     <th>Details</th>
                     <th>Date / Period</th>
                     <th>Notes</th>
@@ -630,9 +630,15 @@
                         <span class="st-req-kind-badge {{ $isLeave ? 'leave' : '' }}">{{ $isLeave ? 'Leave' : 'Schedule' }}</span>
                     </td>
                     <td>
-                        <span class="{{ ($req->level ?? '') === 'jh' ? 'badge-jh' : 'badge-gs' }}">
-                            {{ ($req->level ?? '') === 'jh' ? 'JH' : 'GS' }}
-                        </span>
+                        @if($isLeave)
+                            <span class="{{ ($req->submitted_to_admin ?? $req->level ?? '') === 'jh' ? 'badge-jh' : 'badge-gs' }}">
+                                {{ $req->submitted_to_admin_label ?? (($req->level ?? '') === 'jh' ? 'Junior High School Admin' : 'Grade School Admin') }}
+                            </span>
+                        @else
+                            <span class="{{ ($req->level ?? '') === 'jh' ? 'badge-jh' : 'badge-gs' }}">
+                                {{ ($req->level ?? '') === 'jh' ? 'JH' : 'GS' }}
+                            </span>
+                        @endif
                     </td>
                     <td class="st-req-subject">
                         @if($isLeave)

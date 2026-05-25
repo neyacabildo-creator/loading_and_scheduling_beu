@@ -130,6 +130,59 @@ class KinderScheduleSupport
      *
      * @return list<array{grade: string, section: string, teacher: string, assistant: string}>
      */
+    /**
+     * Matrix layout for Teachers-in-Charge card (official form).
+     *
+     * @return list<array{title: string, columns: list<string>, rows: list<array{label: string, values: list<string>}>}>
+     */
+    public static function teachersInChargeTables(): array
+    {
+        return [
+            [
+                'title'   => 'KINDER 2',
+                'columns' => ['K2-GABRIEL', 'K2-MICHAEL', 'K2-RAPHAEL'],
+                'rows'    => [
+                    ['label' => 'Teacher', 'values' => ['D. Demapendan', 'A. Soriano', 'S. Umbalin']],
+                    ['label' => 'Asst. Teacher', 'values' => ['M. Danipog', 'R. Lumboy', 'C. Orpilla']],
+                ],
+            ],
+            [
+                'title'   => 'KINDER 1',
+                'columns' => ['NURSERY-CHERUBIM', 'K1-SERAPHIM', 'K1-URIEL'],
+                'rows'    => [
+                    ['label' => 'Teacher', 'values' => ['M. Danipog', 'R. Lumboy', 'C. Orpilla']],
+                    ['label' => 'Asst. Teacher', 'values' => ['D. Demapendan', 'A. Soriano', 'S. Umbalin']],
+                ],
+            ],
+        ];
+    }
+
+    public static function subjectsCsv(): string
+    {
+        return implode(', ', self::ACTIVITY_SUBJECTS);
+    }
+
+    /**
+     * @param  array<string, string>  $subjectsByDay
+     */
+    public static function validateUniqueWeeklyActivities(array $subjectsByDay): ?string
+    {
+        $used = [];
+        foreach (self::WEEKDAYS as $day) {
+            $subject = trim((string) ($subjectsByDay[$day] ?? ''));
+            if ($subject === '') {
+                continue;
+            }
+            $key = mb_strtolower($subject);
+            if (isset($used[$key])) {
+                return 'Each activity subject may only appear once per week. "' . $subject . '" is assigned more than once.';
+            }
+            $used[$key] = true;
+        }
+
+        return null;
+    }
+
     public static function teachersInCharge(): array
     {
         return [
@@ -221,7 +274,8 @@ class KinderScheduleSupport
             'weeklyActivity'   => self::savedWeeklyActivity($grade, $section, (int) $teacher->id),
             'activitySubjects' => self::ACTIVITY_SUBJECTS,
             'weekdays'         => self::WEEKDAYS,
-            'teachersInCharge' => self::teachersInCharge(),
+            'teachersInCharge'       => self::teachersInCharge(),
+            'teachersInChargeTables' => self::teachersInChargeTables(),
             'schoolYear'       => '2025-2026',
         ];
     }
@@ -240,6 +294,11 @@ class KinderScheduleSupport
     ): int {
         if (! self::isKinderGrade($gradeLevel)) {
             throw new \InvalidArgumentException('Invalid kinder grade level.');
+        }
+
+        $uniqueMsg = self::validateUniqueWeeklyActivities($subjectsByDay);
+        if ($uniqueMsg !== null) {
+            throw new \InvalidArgumentException($uniqueMsg);
         }
 
         $activity = self::activitySlot($gradeLevel);

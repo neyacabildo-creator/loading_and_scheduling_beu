@@ -14,6 +14,7 @@
             <thead>
                 <tr>
                     <th class="str-col-teacher">Teacher</th>
+                    <th class="str-col-subject">Sent To Admin</th>
                     <th class="str-col-subject">Leave Type</th>
                     <th class="str-col-time">Date Range</th>
                     <th class="str-col-notes">Reason / Notes</th>
@@ -47,6 +48,9 @@
                         @else
                             <span style="color:var(--text-secondary);">—</span>
                         @endif
+                    </td>
+                    <td class="str-col-subject">
+                        <div class="str-cell-subject">{{ $lr->submitted_to_admin_label ?? 'School Admin' }}</div>
                     </td>
                     <td class="str-col-subject">
                         <div class="str-cell-subject">{{ $lr->request_type_label ?? 'Leave' }}</div>

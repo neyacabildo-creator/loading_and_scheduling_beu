@@ -60,7 +60,7 @@
                 <label for="grade_level">Grade Level</label>
                 <select name="grade_level" id="grade_level" class="sf-select" required>
                     <option value="">Select Grade</option>
-                    @foreach(['Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6'] as $g)
+                    @foreach(['Kinder 2','Kinder 1','Nursery','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6'] as $g)
                         <option value="{{ $g }}" {{ old('grade_level') === $g ? 'selected' : '' }}>{{ $g }}</option>
                     @endforeach
                 </select>
@@ -81,6 +81,37 @@
         </div>
         <p style="font-size:.8rem;color:var(--text-secondary);margin:0;">Select a grade level and day, then fill in subjects and assign teachers per section/time slot. Sections update automatically per grade.</p>
         <div id="sfSlotAssistantStatus" style="margin-top:.75rem;"></div>
+    </div>
+
+    <!-- Kinder: MonùFri activity only -->
+    <div class="sf-card" id="gsKinderPanel" style="display:none;">
+        <h3 style="margin:0 0 1rem;font-size:1rem;font-weight:800;color:var(--green-primary);">Kinder Weekly Activity</h3>
+        <p style="font-size:.8rem;color:var(--text-secondary);margin:0 0 1rem;">Choose grade, room/section, and teacher. Assign one activity subject per weekday (no duplicate subjects in the same week).</p>
+        <div class="sf-controls" style="margin-bottom:1rem;">
+            <div class="sf-control-group">
+                <label for="kinder_section_name">Room / Section</label>
+                <select name="section_name" id="kinder_section_name" class="sf-select" data-kinder-required="1">
+                    <option value="">ù Select section ù</option>
+                </select>
+            </div>
+            <div class="sf-control-group">
+                <label for="kinder_faculty_id">Teacher</label>
+                <select name="faculty_id" id="kinder_faculty_id" class="sf-select" data-kinder-required="1">
+                    <option value="">ù Select teacher ù</option>
+                    @foreach($allTeachersForDropdown as $t)
+                        <option value="{{ $t['id'] }}" {{ (int) old('faculty_id') === (int) $t['id'] ? 'selected' : '' }}>{{ $t['name'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+        </div>
+        @include('partials.kinder-weekly-activity-table', [
+            'gradeTitle' => null,
+            'weeklyActivity' => old('activity', \App\Support\KinderScheduleSupport::WEEKLY_ACTIVITY_BY_DAY),
+        ])
+        <div style="display:flex;gap:1rem;padding-top:1.25rem;border-top:1px solid var(--border-color);margin-top:1rem;">
+            <button type="submit" class="sf-submit-btn" id="sfKinderSubmitBtn">Save Kinder Schedule</button>
+            <a href="{{ route('grade-school-admin.class-schedule') }}" class="sf-cancel-link">Cancel</a>
+        </div>
     </div>
 
     <!-- Grid -->
@@ -140,7 +171,31 @@
 <script>
 (function () {
     var gradeSelect = document.getElementById('grade_level');
+    var daySelect   = document.getElementById('day_of_week');
+    var kinderPanel = document.getElementById('gsKinderPanel');
+    var gridCard    = document.getElementById('gsGridCard');
+    var KINDER_GRADES = ['Kinder 2', 'Kinder 1', 'Nursery'];
+    var KINDER_SECTIONS = @json(\App\Support\KinderScheduleSupport::SECTIONS_BY_GRADE);
     var badges      = document.querySelectorAll('table.sf-grid thead th .sf-grade-badge');
+
+    function isKinderGrade(grade) {
+        return KINDER_GRADES.indexOf(grade) >= 0;
+    }
+
+    function gsUpdateKinderSections(grade) {
+        var sel = document.getElementById('kinder_section_name');
+        if (!sel) return;
+        var list = KINDER_SECTIONS[grade] || [];
+        var current = sel.value;
+        sel.innerHTML = '<option value="">ù Select section ù</option>';
+        list.forEach(function (sec) {
+            var opt = document.createElement('option');
+            opt.value = sec;
+            opt.textContent = sec;
+            if (sec === current) opt.selected = true;
+            sel.appendChild(opt);
+        });
+    }
 
     // -- Data maps ------------------------------------------------------------
     var SF_GS_TEACHERS_BY_GRADE         = JSON.parse(document.getElementById('sf-gs-teachers-by-grade')?.textContent || '{}');
@@ -276,19 +331,33 @@
 
     function updateBadges() {
         var grade = gradeSelect.value || '';
+        var kinder = isKinderGrade(grade);
+
+        if (kinderPanel) kinderPanel.style.display = kinder ? 'block' : 'none';
+        if (gridCard) gridCard.style.display = kinder ? 'none' : '';
+        if (daySelect) daySelect.required = !kinder;
+        document.querySelectorAll('[data-kinder-required]').forEach(function (el) {
+            el.required = kinder;
+            el.disabled = !kinder;
+        });
+
         badges.forEach(function (b) {
             b.textContent = grade;
-            b.style.display = grade ? '' : 'none';
+            b.style.display = grade && !kinder ? '' : 'none';
         });
-        if (grade) gsUpdateSections(grade);
-        gsFilterTeachersByGrade(grade);
+        if (grade && !kinder) {
+            gsUpdateSections(grade);
+            gsFilterTeachersByGrade(grade);
+        }
+        if (kinder) gsUpdateKinderSections(grade);
+
         var overlay = document.getElementById('gsGridOverlay');
         var submitBtn = document.getElementById('sfSubmitBtn');
-        if (overlay) overlay.style.display = grade ? 'none' : 'flex';
+        if (overlay) overlay.style.display = (grade && !kinder) ? 'none' : (kinder ? 'none' : 'flex');
         if (submitBtn) {
-            submitBtn.disabled = !grade;
-            submitBtn.style.opacity = grade ? '1' : '0.45';
-            submitBtn.style.cursor = grade ? 'pointer' : 'not-allowed';
+            submitBtn.disabled = !grade || kinder;
+            submitBtn.style.opacity = (grade && !kinder) ? '1' : '0.45';
+            submitBtn.style.cursor = (grade && !kinder) ? 'pointer' : 'not-allowed';
         }
     }
 

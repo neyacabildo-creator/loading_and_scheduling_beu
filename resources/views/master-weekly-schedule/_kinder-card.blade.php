@@ -60,6 +60,53 @@
     </div>
 
     <div class="kinder-section">
+        <h3>Teachers-in-Charge</h3>
+        @foreach($teachersInChargeTables ?? \App\Support\KinderScheduleSupport::teachersInChargeTables() as $table)
+            <p style="font-size:0.68rem;font-weight:800;text-transform:uppercase;margin:0.65rem 0 0.35rem;color:#374151;">{{ $table['title'] }}</p>
+            <table class="kt" style="margin-bottom:0.75rem;">
+                <thead>
+                    <tr>
+                        <th class="time-col" style="width:120px;"></th>
+                        @foreach($table['columns'] as $col)
+                            <th>{{ $col }}</th>
+                        @endforeach
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($table['rows'] as $row)
+                        <tr>
+                            <td class="time-col" style="font-weight:700;">{{ $row['label'] }}</td>
+                            @foreach($row['values'] as $val)
+                                <td>{{ $val }}</td>
+                            @endforeach
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endforeach
+    </div>
+
+    <div class="kinder-section">
+        <h3>Weekly Activity — {{ strtoupper($gradeLevel) }} ({{ $sectionName }})</h3>
+        <table class="kt">
+            <thead>
+                <tr>
+                    <th class="time-col">TIME</th>
+                    <th>ACTIVITY</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($weekdays as $day)
+                    <tr class="activity">
+                        <td class="time-col">{{ strtoupper($day) }}</td>
+                        <td>{{ $weeklyActivity[$day] ?? '—' }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+
+    <div class="kinder-section">
         <h3>Class Routine (Monday – Friday)</h3>
         <table class="kt">
             <thead>
@@ -99,50 +146,6 @@
         </table>
     </div>
 
-    <div class="kinder-section">
-        <h3>Class Schedule — Activity by Day</h3>
-        <table class="kt">
-            <thead>
-                <tr>
-                    @foreach($weekdays as $day)
-                        <th>{{ strtoupper($day) }}</th>
-                    @endforeach
-                </tr>
-            </thead>
-            <tbody>
-                <tr class="activity">
-                    @foreach($weekdays as $day)
-                        <td>{{ $weeklyActivity[$day] ?? '—' }}</td>
-                    @endforeach
-                </tr>
-            </tbody>
-        </table>
-        <p style="font-size:0.68rem;color:#6b7280;margin-top:0.4rem;">Subjects: Reading, Language, Filipino, Mathematics, CLVE/PE/Arts</p>
-    </div>
-
-    <div class="kinder-section" style="border-bottom:none;">
-        <h3>Teachers-in-Charge</h3>
-        <table class="kt">
-            <thead>
-                <tr>
-                    <th>Level</th>
-                    <th>Section</th>
-                    <th>Teacher</th>
-                    <th>Asst. Teacher</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($teachersInCharge as $row)
-                    <tr>
-                        <td>{{ $row['grade'] }}</td>
-                        <td>{{ $row['section'] }}</td>
-                        <td>{{ $row['teacher'] }}</td>
-                        <td>{{ $row['assistant'] }}</td>
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
-    </div>
 </div>
 </body>
 </html>

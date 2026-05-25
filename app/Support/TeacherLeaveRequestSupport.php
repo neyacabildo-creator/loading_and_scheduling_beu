@@ -51,6 +51,22 @@ class TeacherLeaveRequestSupport
         );
     }
 
+    public static function adminLabel(?string $code): string
+    {
+        $code = strtolower(trim((string) $code));
+
+        return match ($code) {
+            'jh', 'junior_high' => 'Junior High School Admin',
+            'gs', 'grade_school' => 'Grade School Admin',
+            default => 'School Admin',
+        };
+    }
+
+    public static function adminCodeForConnection(string $connection): string
+    {
+        return $connection === 'mysql_jh' ? 'jh' : 'gs';
+    }
+
     public static function listForTeacher(string $connection, int $teacherId): Collection
     {
         self::ensureTable($connection);
@@ -111,7 +127,16 @@ class TeacherLeaveRequestSupport
             ? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: ($user->name ?? 'Teacher')
             : 'Teacher';
 
-        $id = DB::connection($connection)->table(self::TABLE)->insertGetId([
+        $submittedTo = strtolower(trim((string) (
+            $request->input('submitted_to_admin')
+            ?? $request->input('school_level')
+            ?? self::adminCodeForConnection($connection)
+        )));
+        if (! in_array($submittedTo, ['jh', 'gs'], true)) {
+            $submittedTo = self::adminCodeForConnection($connection);
+        }
+
+        $insert = [
             'teacher_id'          => Auth::id(),
             'leave_type'          => $leaveType,
             'date_from'           => $dateFrom->toDateString(),
@@ -125,7 +150,13 @@ class TeacherLeaveRequestSupport
             'reviewed_at'         => null,
             'created_at'          => now(),
             'updated_at'          => now(),
-        ]);
+        ];
+
+        if (Schema::connection($connection)->hasColumn(self::TABLE, 'submitted_to_admin')) {
+            $insert['submitted_to_admin'] = $submittedTo;
+        }
+
+        $id = DB::connection($connection)->table(self::TABLE)->insertGetId($insert);
 
         AdminPortalNotificationSupport::notifyNewTeacherRequest(
             $connection,
@@ -183,9 +214,14 @@ class TeacherLeaveRequestSupport
             $from = substr((string) $r->date_from, 0, 10);
             $to = substr((string) $r->date_to, 0, 10);
 
+            $submittedTo = $r->submitted_to_admin
+                ?? self::adminCodeForConnection($connection);
+
             return (object) [
                 'id'                 => $r->id,
                 'source'             => 'teacher_leave_requests',
+                'submitted_to_admin' => $submittedTo,
+                'submitted_to_admin_label' => self::adminLabel($submittedTo),
                 'status'             => $r->status,
                 'leave_type'         => $r->leave_type,
                 'request_type'       => $r->leave_type,

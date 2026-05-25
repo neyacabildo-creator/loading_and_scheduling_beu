@@ -1149,7 +1149,11 @@
                             : '<span style="padding:.15rem .5rem;border-radius:9999px;font-size:.7rem;font-weight:700;background:rgba(16,185,129,.1);color:#065f46;">OK</span>';
 
                         html += `<tr data-tt="${t.id}" style="border-bottom:1px solid var(--border-color);background:${rowBg};cursor:pointer;" title="Click to show/hide weekly timetable">`;
-                        html += `<td style="padding:.5rem .75rem;font-weight:600;color:var(--text-primary);">${t.name}<br><span style="font-size:.7rem;font-weight:400;color:#3b82f6;">JH: ${t.jh_subjects}</span>${t.gs_subjects !== '—' ? '<br><span style="font-size:.7rem;font-weight:400;color:#10b981;">GS: ' + t.gs_subjects + '</span>' : ''}</td>`;
+                        let gsLine = t.gs_subjects !== '—' ? '<br><span style="font-size:.7rem;font-weight:400;color:#10b981;">GS: ' + t.gs_subjects + '</span>' : '';
+                        if (t.is_kinder_gs && t.primary_gs_grade) {
+                            gsLine += '<br><span style="font-size:.7rem;font-weight:600;color:#7c3aed;">Primary @ GS: ' + t.primary_gs_grade + ' (Kinder)</span>';
+                        }
+                        html += `<td style="padding:.5rem .75rem;font-weight:600;color:var(--text-primary);">${t.name}<br><span style="font-size:.7rem;font-weight:400;color:#3b82f6;">JH: ${t.jh_subjects}</span>${gsLine}</td>`;
                         html += `<td style="padding:.5rem .75rem;text-align:center;">${t.jh_classes} cls / ${t.jh_hours.toFixed(1)} h</td>`;
                         html += `<td style="padding:.5rem .75rem;text-align:center;">${t.gs_classes} cls / ${t.gs_hours.toFixed(1)} h</td>`;
                         const totalColor = t.total_hours > t.max_hours ? '#ef4444' : t.total_hours > t.max_hours * .8 ? '#f59e0b' : '#22c55e';

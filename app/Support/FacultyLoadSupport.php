@@ -133,6 +133,71 @@ class FacultyLoadSupport
         return $updated;
     }
 
+    /**
+     * @return list<string>
+     */
+    public static function parseSubjectCsv(?string $csv): array
+    {
+        $seen = [];
+        $out = [];
+        foreach (array_map('trim', explode(',', (string) $csv)) as $part) {
+            if ($part === '') {
+                continue;
+            }
+            $key = mb_strtolower($part);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $out[] = $part;
+        }
+
+        return $out;
+    }
+
+    public static function normalizeSubjectsCsv(?string $csv): string
+    {
+        $parts = self::parseSubjectCsv($csv);
+
+        return $parts === [] ? '' : implode(', ', $parts);
+    }
+
+    /**
+     * After a GS faculty load row changes, align shared-teacher registry and kinder subject text.
+     */
+    public static function syncSharedTeacherAfterGsLoad(FacultyLoad $load): void
+    {
+        if ((int) ($load->faculty_id ?? 0) <= 0 || ! self::isSharedTeacher((int) $load->faculty_id)) {
+            return;
+        }
+
+        $grade = trim((string) ($load->grade_level ?? ''));
+        if (\App\Support\KinderScheduleSupport::isKinderGrade($grade)) {
+            $normalized = self::normalizeSubjectsCsv(
+                $load->subject ?: \App\Support\KinderScheduleSupport::subjectsCsv()
+            );
+            if ($normalized !== (string) $load->subject) {
+                $load->subject = $normalized;
+                $load->saveQuietly();
+            }
+        }
+
+        if (! Schema::connection('mysql_gs')->hasTable('shared_teachers')) {
+            return;
+        }
+
+        $schoolLevel = \App\Support\KinderScheduleSupport::isKinderGrade($grade)
+            ? 'grade_school'
+            : 'grade_school';
+
+        DB::connection('mysql_gs')->table('shared_teachers')
+            ->where('faculty_id', (int) $load->faculty_id)
+            ->update([
+                'school_level' => $schoolLevel,
+                'updated_at'   => now(),
+            ]);
+    }
+
     public static function subjectMatches(?string $scheduleSubject, string $needle): bool
     {
         $needle = strtolower(trim($needle));

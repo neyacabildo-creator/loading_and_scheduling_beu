@@ -985,14 +985,34 @@ Route::middleware(['auth'])->get('/api/shared-teachers-panel', function () {
         $status = $total > $maxLoadHours ? 'overloaded'
                 : ($total > $maxLoadHours * 0.8 ? 'near_limit' : 'ok');
 
-        $jhSubjectStr = collect($jhSubjectsRaw[$id] ?? [])->pluck('subject')->filter()->unique()->implode(', ');
-        $gsSubjectStr = collect($gsSubjectsRaw[$id] ?? [])->pluck('subject')->filter()->unique()->implode(', ');
+        $formatSubjects = function ($rows) {
+            $parts = [];
+            foreach ($rows ?? [] as $row) {
+                foreach (\App\Support\FacultyLoadSupport::parseSubjectCsv($row->subject ?? '') as $part) {
+                    $parts[mb_strtolower($part)] = $part;
+                }
+            }
+
+            return $parts === [] ? '' : implode(', ', array_values($parts));
+        };
+
+        $jhSubjectStr = $formatSubjects($jhSubjectsRaw[$id] ?? []);
+        $gsSubjectStr = $formatSubjects($gsSubjectsRaw[$id] ?? []);
+
+        $gsPrimary = \Illuminate\Support\Facades\DB::connection('mysql_gs')->table('faculty_loads')
+            ->where('faculty_id', $id)
+            ->orderByDesc('updated_at')
+            ->first(['grade_level', 'subject']);
+        $primaryGsGrade = trim((string) ($gsPrimary->grade_level ?? ''));
+        $isKinderGs = \App\Support\KinderScheduleSupport::isKinderGrade($primaryGsGrade);
 
         $result[] = [
             'id'          => $id,
             'name'        => $name ?: "User #$id",
             'jh_subjects' => $jhSubjectStr ?: '—',
             'gs_subjects' => $gsSubjectStr ?: '—',
+            'primary_gs_grade' => $primaryGsGrade ?: null,
+            'is_kinder_gs'     => $isKinderGs,
             'jh_classes'     => $jhClasses,
             'jh_hours'       => $jhHours,
             'gs_classes'     => $gsClasses,

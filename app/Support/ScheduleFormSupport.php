@@ -95,7 +95,10 @@ class ScheduleFormSupport
             crossConnection: 'mysql_jh',
             subjectNorm: self::GS_SUBJECT_NORM,
             subjectNormForGrade: self::GS_SUBJECT_NORM_FOR_GRADE,
-            grades: ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'],
+            grades: array_merge(
+                ['Kinder 2', 'Kinder 1', 'Nursery'],
+                ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6']
+            ),
             crossSchoolSuffix: ' (JH)',
             useFullTeacherName: true,
         );

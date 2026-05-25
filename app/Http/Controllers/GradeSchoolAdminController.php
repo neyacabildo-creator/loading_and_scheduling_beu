@@ -863,6 +863,7 @@ class GradeSchoolAdminController extends Controller
                     );
                 }
 
+                $data['subject'] = FacultyLoadSupport::normalizeSubjectsCsv($data['subject'] ?? '');
                 $data['load_hours_label'] = FacultyLoadSupport::formatHoursLabel($data['load_hours'] ?? 0);
                 $data['has_user_account'] = FacultyLoadSupport::facultyIdHasRegisteredAccount(
                     (int) ($load->faculty_id ?? 0),
@@ -931,6 +932,13 @@ class GradeSchoolAdminController extends Controller
             if (($validated['status'] ?? null) === 'unavailable') {
                 $validated['status'] = 'not_available';
             }
+            if (\App\Support\KinderScheduleSupport::isKinderGrade($validated['grade_level'] ?? null)) {
+                $validated['subject'] = \App\Support\FacultyLoadSupport::normalizeSubjectsCsv(
+                    $validated['subject'] ?? \App\Support\KinderScheduleSupport::subjectsCsv()
+                );
+            } else {
+                $validated['subject'] = \App\Support\FacultyLoadSupport::normalizeSubjectsCsv($validated['subject'] ?? '');
+            }
             $validated['load_hours'] = $this->computeLoadHoursFromSchedules(
                 (int) $validated['faculty_id'],
                 $validated['grade_level'] ?? null,
@@ -943,6 +951,7 @@ class GradeSchoolAdminController extends Controller
             $validated['status'] = $this->computeAvailabilityStatus((int) $validated['faculty_id']);
 
             $load = FacultyLoad::create($validated);
+            FacultyLoadSupport::syncSharedTeacherAfterGsLoad($load);
             FacultyLoadSupport::refreshTeacherLoadingScheduleRow($load);
             FacultyLoadSupport::applySharedTeacherLoadConflict((int) $load->faculty_id, $load->id);
 
@@ -1016,6 +1025,16 @@ class GradeSchoolAdminController extends Controller
                 return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
             }
 
+            if (\App\Support\KinderScheduleSupport::isKinderGrade($validated['grade_level'] ?? $load->grade_level)) {
+                $validated['subject'] = \App\Support\FacultyLoadSupport::normalizeSubjectsCsv(
+                    $validated['subject'] ?? $load->subject ?? \App\Support\KinderScheduleSupport::subjectsCsv()
+                );
+            } else {
+                $validated['subject'] = \App\Support\FacultyLoadSupport::normalizeSubjectsCsv(
+                    $validated['subject'] ?? $load->subject ?? ''
+                );
+            }
+
             if (!empty($validated['faculty_id'])) {
                 $validated['load_hours'] = \App\Support\FacultyLoadStats::computeLoadHours(
                     (int) $validated['faculty_id'],
@@ -1031,6 +1050,7 @@ class GradeSchoolAdminController extends Controller
 
             $load->update($validated);
             $load->refresh();
+            FacultyLoadSupport::syncSharedTeacherAfterGsLoad($load);
 
             FacultyLoadSupport::syncSchedulesAfterLoadChange(
                 (int) $load->faculty_id,
@@ -1323,6 +1343,11 @@ class GradeSchoolAdminController extends Controller
     }
 
     public function storeSchedule(Request $request) {
+        $gradeLevelInput = trim((string) $request->input('grade_level', ''));
+        if (\App\Support\KinderScheduleSupport::isKinderGrade($gradeLevelInput)) {
+            return $this->storeKinderScheduleFromCreate($request);
+        }
+
         // Fixed time-slot definitions (matches the schedule grid form)
         $timeSlotMap = \App\Support\SchoolScheduleSlots::scheduleSlotKeyMap('grade_school');
 
@@ -1494,17 +1519,35 @@ class GradeSchoolAdminController extends Controller
 
     public function storeKinderSchedule(Request $request)
     {
+        return $this->persistKinderWeeklySchedule($request, 'grade-school-admin.kinder-schedule');
+    }
+
+    /**
+     * Kinder weekly activity from Create Schedule form (Mon–Fri activity dropdowns).
+     */
+    public function storeKinderScheduleFromCreate(Request $request)
+    {
+        return $this->persistKinderWeeklySchedule($request, 'grade-school-admin.schedule.create');
+    }
+
+    private function persistKinderWeeklySchedule(Request $request, string $redirectRoute)
+    {
         $validated = $request->validate([
             'grade_level'   => 'required|in:Kinder 2,Kinder 1,Nursery',
             'section_name'  => 'required|string|max:100',
             'faculty_id'    => 'required|integer|exists:users,id',
             'activity'      => 'required|array',
-            'activity.*'    => 'required|in:' . implode(',', \App\Support\KinderScheduleSupport::ACTIVITY_SUBJECTS),
+            'activity.*'    => ['required', Rule::in(\App\Support\KinderScheduleSupport::ACTIVITY_SUBJECTS)],
         ]);
 
         $sections = \App\Support\KinderScheduleSupport::sectionsForGrade($validated['grade_level']);
         if (! in_array($validated['section_name'], $sections, true)) {
             return back()->withInput()->with('error', 'Invalid section for the selected grade level.');
+        }
+
+        $uniqueMsg = \App\Support\KinderScheduleSupport::validateUniqueWeeklyActivities($validated['activity']);
+        if ($uniqueMsg !== null) {
+            return back()->withInput()->withErrors(['activity' => $uniqueMsg]);
         }
 
         try {
@@ -1515,17 +1558,45 @@ class GradeSchoolAdminController extends Controller
                 $validated['activity']
             );
 
+            $this->syncKinderFacultyLoadSubjects(
+                (int) $validated['faculty_id'],
+                $validated['grade_level'],
+                $validated['activity']
+            );
+
+            $params = [
+                'grade_level'  => $validated['grade_level'],
+                'section_name' => $validated['section_name'],
+                'faculty_id'   => $validated['faculty_id'],
+            ];
+
             return redirect()
-                ->route('grade-school-admin.kinder-schedule', [
-                    'grade_level'  => $validated['grade_level'],
-                    'section_name' => $validated['section_name'],
-                    'faculty_id'   => $validated['faculty_id'],
-                ])
-                ->with('success', "Kinder schedule saved ({$count} day(s)). Pending admin approval.");
+                ->route($redirectRoute, $redirectRoute === 'grade-school-admin.schedule.create' ? [] : $params)
+                ->with('success', "Kinder schedule saved ({$count} day(s)).");
+        } catch (\InvalidArgumentException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
         } catch (\Throwable $e) {
-            Log::error('GS storeKinderSchedule: ' . $e->getMessage());
+            Log::error('GS persistKinderWeeklySchedule: ' . $e->getMessage());
 
             return back()->withInput()->with('error', 'Could not save kinder schedule: ' . $e->getMessage());
+        }
+    }
+
+    private function syncKinderFacultyLoadSubjects(int $facultyId, string $gradeLevel, array $activity): void
+    {
+        config(['database.school_connection' => 'mysql_gs']);
+        $subject = \App\Support\FacultyLoadSupport::normalizeSubjectsCsv(
+            implode(', ', array_values($activity))
+        );
+
+        $load = FacultyLoad::query()
+            ->where('faculty_id', $facultyId)
+            ->where('grade_level', $gradeLevel)
+            ->first();
+
+        if ($load) {
+            $load->update(['subject' => $subject]);
+            FacultyLoadSupport::syncSharedTeacherAfterGsLoad($load);
         }
     }
 

@@ -96,6 +96,9 @@ class SharedTeacherRequestListSupport
                 $row->_connection = $connection;
                 $row->request_kind = 'leave';
                 $row->leave_type_label = TeacherLeaveRequestSupport::leaveTypeLabel($row->leave_type ?? null);
+                $submittedTo = $row->submitted_to_admin ?? $levelTag;
+                $row->submitted_to_admin = $submittedTo;
+                $row->submitted_to_admin_label = TeacherLeaveRequestSupport::adminLabel($submittedTo);
                 $rows->push($row);
             }
         }
