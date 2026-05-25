@@ -1536,10 +1536,10 @@ class GradeSchoolAdminController extends Controller
     {
         $validated = $request->validate([
             'grade_level'   => 'required|in:Kinder 2,Kinder 1,Nursery',
+            'day_of_week'   => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday',
             'section_name'  => 'required|string|max:100',
             'faculty_id'    => 'required|integer|exists:users,id',
             'activity'      => 'required|array',
-            'activity.*'    => ['required', Rule::in(\App\Support\KinderScheduleSupport::ACTIVITY_SUBJECTS)],
         ]);
 
         $sections = \App\Support\KinderScheduleSupport::sectionsForGrade($validated['grade_level']);
@@ -1547,7 +1547,30 @@ class GradeSchoolAdminController extends Controller
             return back()->withInput()->with('error', 'Invalid section for the selected grade level.');
         }
 
-        $uniqueMsg = \App\Support\KinderScheduleSupport::validateUniqueWeeklyActivities($validated['activity']);
+        config(['database.school_connection' => 'mysql_gs']);
+        $kinderTeachersByGrade = ScheduleFormSupport::kinderTeachersByGradeFromLoads(
+            'mysql_gs',
+            ScheduleFormSupport::teachersByGradeMap('mysql_gs')
+        );
+        $allowedTeacherIds = $kinderTeachersByGrade[$validated['grade_level']] ?? [];
+        if (! in_array((int) $validated['faculty_id'], $allowedTeacherIds, true)) {
+            return back()->withInput()->with('error', 'Selected teacher has no faculty load for this grade level.');
+        }
+
+        $day = $validated['day_of_week'];
+        $daySubject = trim((string) ($validated['activity'][$day] ?? ''));
+        if ($daySubject === '' || ! in_array($daySubject, \App\Support\KinderScheduleSupport::ACTIVITY_SUBJECTS, true)) {
+            return back()->withInput()->withErrors(['activity' => 'Select a subject for ' . $day . '.']);
+        }
+
+        $merged = \App\Support\KinderScheduleSupport::savedWeeklyActivity(
+            $validated['grade_level'],
+            $validated['section_name'],
+            (int) $validated['faculty_id']
+        );
+        $merged[$day] = $daySubject;
+
+        $uniqueMsg = \App\Support\KinderScheduleSupport::validateUniqueWeeklyActivities($merged);
         if ($uniqueMsg !== null) {
             return back()->withInput()->withErrors(['activity' => $uniqueMsg]);
         }
@@ -1557,13 +1580,13 @@ class GradeSchoolAdminController extends Controller
                 (int) $validated['faculty_id'],
                 $validated['grade_level'],
                 $validated['section_name'],
-                $validated['activity']
+                $merged
             );
 
             $this->syncKinderFacultyLoadSubjects(
                 (int) $validated['faculty_id'],
                 $validated['grade_level'],
-                $validated['activity']
+                $merged
             );
 
             $params = [

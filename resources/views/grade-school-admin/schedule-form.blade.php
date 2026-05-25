@@ -86,7 +86,7 @@
     <!-- Kinder: MonFri activity only -->
     <div class="sf-card" id="gsKinderPanel" style="display:none;">
         <h3 style="margin:0 0 1rem;font-size:1rem;font-weight:800;color:var(--green-primary);">Kinder Weekly Schedule</h3>
-        <p style="font-size:.8rem;color:var(--text-secondary);margin:0 0 1rem;">Choose grade, room/section, and teacher. Assign one activity per weekday from the Subjects list (no duplicate in the same week).</p>
+        <p style="font-size:.8rem;color:var(--text-secondary);margin:0 0 1rem;">Choose grade, day of week, room/section, and teacher (faculty load required). Assign one subject for that day (no duplicate subjects in the same week).</p>
         <div class="sf-controls" style="margin-bottom:1rem;">
             <div class="sf-control-group">
                 <label for="kinder_section_name">Room / Section</label>
@@ -103,6 +103,7 @@
         </div>
         @include('partials.kinder-weekly-activity-table', [
             'gradeTitle' => null,
+            'singleDay' => old('day_of_week'),
             'weeklyActivity' => old('activity', \App\Support\KinderScheduleSupport::WEEKLY_ACTIVITY_BY_DAY),
         ])
         <div style="display:flex;gap:1rem;padding-top:1.25rem;border-top:1px solid var(--border-color);margin-top:1rem;">
@@ -159,6 +160,7 @@
 
 <script id="sf-gs-teacher-subjects" type="application/json">{!! json_encode($teacherSubjects ?? []) !!}</script>
 <script id="sf-gs-teachers-by-grade" type="application/json">{!! json_encode($teachersByGrade ?? []) !!}</script>
+<script id="sf-gs-teachers-by-grade-kinder" type="application/json">{!! json_encode($teachersByGradeKinder ?? []) !!}</script>
 <script id="sf-gs-teachers-by-grade-subject" type="application/json">{!! json_encode($teachersByGradeAndSubject ?? []) !!}</script>
 <script id="sf-gs-all-teachers" type="application/json">{!! json_encode($allTeachersForDropdown) !!}</script>
 <script id="sf-gs-teacher-conflicts" type="application/json">{!! json_encode($teacherConflicts ?? []) !!}</script>
@@ -196,6 +198,9 @@
 
     // -- Data maps ------------------------------------------------------------
     var SF_GS_TEACHERS_BY_GRADE         = JSON.parse(document.getElementById('sf-gs-teachers-by-grade')?.textContent || '{}');
+    var SF_GS_TEACHERS_BY_GRADE_KINDER  = JSON.parse(document.getElementById('sf-gs-teachers-by-grade-kinder')?.textContent || '{}');
+    var KINDER_ACTIVITY_SUBJECTS       = @json(\App\Support\KinderScheduleSupport::ACTIVITY_SUBJECTS);
+    var KINDER_WEEKLY_DEFAULTS         = @json(\App\Support\KinderScheduleSupport::WEEKLY_ACTIVITY_BY_DAY);
     var SF_GS_TEACHERS_BY_GRADE_SUBJECT = JSON.parse(document.getElementById('sf-gs-teachers-by-grade-subject')?.textContent || '{}');
     var SF_GS_ALL_TEACHERS              = JSON.parse(document.getElementById('sf-gs-all-teachers')?.textContent || '[]');
     var SF_GS_TEACHERS_BY_SUBJECT       = JSON.parse(document.getElementById('sf-gs-teachers-by-subject')?.textContent || '{}');
@@ -204,32 +209,50 @@
     function gsRebuildKinderTeachers(grade) {
         var sel = document.getElementById('kinder_faculty_id');
         if (!sel) return;
-        var current = sel.value || '';
-        var allowedIds = (SF_GS_TEACHERS_BY_GRADE[grade] || []).map(String);
+        var allowedIds = grade ? (SF_GS_TEACHERS_BY_GRADE_KINDER[grade] || []).map(String) : [];
         sel.innerHTML = '<option value="">Select teacher</option>';
-        var added = {};
+        if (!grade || allowedIds.length === 0) {
+            return;
+        }
         SF_GS_ALL_TEACHERS.forEach(function (t) {
             var id = String(t.id);
-            if (!grade) return;
-            if (allowedIds.length > 0 && !allowedIds.includes(id) && id !== String(current)) return;
-            if (SF_GS_UNAVAILABLE_FACULTY[id] && id !== String(current)) return;
+            if (!allowedIds.includes(id)) return;
+            if (SF_GS_UNAVAILABLE_FACULTY[id]) return;
             var opt = document.createElement('option');
             opt.value = t.id;
             opt.textContent = t.name;
-            if (id === String(current)) opt.selected = true;
             sel.appendChild(opt);
-            added[id] = true;
         });
-        if (current && !added[String(current)]) {
-            var kept = SF_GS_ALL_TEACHERS.find(function (t) { return String(t.id) === String(current); });
-            if (kept) {
-                var opt = document.createElement('option');
-                opt.value = kept.id;
-                opt.textContent = kept.name;
-                opt.selected = true;
-                sel.appendChild(opt);
-            }
+    }
+
+    function gsKinderWeeklyFromForm() {
+        var weekly = {};
+        document.querySelectorAll('#gsKinderScheduleBody select[name^="activity["]').forEach(function (sel) {
+            var m = sel.name.match(/activity\[(.+)\]/);
+            if (m) weekly[m[1]] = sel.value;
+        });
+        return weekly;
+    }
+
+    function gsUpdateKinderDayTable() {
+        var tbody = document.getElementById('gsKinderScheduleBody');
+        if (!tbody) return;
+        var day = daySelect ? daySelect.value : '';
+        var weekly = Object.assign({}, KINDER_WEEKLY_DEFAULTS, gsKinderWeeklyFromForm());
+        if (!day) {
+            tbody.innerHTML = '<tr id="gsKinderDayPlaceholder"><td colspan="2" style="border:1px solid var(--border-color);padding:1rem;text-align:center;color:var(--text-secondary);font-size:0.85rem;">Select a day of week above to assign a subject.</td></tr>';
+            return;
         }
+        var selected = weekly[day] || '';
+        var opts = '<option value="">Select subject</option>';
+        KINDER_ACTIVITY_SUBJECTS.forEach(function (subj) {
+            opts += '<option value="' + subj.replace(/"/g, '&quot;') + '"' + (selected === subj ? ' selected' : '') + '>' + subj + '</option>';
+        });
+        tbody.innerHTML = '<tr data-kinder-day="' + day + '">' +
+            '<td style="border:1px solid var(--border-color);padding:.5rem;font-weight:700;text-transform:uppercase;">' + day.toUpperCase() + '</td>' +
+            '<td style="border:1px solid var(--border-color);padding:.35rem;">' +
+            '<select name="activity[' + day + ']" required title="Subjects" style="width:100%;padding:.45rem;border:1px solid var(--border-color);border-radius:.35rem;background:var(--bg-secondary);">' +
+            opts + '</select></td></tr>';
     }
 
     // Aliases: form display value ? possible keys in SF_GS_TEACHERS_BY_SUBJECT
@@ -363,7 +386,7 @@
 
         if (kinderPanel) kinderPanel.style.display = kinder ? 'block' : 'none';
         if (gridCard) gridCard.style.display = kinder ? 'none' : '';
-        if (daySelect) daySelect.required = !kinder;
+        if (daySelect) daySelect.required = true;
         document.querySelectorAll('[data-kinder-required]').forEach(function (el) {
             el.required = kinder;
             el.disabled = !kinder;
@@ -380,6 +403,7 @@
         if (kinder) {
             gsUpdateKinderSections(grade);
             gsRebuildKinderTeachers(grade);
+            gsUpdateKinderDayTable();
         }
 
         var overlay = document.getElementById('gsGridOverlay');
@@ -393,6 +417,9 @@
     }
 
     gradeSelect.addEventListener('change', updateBadges);
+    if (daySelect) daySelect.addEventListener('change', function () {
+        if (isKinderGrade(gradeSelect.value)) gsUpdateKinderDayTable();
+    });
     updateBadges();
 
     // Teacher?subjects map from faculty loads (kept for backward compat)
@@ -748,9 +775,37 @@
         }
     }
 
+    window.gsKinderClientValidate = function () {
+        var grade = document.getElementById('grade_level').value;
+        var day   = document.getElementById('day_of_week').value;
+        var section = document.getElementById('kinder_section_name');
+        var teacher = document.getElementById('kinder_faculty_id');
+        if (!grade || !day) {
+            gsToast('Please select a grade level and day of week before saving.');
+            return false;
+        }
+        if (!section || !section.value) {
+            gsToast('Please select a room / section.');
+            return false;
+        }
+        if (!teacher || !teacher.value) {
+            gsToast('Please select a teacher with a faculty load for this grade.');
+            return false;
+        }
+        var subjectSel = document.querySelector('#gsKinderScheduleBody select[name="activity[' + day + ']"]');
+        if (!subjectSel || !subjectSel.value) {
+            gsToast('Please select a subject for ' + day + '.');
+            return false;
+        }
+        return true;
+    };
+
     window.gsFormClientValidate = function () {
         var grade = document.getElementById('grade_level').value;
         var day   = document.getElementById('day_of_week').value;
+        if (isKinderGrade(grade)) {
+            return window.gsKinderClientValidate();
+        }
         if (!grade || !day) {
             gsToast('Please select both a Grade Level and a Day of Week before saving.');
             return false;
@@ -804,6 +859,10 @@ window.SCHEDULE_FORM_GUARD = {
     checkUrl: @json(route('grade-school-admin.schedule.check-grid')),
     submitSelector: '#sfSubmitBtn',
     clientValidate: function () { return window.gsFormClientValidate ? window.gsFormClientValidate() : true; },
+    skipGridCheck: function () {
+        var g = document.getElementById('grade_level');
+        return g && ['Kinder 2', 'Kinder 1', 'Nursery'].indexOf(g.value) >= 0;
+    },
 };
 </script>
 <script src="{{ asset('js/schedule-form-submit-guard.js') }}"></script>

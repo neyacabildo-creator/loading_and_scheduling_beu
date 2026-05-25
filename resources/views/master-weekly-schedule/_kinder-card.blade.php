@@ -161,7 +161,7 @@
             <thead>
                 <tr>
                     <th class="th-role">TIME</th>
-                    <th>Activity</th>
+                    <th>Subjects</th>
                 </tr>
             </thead>
             <tbody>

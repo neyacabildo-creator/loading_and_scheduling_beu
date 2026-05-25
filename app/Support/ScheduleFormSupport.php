@@ -125,6 +125,7 @@ class ScheduleFormSupport
         $rooms = self::availableRooms($connection);
         $teacherSubjects = self::teacherSubjectsMap($connection);
         $teachersByGrade = self::teachersByGradeMap($connection);
+        $teachersByGradeKinder = self::kinderTeachersByGradeFromLoads($connection, $teachersByGrade);
         $teachersByGradeAndSubject = self::teachersByGradeAndSubjectFromSchedules($connection);
 
         if (self::hasTable($connection, 'faculty_loads')) {
@@ -166,6 +167,7 @@ class ScheduleFormSupport
             'teachers',
             'teacherSubjects',
             'teachersByGrade',
+            'teachersByGradeKinder',
             'teachersByGradeAndSubject',
             'teacherConflicts',
             'sharedTeachers',
@@ -237,6 +239,28 @@ class ScheduleFormSupport
     /**
      * @return array<string, list<int|string>>
      */
+    /**
+     * Teachers with a faculty load for Kinder/Nursery only (excludes shared teachers and schedule-only IDs).
+     *
+     * @param  array<string, list<int|string>>  $fromLoads
+     * @return array<string, list<int>>
+     */
+    public static function kinderTeachersByGradeFromLoads(string $connection, array $fromLoads): array
+    {
+        $sharedIds = array_flip(SharedTeacherSupport::activeFacultyIds($connection));
+        $out = [];
+
+        foreach (KinderScheduleSupport::GRADES as $grade) {
+            $ids = $fromLoads[$grade] ?? [];
+            $out[$grade] = array_values(array_filter(
+                array_map('intval', $ids),
+                fn (int $id) => $id > 0 && ! isset($sharedIds[$id])
+            ));
+        }
+
+        return $out;
+    }
+
     public static function teachersByGradeMap(string $connection): array
     {
         if (! self::hasTable($connection, 'faculty_loads')

@@ -56,6 +56,10 @@
             return;
         }
 
+        if (typeof cfg.skipGridCheck === 'function' && cfg.skipGridCheck()) {
+            return;
+        }
+
         e.preventDefault();
 
         var body = new FormData(form);
