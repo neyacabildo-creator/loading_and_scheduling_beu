@@ -406,8 +406,18 @@ function sendAction(school, id, action) {
         headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
         credentials: 'same-origin'
     })
-    .then(r => r.json())
-    .then(res => {
+    .then(async function (r) {
+        const text = await r.text();
+        let res = {};
+        try { res = JSON.parse(text); } catch (e) {
+            throw new Error(r.ok ? 'Invalid server response' : ('Request failed (' + r.status + ')'));
+        }
+        if (!r.ok && !res.message) {
+            res.message = 'Request failed (' + r.status + ')';
+        }
+        return res;
+    })
+    .then(function (res) {
         if (res.success) {
             const row = document.getElementById(`${school}-row-${id}`);
             if (row) {
@@ -418,11 +428,16 @@ function sendAction(school, id, action) {
                     saApplyFilters(school);
                 }, 400);
             }
+            if (typeof window.showToast === 'function') {
+                window.showToast(res.message || (action === 'approve' ? 'Schedule approved.' : 'Schedule rejected.'), 'success');
+            }
         } else {
             alert('Error: ' + (res.message || 'Unknown error'));
         }
     })
-    .catch(() => alert('Network error. Please try again.'));
+    .catch(function (err) {
+        alert(err.message || 'Network error. Please try again.');
+    });
 }
 
 document.addEventListener('DOMContentLoaded', function () {

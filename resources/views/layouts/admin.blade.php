@@ -429,7 +429,6 @@
 
         </nav>
         <div class="sidebar-footer">
-            <p class="copyright">© 2024 SPUP. All rights reserved.</p>
             <div class="user-card">
                 <a href="{{ route('admin.settings') }}" title="My Profile" style="text-decoration: none; flex-shrink: 0;">
                     <div class="user-avatar" style="cursor: pointer; overflow: hidden;">

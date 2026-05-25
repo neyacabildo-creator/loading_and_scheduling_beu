@@ -209,8 +209,18 @@
                 Schedule Approvals
                 @php
                     $pendingSchedCount = 0;
-                    try { $pendingSchedCount += (int) \Illuminate\Support\Facades\DB::connection('mysql_jh')->table('class_schedules')->where('admin_approved', true)->where('principal_approved', false)->whereIn('status', ['active','approved'])->count(); } catch (\Exception $e) {}
-                    try { $pendingSchedCount += (int) \Illuminate\Support\Facades\DB::connection('mysql_gs')->table('class_schedules')->where('admin_approved', true)->where('principal_approved', false)->whereIn('status', ['active','approved'])->count(); } catch (\Exception $e) {}
+                    $principalPendingSchedQuery = function (string $conn) {
+                        $q = \Illuminate\Support\Facades\DB::connection($conn)->table('class_schedules')
+                            ->where('admin_approved', true)
+                            ->where('principal_approved', false)
+                            ->whereIn('status', ['active', 'approved']);
+                        if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('class_schedules', 'principal_approved_by')) {
+                            $q->whereNull('principal_approved_by');
+                        }
+                        return $q;
+                    };
+                    try { $pendingSchedCount += (int) $principalPendingSchedQuery('mysql_jh')->count(); } catch (\Exception $e) {}
+                    try { $pendingSchedCount += (int) $principalPendingSchedQuery('mysql_gs')->count(); } catch (\Exception $e) {}
                 @endphp
                 @if($pendingSchedCount > 0)
                     <span class="nav-badge">{{ $pendingSchedCount }}</span>

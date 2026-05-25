@@ -326,11 +326,14 @@ class ScheduleDssSupport
             if (! Schema::connection($conn)->hasTable('class_schedules')) {
                 continue;
             }
-            $rows = DB::connection($conn)->table('class_schedules')
+            $query = DB::connection($conn)->table('class_schedules')
                 ->where('admin_approved', 1)
                 ->where('principal_approved', 0)
-                ->whereNotIn('status', ['cancelled', 'deleted', 'rejected'])
-                ->get();
+                ->whereIn('status', ['active', 'approved']);
+            if (Schema::connection($conn)->hasColumn('class_schedules', 'principal_approved_by')) {
+                $query->whereNull('principal_approved_by');
+            }
+            $rows = $query->get();
 
             foreach ($rows as $row) {
                 $total++;

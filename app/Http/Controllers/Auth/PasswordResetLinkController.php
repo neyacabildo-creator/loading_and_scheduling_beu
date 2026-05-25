@@ -33,7 +33,7 @@ class PasswordResetLinkController extends Controller
             'identifier' => ['required', 'string', 'max:255'],
         ]);
 
-        $genericStatus = __('If that email or phone number is registered, we sent a 6-digit reset code. Check your inbox or messages within a minute.');
+        $genericStatus = __('If that email or phone number is registered, we sent a 6-digit reset code. Check your inbox or messages within a few seconds.');
 
         $user = PasswordResetDeliverySupport::findUserByIdentifier($request->input('identifier'));
 
@@ -59,11 +59,16 @@ class PasswordResetLinkController extends Controller
             ]
         );
 
-        PasswordResetDeliverySupport::deliverCode($user, $code);
+        $delivery = PasswordResetDeliverySupport::deliverCode($user, $code);
 
         $redirectEmail = $user->email;
-
-        return redirect()->route('password.reset', ['email' => $redirectEmail])
+        $redirect = redirect()->route('password.reset', ['email' => $redirectEmail])
             ->with('status', $genericStatus);
+
+        if ($delivery['sent'] && (config('mail.default') === 'log' || app()->environment('local'))) {
+            $redirect->with('reset_code_dev', $code);
+        }
+
+        return $redirect;
     }
 }

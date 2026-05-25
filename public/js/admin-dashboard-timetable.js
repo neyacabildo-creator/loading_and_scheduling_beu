@@ -17,7 +17,23 @@
         return slots;
     }
     const sectionsMap = cfg.sections || {};
-    const grades = cfg.grades || (prefix === 'gs' ? ['1', '2', '3', '4', '5', '6'] : ['7', '8', '9', '10']);
+    const grades = cfg.grades || (prefix === 'gs' ? ['nursery', 'kinder1', 'kinder2', '1', '2', '3', '4', '5', '6'] : ['7', '8', '9', '10']);
+
+    function matchesGradeLevel(gradeLevel, gradeKey) {
+        const gl = String(gradeLevel || '').toLowerCase().trim();
+        const key = String(gradeKey || '').toLowerCase();
+        if (key === 'nursery') return gl === 'nursery';
+        if (key === 'kinder1') return gl === 'kinder 1';
+        if (key === 'kinder2') return gl === 'kinder 2';
+        return gl.includes('grade ' + key) || gl === key || gl === 'grade ' + key;
+    }
+
+    function gradeDisplayLabel(gradeKey) {
+        if (gradeKey === 'nursery') return 'Nursery';
+        if (gradeKey === 'kinder1') return 'Kinder 1';
+        if (gradeKey === 'kinder2') return 'Kinder 2';
+        return 'Grade ' + gradeKey;
+    }
     const apiUrl = cfg.apiUrl || '';
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
@@ -196,8 +212,7 @@
             schedules = schedules.filter(function (s) { return matchesTeacherFilter(s, filter); });
         }
         schedules = schedules.filter(function (s) {
-            const gl = String(s.grade_level || '').toLowerCase();
-            return gl.includes('grade ' + currentGrade) || gl === currentGrade;
+            return matchesGradeLevel(s.grade_level, currentGrade);
         });
 
         const rawSections = [...new Set(schedules.map(s => s.section_name || s.grade_section || '').filter(Boolean))];
@@ -231,13 +246,13 @@
 
         if (!sections.length) {
             thead.innerHTML = '<tr><th style="width:80px;padding:.6rem .5rem;background:var(--bg-tertiary);border:1px solid var(--border-color);font-size:.75rem;text-align:center;font-weight:600;color:var(--text-secondary);">Time</th><th style="padding:.6rem;border:1px solid var(--border-color);font-size:.78rem;font-weight:700;color:var(--text-primary);text-align:center;">' + day + '</th></tr>';
-            tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;padding:2rem;color:var(--text-secondary);">No sections for Grade ' + currentGrade + '.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;padding:2rem;color:var(--text-secondary);">No sections for ' + gradeDisplayLabel(currentGrade) + '.</td></tr>';
             return;
         }
 
         let headHtml = '<tr><th style="width:80px;padding:.6rem .5rem;background:var(--bg-tertiary);border:1px solid var(--border-color);font-size:.75rem;text-align:center;font-weight:600;color:var(--text-secondary);">Time</th>';
         sections.forEach(function (sec) {
-            headHtml += '<th style="padding:.6rem;background:linear-gradient(135deg,rgba(45,122,80,.12),rgba(45,122,80,.04));border:1px solid var(--border-color);font-size:.78rem;font-weight:700;color:var(--text-primary);text-align:center;min-width:110px;"><span style="font-size:.7rem;color:var(--text-secondary);">Grade ' + currentGrade + '</span><br>' + sec + '</th>';
+            headHtml += '<th style="padding:.6rem;background:linear-gradient(135deg,rgba(45,122,80,.12),rgba(45,122,80,.04));border:1px solid var(--border-color);font-size:.78rem;font-weight:700;color:var(--text-primary);text-align:center;min-width:110px;"><span style="font-size:.7rem;color:var(--text-secondary);">' + gradeDisplayLabel(currentGrade) + '</span><br>' + sec + '</th>';
         });
         thead.innerHTML = headHtml + '</tr>';
 

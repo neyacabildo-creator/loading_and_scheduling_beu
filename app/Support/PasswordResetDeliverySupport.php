@@ -32,11 +32,16 @@ class PasswordResetDeliverySupport
             return null;
         }
 
+        $like = '%' . $digits . '%';
+
         return User::query()
             ->whereNotNull('phone')
             ->where('phone', '!=', '')
-            ->get()
-            ->first(fn (User $u) => preg_replace('/\D+/', '', (string) $u->phone) === $digits);
+            ->whereRaw(
+                "REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '(', ''), ')', '') LIKE ?",
+                [$like]
+            )
+            ->first();
     }
 
     /**

@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class PrincipalController extends Controller
@@ -40,9 +41,8 @@ class PrincipalController extends Controller
             $jhSchedules = $this->safeDbCount('mysql_jh', 'class_schedules');
 
             // Schedules that are admin-approved but still awaiting Principal (principal) review
-            $gsPendingPrincipal  = $this->safeDbCount('mysql_gs', 'class_schedules', ['admin_approved' => 1, 'principal_approved' => 0]);
-            $jhPendingPrincipal  = $this->safeDbCount('mysql_jh', 'class_schedules', ['admin_approved' => 1, 'principal_approved' => 0]);
-            $pendingSchedules = $gsPendingPrincipal + $jhPendingPrincipal;
+            $pendingSchedules = $this->countPrincipalPendingSchedules('mysql_jh')
+                + $this->countPrincipalPendingSchedules('mysql_gs');
 
             $principalScheduleFlags = \App\Support\ScheduleDssSupport::principalPendingScheduleFlags();
 
@@ -111,6 +111,24 @@ class PrincipalController extends Controller
             foreach ($where as $col => $val) {
                 $query->where($col, $val);
             }
+            return (int) $query->count();
+        } catch (\Exception $e) {
+            return 0;
+        }
+    }
+
+    private function countPrincipalPendingSchedules(string $connection): int
+    {
+        try {
+            $query = DB::connection($connection)->table('class_schedules')
+                ->where('admin_approved', true)
+                ->where('principal_approved', false)
+                ->whereIn('status', ['active', 'approved']);
+
+            if (Schema::connection($connection)->hasColumn('class_schedules', 'principal_approved_by')) {
+                $query->whereNull('principal_approved_by');
+            }
+
             return (int) $query->count();
         } catch (\Exception $e) {
             return 0;
@@ -202,13 +220,11 @@ class PrincipalController extends Controller
             ->paginate(30);
 
         $users->getCollection()->transform(function (User $user) {
-            if (($user->role?->name ?? '') !== 'principal') {
-                $user->setAttribute('display_password', null);
-
-                return $user;
+            $plain = \App\Support\UserPasswordSupport::decryptPlainPassword($user->id);
+            if ($plain === null && ($user->role?->name ?? '') === 'principal') {
+                $plain = \App\Support\UserPassword::plainText($user);
             }
-
-            $user->setAttribute('display_password', \App\Support\UserPassword::plainText($user));
+            $user->setAttribute('display_password', $plain);
 
             return $user;
         });
@@ -257,12 +273,7 @@ class PrincipalController extends Controller
             'is_active'    => true,
         ]);
 
-        // Store AES-encrypted password so admins can retrieve it:
-        // SELECT AES_DECRYPT(password_encrypted, 'spup_ict_2026') AS plain_password FROM users;
-        $aesKey = env('MYSQL_AES_KEY', 'spup_ict_2026');
-        DB::statement('UPDATE users SET password_encrypted = AES_ENCRYPT(?, ?) WHERE id = ?', [
-            $data['password'], $aesKey, $user->id,
-        ]);
+        \App\Support\UserPasswordSupport::storeEncryptedCopy($user->id, $data['password']);
 
         // Auto-create a faculty load record for teacher accounts so they appear in Faculty Loads immediately
         if (stripos($role->name, 'teacher') !== false) {
@@ -380,12 +391,8 @@ class PrincipalController extends Controller
 
         $user->save();
 
-        // Keep AES-encrypted copy in sync when password changes
         if (!empty($data['password'])) {
-            $aesKey = env('MYSQL_AES_KEY', 'spup_ict_2026');
-            DB::statement('UPDATE users SET password_encrypted = AES_ENCRYPT(?, ?) WHERE id = ?', [
-                $data['password'], $aesKey, $user->id,
-            ]);
+            \App\Support\UserPasswordSupport::storeEncryptedCopy($user->id, $data['password']);
         }
 
         return back()->with('success', "Account for {$user->name} updated successfully.");
@@ -575,12 +582,16 @@ class PrincipalController extends Controller
                 'principal_approved_by' => Auth::id(),
             ]);
 
-            \App\Support\PrincipalScheduleNotificationSupport::afterApprove($conn, $schedule);
+            try {
+                \App\Support\PrincipalScheduleNotificationSupport::afterApprove($conn, $schedule);
+            } catch (\Throwable $notifyErr) {
+                Log::warning("Principal approveSchedule notify [{$conn}] #{$id}: " . $notifyErr->getMessage());
+            }
 
             return response()->json(['success' => true, 'message' => 'Schedule approved. Admin and teacher have been notified.']);
         } catch (\Exception $e) {
             Log::error("Principal approveSchedule [{$conn}] #{$id}: " . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Approval failed.'], 500);
+            return response()->json(['success' => false, 'message' => 'Approval failed: ' . $e->getMessage()], 500);
         }
     }
 
@@ -599,16 +610,20 @@ class PrincipalController extends Controller
 
             DB::connection($conn)->table('class_schedules')->where('id', $id)->update([
                 'principal_approved'    => false,
-                'principal_approved_at' => null,
-                'principal_approved_by' => null,
+                'principal_approved_at' => now(),
+                'principal_approved_by' => Auth::id(),
             ]);
 
-            \App\Support\PrincipalScheduleNotificationSupport::afterReject($conn, $schedule);
+            try {
+                \App\Support\PrincipalScheduleNotificationSupport::afterReject($conn, $schedule);
+            } catch (\Throwable $notifyErr) {
+                Log::warning("Principal rejectSchedule notify [{$conn}] #{$id}: " . $notifyErr->getMessage());
+            }
 
             return response()->json(['success' => true, 'message' => 'Schedule rejected. School admin has been notified.']);
         } catch (\Exception $e) {
             Log::error("Principal rejectSchedule [{$conn}] #{$id}: " . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Rejection failed.'], 500);
+            return response()->json(['success' => false, 'message' => 'Rejection failed: ' . $e->getMessage()], 500);
         }
     }
 
@@ -624,13 +639,17 @@ class PrincipalController extends Controller
     private function fetchPendingPrincipalApprovals(string $conn): \Illuminate\Support\Collection
     {
         try {
-            $rows = DB::connection($conn)
+            $query = DB::connection($conn)
                 ->table('class_schedules')
                 ->where('admin_approved', true)
                 ->where('principal_approved', false)
-                ->whereIn('status', ['active', 'approved'])
-                ->orderByDesc('approved_at')
-                ->get();
+                ->whereIn('status', ['active', 'approved']);
+
+            if (Schema::connection($conn)->hasColumn('class_schedules', 'principal_approved_by')) {
+                $query->whereNull('principal_approved_by');
+            }
+
+            $rows = $query->orderByDesc('approved_at')->get();
 
             // Enrich with faculty and room names
             $facultyIds = $rows->pluck('faculty_id')->filter()->unique()->values();

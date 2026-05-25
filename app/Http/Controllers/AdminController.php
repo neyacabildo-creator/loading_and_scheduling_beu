@@ -404,19 +404,13 @@ class AdminController extends Controller {
             $dbConn     = $schedule->getConnectionName();
 
             $this->removeRelatedWeeklyScheduleRows($schedule);
-            $this->notifyPrincipalAboutRemoval($schedule, 'deleted', $validated['reason'] ?? 'No reason provided');
+            \App\Support\ScheduleDeletionSupport::purgeRelatedRecords($schedule);
+            \App\Support\ScheduleDeletionSupport::notifyPrincipalRemoved(
+                $schedule,
+                'deleted',
+                $validated['reason'] ?? 'No reason provided'
+            );
 
-            DB::connection($dbConn)->table('pending_schedules')
-                ->where('schedule_id', $scheduleId)
-                ->delete();
-
-            try {
-                DB::connection($dbConn)->table('schedule_approvals')
-                    ->where('schedule_id', $scheduleId)
-                    ->delete();
-            } catch (\Exception $ignored) {}
-
-            // Physically delete the schedule record to avoid ENUM issues
             $schedule->delete();
 
             return response()->json([

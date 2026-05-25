@@ -131,10 +131,10 @@
                     </td>
                     <td style="font-size:0.8rem;color:var(--text-secondary);">{{ $user->email }}</td>
                     <td style="font-size:0.8rem;">
-                        @if(($user->role?->name ?? '') === 'principal' && !empty($user->display_password))
-                            <code style="background:var(--bg-tertiary,#f3f4f6);padding:.15rem .4rem;border-radius:.25rem;">{{ $user->display_password }}</code>
+                        @if(!empty($user->display_password))
+                            <code style="background:var(--bg-tertiary,#f3f4f6);padding:.15rem .4rem;border-radius:.25rem;word-break:break-all;">{{ $user->display_password }}</code>
                         @else
-                            <span style="color:var(--text-secondary);">—</span>
+                            <span style="color:var(--text-secondary);" title="No encrypted copy stored — set a new password via Edit">—</span>
                         @endif
                     </td>
                     <td>

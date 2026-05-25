@@ -329,9 +329,7 @@
                 const roleName = (t.role && t.role.display_name) ? t.role.display_name : 'Junior High Teacher';
                 const statusClass = t.is_active ? 'status-active' : 'status-inactive';
                 const statusText  = t.is_active ? 'Active' : 'Inactive';
-                const pwdCell = t.plain_password
-                    ? `<div class="pwd-cell"><span class="pwd-mask" id="pwd-mask-${t.id}">••••••••</span><span class="pwd-plain" id="pwd-plain-${t.id}" style="display:none;">${escapeHtml(t.plain_password)}</span><button type="button" class="pwd-toggle-btn" onclick="toggleUserPassword(${t.id})" id="pwd-btn-${t.id}">Show</button></div>`
-                    : `<span class="pwd-unavailable" title="Re-save password in Edit to store a retrievable copy">Not stored</span>`;
+                const pwdCell = `<span class="pwd-unavailable" title="Passwords are managed by the Principal in All Users">Principal only</span>`;
                 return `<tr id="teacher-row-${t.id}">
                     <td><div class="ua-teacher-cell"><span class="avatar">${initials}</span><strong>${displayName}</strong></div></td>
                     <td>${t.email}</td>

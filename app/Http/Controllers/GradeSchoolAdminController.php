@@ -551,19 +551,9 @@ class GradeSchoolAdminController extends Controller
                 ->when($schedule->section_name, fn($q) => $q->where('section_name', $schedule->section_name))
                 ->delete();
 
-            // Delete from pending_schedules
-            DB::connection($dbConn)->table('pending_schedules')
-                ->where('schedule_id', $scheduleId)
-                ->delete();
+            \App\Support\ScheduleDeletionSupport::purgeRelatedRecords($schedule);
+            \App\Support\ScheduleDeletionSupport::notifyPrincipalRemoved($schedule, 'deleted');
 
-            // Delete from schedule_approvals
-            try {
-                DB::connection($dbConn)->table('schedule_approvals')
-                    ->where('schedule_id', $scheduleId)
-                    ->delete();
-            } catch (\Exception $ignored) {}
-
-            // Physically delete the schedule record
             $schedule->delete();
 
             return response()->json(['success' => true, 'message' => 'Schedule deleted successfully']);

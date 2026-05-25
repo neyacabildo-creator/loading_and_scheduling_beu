@@ -94,6 +94,11 @@ class AdminUserAccountsSupport
     /**
      * @return array<int, array<string, mixed>>
      */
+    /**
+     * API payload for GS/JH admin user lists (passwords are principal-only).
+     *
+     * @return array<int, array<string, mixed>>
+     */
     public static function mapUsersForApi(iterable $users): array
     {
         $mapped = [];
@@ -102,7 +107,7 @@ class AdminUserAccountsSupport
                 continue;
             }
             $data = $user->toArray();
-            $data['plain_password'] = UserPasswordSupport::decryptPlainPassword($user->id);
+            unset($data['password'], $data['password_encrypted']);
             $mapped[] = $data;
         }
 

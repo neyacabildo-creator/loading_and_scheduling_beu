@@ -36,6 +36,10 @@
             @if (session('status'))
                 <div class="alert alert-success">
                     <p>{{ session('status') }}</p>
+                    @if (session('reset_code_dev'))
+                        <p style="margin-top:0.75rem;font-weight:700;">Your reset code: <code style="letter-spacing:0.15em;font-size:1.1rem;">{{ session('reset_code_dev') }}</code></p>
+                        <p style="margin-top:0.35rem;font-size:0.85rem;opacity:0.9;">(Shown here because mail is in log/local mode — also check storage/logs/laravel.log if using the log mailer.)</p>
+                    @endif
                 </div>
             @endif
 

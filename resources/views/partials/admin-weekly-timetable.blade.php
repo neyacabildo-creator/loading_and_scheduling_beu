@@ -2,7 +2,12 @@
     $pfx = $prefix ?? 'jh';
     $dayClass = $pfx . 'd-day-btn';
     $gradeClass = $pfx . 'd-grade-btn';
-    $grades = $grades ?? ($pfx === 'gs' ? ['1','2','3','4','5','6'] : ['7','8','9','10']);
+    $grades = $grades ?? ($pfx === 'gs' ? ['nursery','kinder1','kinder2','1','2','3','4','5','6'] : ['7','8','9','10']);
+    $gradeLabels = [
+        'nursery' => 'Nursery',
+        'kinder1' => 'Kinder 1',
+        'kinder2' => 'Kinder 2',
+    ];
 @endphp
 <style>
 .{{ $dayClass }}{padding:.35rem .7rem;border:1px solid var(--border-color);border-radius:.375rem;background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;font-size:.78rem;font-weight:600;transition:all .2s;}
@@ -39,7 +44,8 @@
     <div style="padding:.6rem 1.5rem;border-bottom:1px solid var(--border-color);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
         <span style="font-size:.75rem;font-weight:600;color:var(--text-secondary);">Grade:</span>
         @foreach($grades as $g)
-            <button type="button" class="{{ $gradeClass }}{{ $loop->first ? ' active' : '' }}" data-grade="{{ $g }}" onclick="{{ $pfx }}DashSetGrade(this,'{{ $g }}')">Grade {{ $g }}</button>
+            @php $gradeLabel = $gradeLabels[$g] ?? ('Grade ' . $g); @endphp
+            <button type="button" class="{{ $gradeClass }}{{ $loop->first ? ' active' : '' }}" data-grade="{{ $g }}" onclick="{{ $pfx }}DashSetGrade(this,'{{ $g }}')">{{ $gradeLabel }}</button>
         @endforeach
     </div>
     <div id="{{ $pfx }}DashConflictBanner" style="display:none;background:rgba(200,50,50,.1);border:1px solid #c83232;border-radius:.375rem;padding:.6rem 1rem;margin:.75rem 1.5rem;color:#c83232;font-size:.8rem;font-weight:600;">
@@ -66,4 +72,4 @@ window.__DASH_TIMETABLE_CONFIG__ = {
     grades: @json($grades),
 };
 </script>
-<script src="{{ asset('js/admin-dashboard-timetable.js') }}?v=6"></script>
+<script src="{{ asset('js/admin-dashboard-timetable.js') }}?v=7"></script>

@@ -244,7 +244,6 @@
         </nav>
 
         <div class="sidebar-footer">
-            <p class="copyright">© 2025 SPUP. All rights reserved.</p>
             <div class="user-card">
                 <a href="{{ route('grade-school-teacher.settings') }}" title="My Profile" style="text-decoration:none;flex-shrink:0;">
                     <div class="user-avatar" style="cursor:pointer;overflow:hidden;">
