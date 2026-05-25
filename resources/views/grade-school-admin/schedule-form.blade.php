@@ -642,15 +642,21 @@
         }
     });
 
-    document.getElementById('scheduleGridForm').addEventListener('submit', function (e) {
+    function gsToast(msg) {
+        if (window.spupToast) {
+            window.spupToast.error(msg);
+        } else {
+            alert(msg);
+        }
+    }
+
+    window.gsFormClientValidate = function () {
         var grade = document.getElementById('grade_level').value;
         var day   = document.getElementById('day_of_week').value;
         if (!grade || !day) {
-            e.preventDefault();
-            alert('Please select both a Grade Level and a Day of Week before saving.');
+            gsToast('Please select both a Grade Level and a Day of Week before saving.');
             return false;
         }
-        // Block submission if any subject row has a subject selected but no teacher
         var missingTeacher = false;
         document.querySelectorAll('.sf-subject-row').forEach(function(row) {
             var subj  = row.querySelector('.sf-subject');
@@ -660,8 +666,7 @@
             }
         });
         if (missingTeacher) {
-            e.preventDefault();
-            alert('Cannot save: every subject must have a teacher assigned. Please select a teacher or clear the subject field.');
+            gsToast('Cannot save: every subject must have a teacher assigned. Please select a teacher or clear the subject field.');
             return false;
         }
         var hasCellDup = false;
@@ -669,24 +674,19 @@
             if (gsDuplicateSubjectTeacherInCell(cell)) hasCellDup = true;
         });
         if (hasCellDup) {
-            e.preventDefault();
-            alert('Cannot save: the same subject and teacher cannot be assigned twice in one section slot.');
+            gsToast('Cannot save: the same subject and teacher cannot be assigned twice in one section slot.');
             return false;
         }
-        // Block submission if any conflict warning is visible
         var warnEls = document.querySelectorAll('.sf-conflict-warn');
         for (var i = 0; i < warnEls.length; i++) {
             var w = warnEls[i];
             if (w.style.display !== 'none' && w.textContent.trim()) {
-                e.preventDefault();
-                alert('Cannot save: schedule conflict detected.\n\n' + w.textContent.trim() + '\n\nPlease resolve all conflicts before saving.');
+                gsToast('Cannot save: ' + w.textContent.trim());
                 return false;
             }
         }
-        var btn = document.getElementById('sfSubmitBtn');
-        btn.disabled    = true;
-        btn.textContent = 'Saving\u2026';
-    });
+        return true;
+    };
 })();
 </script>
 <script>
@@ -698,3 +698,15 @@ window.SF_SLOT_ASSISTANT = {
 <script src="{{ asset('js/schedule-slot-assistant.js') }}"></script>
 
 @endsection
+
+@push('scripts')
+<script>
+window.SCHEDULE_FORM_GUARD = {
+    formId: 'scheduleGridForm',
+    checkUrl: @json(route('grade-school-admin.schedule.check-grid')),
+    submitSelector: '#sfSubmitBtn',
+    clientValidate: function () { return window.gsFormClientValidate ? window.gsFormClientValidate() : true; },
+};
+</script>
+<script src="{{ asset('js/schedule-form-submit-guard.js') }}"></script>
+@endpush

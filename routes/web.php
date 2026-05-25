@@ -407,6 +407,7 @@ Route::middleware('auth')->group(function () {
         // Scheduling conflicts and detection
         Route::get('api/admin/schedules/conflicts/summary', [ScheduleController::class, 'getConflictsSummary'])->name('admin.schedules.conflicts');
         Route::post('api/admin/schedules/check-duplicate', [ScheduleController::class, 'checkDuplicate'])->name('admin.schedules.check-duplicate');
+        Route::post('api/admin/schedules/check-grid', [ScheduleController::class, 'checkScheduleGrid'])->name('admin.schedules.check-grid');
 
         // Teacher filtering by grade and subject
         Route::get('api/admin/teachers/by-grade-subject', [ScheduleController::class, 'getTeachersByGradeAndSubject'])->name('admin.teachers.by-grade-subject');
@@ -592,6 +593,9 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolAdmin::class, 'scho
     Route::post('grade-school-admin/schedule/store', [
         \App\Http\Controllers\GradeSchoolAdminController::class, 'storeSchedule'
     ])->name('grade-school-admin.schedule.store');
+    Route::post('grade-school-admin/schedule/check-grid', [
+        \App\Http\Controllers\GradeSchoolAdminController::class, 'checkScheduleGrid'
+    ])->name('grade-school-admin.schedule.check-grid');
 
     // Auto Schedule Generator (GS admin)
     Route::get('grade-school-admin/schedule/generate',          [\App\Http\Controllers\ScheduleGeneratorController::class, 'show'])->name('grade-school-admin.schedule.generate');

@@ -83,15 +83,25 @@
         document.head.appendChild(style);
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
-        document.querySelectorAll('[data-spup-flash]').forEach(function (node, index) {
+    function flushFlashes() {
+        var nodes = document.querySelectorAll('[data-spup-flash]');
+        nodes.forEach(function (node, index) {
             var type = node.getAttribute('data-spup-flash-type') || 'success';
-            var msg = node.getAttribute('data-spup-flash') || node.textContent.trim();
+            var msg = (node.textContent || '').trim();
+            if (!msg) {
+                msg = node.getAttribute('data-spup-flash') || '';
+            }
             if (msg) {
                 var duration = type === 'error' ? 7000 : 4500;
                 setTimeout(function () { show(msg, type, duration); }, index * 350);
             }
             node.remove();
         });
-    });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', flushFlashes);
+    } else {
+        flushFlashes();
+    }
 })();

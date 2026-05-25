@@ -178,168 +178,16 @@ class ScheduleController extends Controller
 
             ScheduleAudit::setAuditUser((new ClassSchedule)->getConnectionName(), Auth::user()?->name);
 
-            // ── Conflict detection – block save before writing anything ──────────
-            $seenTeacherSlots = []; // "$facultyId|$timeKey" => first sectionName
-            $seenSectionSlots = []; // grade|section|timeKey|date => true
-            $seenRoomSlots = []; // roomId|timeKey|date => true
-            $dailyNewCounts   = []; // "$facultyId|$dayOfWeek" => new entries in this batch
-            $conflicts = [];
-            // Shared teacher faculty_ids for cross-school (GS) conflict check
-            $jhSharedFacultyIds = ScheduleStoreSupport::sharedFacultyIdStrings();
+            $conflicts = \App\Support\ScheduleFormConflictSupport::collectJuniorHighGridConflicts(
+                $gradeLevel,
+                $dayOfWeek,
+                $scheduleDate,
+                $slots,
+                $sections,
+                $sectionRooms
+            );
 
-            foreach ($slots as $timeKey => $sectionSlots) {
-                if (!isset($timeMap[$timeKey])) continue;
-                [$startTime, $endTime] = $timeMap[$timeKey];
-
-                foreach ($sectionSlots as $idx => $cell) {
-                    $sectionName = $sections[$idx] ?? ('SECTION ' . ($idx + 1));
-
-                    // Collect primary + extra rows for conflict checking
-                    $cellRows = [];
-                    $ps = trim($cell['subject'] ?? '');
-                    $pf = !empty($cell['faculty_id']) ? (string) $cell['faculty_id'] : null;
-                    if ($ps !== '') {
-                        $cellRows[] = ['subject' => $ps, 'faculty_id' => $pf];
-                    }
-                    foreach ($cell['extra'] ?? [] as $extra) {
-                        $s = trim($extra['subject'] ?? '');
-                        $f = !empty($extra['faculty_id']) ? (string) $extra['faculty_id'] : null;
-                        if ($s !== '') {
-                            $cellRows[] = ['subject' => $s, 'faculty_id' => $f];
-                        }
-                    }
-                    if (empty($cellRows)) continue;
-
-                    $cellDup = \App\Support\ScheduleFormConflictSupport::duplicateSubjectTeacherInCell($cellRows);
-                    if ($cellDup) {
-                        $conflicts[] = "{$sectionName} at {$startTime}: {$cellDup}";
-
-                        continue;
-                    }
-
-                    $sectionSlotKey = $gradeLevel . '|' . $sectionName . '|' . $timeKey . '|' . ($scheduleDate ?? '');
-                    if (isset($seenSectionSlots[$sectionSlotKey])) {
-                        $conflicts[] = \App\Support\ScheduleFormConflictSupport::duplicateScheduleForSlotMessage(
-                            $gradeLevel,
-                            $sectionName,
-                            $dayOfWeek,
-                            $startTime,
-                            $scheduleDate,
-                            $endTime
-                        );
-                    } else {
-                        $seenSectionSlots[$sectionSlotKey] = true;
-                        $sectionMsg = \App\Support\ScheduleFormConflictSupport::sectionSlotConflictMessage(
-                            $gradeLevel,
-                            $sectionName,
-                            $dayOfWeek,
-                            $startTime,
-                            $scheduleDate,
-                            $endTime
-                        );
-                        if ($sectionMsg) {
-                            $conflicts[] = $sectionMsg;
-                        }
-                    }
-
-                    $roomId = ! empty($sectionRooms[$idx]) ? (int) $sectionRooms[$idx] : 0;
-                    if ($roomId > 0) {
-                        $roomSlotKey = $roomId . '|' . $timeKey . '|' . ($scheduleDate ?? '');
-                        if (isset($seenRoomSlots[$roomSlotKey])) {
-                            $conflicts[] = "Room #{$roomId} at {$startTime} is assigned more than once in this form for the same date.";
-                        } else {
-                            $seenRoomSlots[$roomSlotKey] = true;
-                            $roomMsg = \App\Support\ScheduleFormConflictSupport::roomSlotConflictMessage(
-                                $roomId,
-                                $dayOfWeek,
-                                $startTime,
-                                $scheduleDate,
-                                $endTime
-                            );
-                            if ($roomMsg) {
-                                $conflicts[] = $roomMsg;
-                            }
-                        }
-                    }
-
-                    foreach ($cellRows as $row) {
-                        $primarySubject = $row['subject'];
-                        $primaryFaculty = $row['faculty_id'];
-
-                        if (!$primaryFaculty) {
-                            $conflicts[] = "{$sectionName}: subject \"{$primarySubject}\" has no teacher assigned — please select a teacher or clear the subject field.";
-                            continue;
-                        }
-                        $slotKey = $primaryFaculty . '|' . $timeKey;
-
-                        // 1) Same teacher in multiple sections at same time within this form
-                        if (isset($seenTeacherSlots[$slotKey])) {
-                            $teacher = \App\Models\User::find((int) $primaryFaculty);
-                            $name = $teacher ? trim($teacher->first_name . ' ' . $teacher->last_name) : "Teacher #{$primaryFaculty}";
-                            $conflicts[] = "{$name} is assigned to multiple sections at {$startTime} ({$seenTeacherSlots[$slotKey]} and {$sectionName})";
-                        }
-                        $seenTeacherSlots[$slotKey] = $sectionName;
-
-                        // 2) Teacher already booked at same day + time + date (pending or approved)
-                        $teacherSlotMsg = \App\Support\ScheduleFormConflictSupport::teacherSlotConflictMessage(
-                            (int) $primaryFaculty,
-                            $dayOfWeek,
-                            $startTime,
-                            $scheduleDate,
-                            $endTime
-                        );
-                        if ($teacherSlotMsg) {
-                            $conflicts[] = $teacherSlotMsg;
-                        }
-
-                        // 3) Exact duplicate — same teacher, subject, section, day, and time
-                        if (! $teacherSlotMsg) {
-                            $duplicate = ClassSchedule::where('faculty_id', (int) $primaryFaculty)
-                                ->where('day_of_week', $dayOfWeek)
-                                ->where('start_time', $startTime)
-                                ->where('section_name', $sectionName)
-                                ->where('subject', $primarySubject)
-                                ->whereIn('status', ['pending', 'active'])
-                                ->first();
-                            if ($duplicate) {
-                                $teacher = \App\Models\User::find((int) $primaryFaculty);
-                                $name = $teacher ? trim($teacher->first_name . ' ' . $teacher->last_name) : "Teacher #{$primaryFaculty}";
-                                $statusLabel = $duplicate->admin_approved ? 'approved' : 'pending';
-                                $conflicts[] = "{$name} – \"{$primarySubject}\" for {$sectionName} on {$dayOfWeek} at {$startTime} already exists ({$statusLabel})";
-                            }
-                        }
-
-                        // 4) Cross-school check for shared teachers (GS schedules)
-                        if (in_array($primaryFaculty, $jhSharedFacultyIds, true)) {
-                            $crossExisting = ScheduleStoreSupport::crossSchoolApprovedConflict(
-                                (int) $primaryFaculty,
-                                $dayOfWeek,
-                                $startTime
-                            );
-                            if ($crossExisting) {
-                                $teacher = \App\Models\User::find((int) $primaryFaculty);
-                                $name = $teacher ? trim($teacher->first_name . ' ' . $teacher->last_name) : "Teacher #{$primaryFaculty}";
-                                $conflicts[] = "{$name} (shared teacher) already has an approved Grade School schedule at {$startTime} on {$dayOfWeek} ({$crossExisting->grade_level} – {$crossExisting->section_name})";
-                            }
-                        }
-
-                        // 5) Daily subject limit — max 5 subjects per teacher per day
-                        $dailyKey = $primaryFaculty . '|' . $dayOfWeek;
-                        $dailyNewCounts[$dailyKey] = ($dailyNewCounts[$dailyKey] ?? 0) + 1;
-                        $existingDayCount = ClassSchedule::where('faculty_id', (int) $primaryFaculty)
-                            ->where('day_of_week', $dayOfWeek)
-                            ->where('admin_approved', true)
-                            ->count();
-                        if (($existingDayCount + $dailyNewCounts[$dailyKey]) > 5) {
-                            $teacher = \App\Models\User::find((int) $primaryFaculty);
-                            $name = $teacher ? trim($teacher->first_name . ' ' . $teacher->last_name) : "Teacher #{$primaryFaculty}";
-                            $conflicts[] = "{$name} would exceed the 5-subject daily limit on {$dayOfWeek} (currently {$existingDayCount} approved subject(s) — max is 5)";
-                        }
-                    }
-                }
-            }
-
-            if (!empty($conflicts)) {
+            if (! empty($conflicts)) {
                 return redirect()->back()->withInput()
                     ->with('schedule_conflicts', $conflicts);
             }
@@ -1108,6 +956,48 @@ class ScheduleController extends Controller
     /**
      * Check if a schedule already exists (duplicate detection)
      */
+    /**
+     * Validate the create-schedule grid before POST (returns toast-friendly messages).
+     */
+    public function checkScheduleGrid(Request $request)
+    {
+        config(['database.school_connection' => config('database.school_connection') ?: 'mysql_jh']);
+
+        $request->validate([
+            'grade_level' => 'required|string|max:20',
+            'day_of_week' => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday',
+            'slots' => 'nullable|array',
+        ]);
+
+        $gradeLevel = $request->input('grade_level');
+        $dayOfWeek = $request->input('day_of_week');
+        $slots = $request->input('slots', []);
+        $scheduleDate = $request->input('schedule_date') ?: null;
+        $sectionRooms = $request->input('section_rooms', []);
+
+        $sectionsByGrade = [
+            'Grade 7' => ['SERAPHIM', 'CHERUBIM', 'MICHAEL', 'RAPHAEL', 'GABRIEL'],
+            'Grade 8' => ['THERESE', 'ALOYSIUS', 'AGNES', 'JOHN', 'GORETTI'],
+            'Grade 9' => ['CHARTRES', 'PIAT', 'FATIMA', 'CARMEL', 'LOURDES'],
+            'Grade 10' => ['PAUL', 'PLC', 'MBF', 'MICHEAU', 'MARIA'],
+        ];
+        $sections = $sectionsByGrade[$gradeLevel] ?? ['SECTION 1', 'SECTION 2', 'SECTION 3', 'SECTION 4', 'SECTION 5'];
+
+        $conflicts = \App\Support\ScheduleFormConflictSupport::collectJuniorHighGridConflicts(
+            $gradeLevel,
+            $dayOfWeek,
+            $scheduleDate,
+            $slots,
+            $sections,
+            $sectionRooms
+        );
+
+        return response()->json([
+            'ok' => $conflicts === [],
+            'conflicts' => $conflicts,
+        ]);
+    }
+
     public function checkDuplicate(Request $request)
     {
         try {

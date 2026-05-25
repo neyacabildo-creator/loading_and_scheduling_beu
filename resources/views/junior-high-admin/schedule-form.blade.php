@@ -122,7 +122,7 @@
     <!-- Submit -->
     <div style="display:flex;justify-content:flex-end;gap:1rem;">
         <a href="{{ route('admin.class-schedule') }}" style="padding:.75rem 1.5rem;border:1px solid var(--border-color);border-radius:.5rem;background:var(--bg-secondary);color:var(--text-primary);text-decoration:none;font-weight:500;font-size:.9rem;">Cancel</a>
-        <button type="submit" class="sf-submit-btn" onclick="return sfValidate()">Save Schedule</button>
+        <button type="submit" class="sf-submit-btn" id="sfSubmitBtn">Save Schedule</button>
     </div>
 </form>
 
@@ -282,18 +282,26 @@ document.addEventListener('change', function(e) {
     }
 });
 
+function sfToast(msg, type) {
+    if (window.spupToast) {
+        (type === 'error' ? window.spupToast.error : window.spupToast.warning)(msg);
+    } else {
+        alert(msg);
+    }
+}
+
 function sfValidate() {
     const grade = document.getElementById('sfGrade').value;
     const day   = document.getElementById('sfDay').value;
-    if (!grade) { alert('Please select a Grade Level first.'); return false; }
-    if (!day)   { alert('Please select a Day of Week first.'); return false; }
+    if (!grade) { sfToast('Please select a Grade Level first.', 'error'); return false; }
+    if (!day)   { sfToast('Please select a Day of Week first.', 'error'); return false; }
     // Block submission if any subject row has a subject selected but no teacher
     const rows = document.querySelectorAll('.sf-subject-row');
     for (const row of rows) {
         const subj  = row.querySelector('.sf-subject');
         const teach = row.querySelector('.sf-teacher');
         if (subj && teach && subj.value && !teach.value) {
-            alert('Cannot save: every subject must have a teacher assigned. Please select a teacher or clear the subject field.');
+            sfToast('Cannot save: every subject must have a teacher assigned. Please select a teacher or clear the subject field.', 'error');
             return false;
         }
     }
@@ -303,7 +311,7 @@ function sfValidate() {
             if (window.sfDuplicateSubjectTeacherInCell(cell)) hasCellDup = true;
         });
         if (hasCellDup) {
-            alert('Cannot save: the same subject and teacher cannot be assigned twice in one section slot.');
+            sfToast('Cannot save: the same subject and teacher cannot be assigned twice in one section slot.', 'error');
             return false;
         }
     }
@@ -311,7 +319,7 @@ function sfValidate() {
     const warnEls = document.querySelectorAll('.sf-conflict-warn');
     for (var w of warnEls) {
         if (w.style.display !== 'none' && w.textContent.trim()) {
-            alert('Cannot save: schedule conflict detected.\n\n' + w.textContent.trim() + '\n\nPlease resolve all conflicts before saving.');
+            sfToast('Cannot save: ' + w.textContent.trim(), 'error');
             return false;
         }
     }
@@ -582,3 +590,15 @@ window.SF_SLOT_ASSISTANT = {
 </script>
 <script src="{{ asset('js/schedule-slot-assistant.js') }}"></script>
 @endsection
+
+@push('scripts')
+<script>
+window.SCHEDULE_FORM_GUARD = {
+    formId: 'sfForm',
+    checkUrl: @json(route('admin.schedules.check-grid')),
+    submitSelector: '#sfSubmitBtn',
+    clientValidate: function () { return sfValidate(); },
+};
+</script>
+<script src="{{ asset('js/schedule-form-submit-guard.js') }}"></script>
+@endpush

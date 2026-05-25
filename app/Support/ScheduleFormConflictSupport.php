@@ -2,6 +2,9 @@
 
 namespace App\Support;
 
+use App\Models\ClassSchedule;
+use App\Models\User;
+
 /**
  * Validates schedule grid cells for duplicate subject + teacher in one section.
  */
@@ -83,7 +86,7 @@ class ScheduleFormConflictSupport
             return null;
         }
 
-        $query = \App\Models\ClassSchedule::query()
+        $query = self::scheduleQuery()
             ->where('grade_level', $gradeLevel)
             ->where('section_name', $sectionName)
             ->where('day_of_week', $dayOfWeek)
@@ -118,7 +121,7 @@ class ScheduleFormConflictSupport
             return null;
         }
 
-        $query = \App\Models\ClassSchedule::query()
+        $query = self::scheduleQuery()
             ->where('room_id', $roomId)
             ->where('day_of_week', $dayOfWeek)
             ->where('start_time', 'like', $start . '%')
@@ -152,7 +155,7 @@ class ScheduleFormConflictSupport
             return null;
         }
 
-        $query = \App\Models\ClassSchedule::query()
+        $query = self::scheduleQuery()
             ->where('faculty_id', $facultyId)
             ->where('day_of_week', $dayOfWeek)
             ->where('start_time', 'like', $start . '%')
@@ -283,16 +286,262 @@ class ScheduleFormConflictSupport
     }
 
     /**
+     * @return \Illuminate\Database\Eloquent\Builder<\App\Models\ClassSchedule>
+     */
+    private static function scheduleQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        $conn = config('database.school_connection');
+        if ($conn && array_key_exists($conn, config('database.connections', []))) {
+            return ClassSchedule::on($conn)->newQuery();
+        }
+
+        return ClassSchedule::query();
+    }
+
+    /**
      * @param  \Illuminate\Database\Eloquent\Builder<\App\Models\ClassSchedule>  $query
      */
     private static function applyScheduleDateScope($query, ?string $scheduleDate): void
     {
         if ($scheduleDate !== null && trim($scheduleDate) !== '') {
-            $query->whereDate('schedule_date', substr(trim($scheduleDate), 0, 10));
-        } else {
-            $query->where(function ($q) {
-                $q->whereNull('schedule_date')->orWhere('schedule_date', '');
+            $date = substr(trim($scheduleDate), 0, 10);
+            $query->where(function ($q) use ($date) {
+                $q->whereDate('schedule_date', $date)
+                    ->orWhereNull('schedule_date');
             });
         }
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $slots
+     * @param  array<int, string>  $sections
+     * @param  array<int, int|string>  $sectionRooms
+     * @return list<string>
+     */
+    public static function collectJuniorHighGridConflicts(
+        string $gradeLevel,
+        string $dayOfWeek,
+        ?string $scheduleDate,
+        array $slots,
+        array $sections,
+        array $sectionRooms = [],
+    ): array {
+        $timeMap = SchoolScheduleSlots::scheduleSlotKeyMap('junior_high');
+        $sharedFacultyIds = ScheduleStoreSupport::sharedFacultyIdStrings();
+        $seenTeacherSlots = [];
+        $seenSectionSlots = [];
+        $seenRoomSlots = [];
+        $dailyNewCounts = [];
+        $conflicts = [];
+
+        foreach ($slots as $timeKey => $sectionSlots) {
+            if (! isset($timeMap[$timeKey])) {
+                continue;
+            }
+            $startTime = $timeMap[$timeKey]['start'];
+            $endTime = $timeMap[$timeKey]['end'];
+
+            foreach ($sectionSlots as $idx => $cell) {
+                $sectionName = $sections[$idx] ?? ('SECTION ' . ((int) $idx + 1));
+                $cellRows = self::collectCellRowsFromSlotData(is_array($cell) ? $cell : []);
+                if ($cellRows === []) {
+                    continue;
+                }
+
+                $cellDup = self::duplicateSubjectTeacherInCell($cellRows);
+                if ($cellDup) {
+                    $conflicts[] = "{$sectionName} at {$startTime}: {$cellDup}";
+                    continue;
+                }
+
+                $sectionSlotKey = $gradeLevel . '|' . $sectionName . '|' . $timeKey . '|' . ($scheduleDate ?? '');
+                if (isset($seenSectionSlots[$sectionSlotKey])) {
+                    $conflicts[] = self::duplicateScheduleForSlotMessage(
+                        $gradeLevel, $sectionName, $dayOfWeek, $startTime, $scheduleDate, $endTime
+                    );
+                } else {
+                    $seenSectionSlots[$sectionSlotKey] = true;
+                    $sectionMsg = self::sectionSlotConflictMessage(
+                        $gradeLevel, $sectionName, $dayOfWeek, $startTime, $scheduleDate, $endTime
+                    );
+                    if ($sectionMsg) {
+                        $conflicts[] = $sectionMsg;
+                    }
+                }
+
+                $roomId = ! empty($sectionRooms[$idx]) ? (int) $sectionRooms[$idx] : 0;
+                if ($roomId > 0) {
+                    $roomSlotKey = $roomId . '|' . $timeKey . '|' . ($scheduleDate ?? '');
+                    if (isset($seenRoomSlots[$roomSlotKey])) {
+                        $conflicts[] = "Room #{$roomId} at {$startTime} is assigned more than once in this form for the same date.";
+                    } else {
+                        $seenRoomSlots[$roomSlotKey] = true;
+                        $roomMsg = self::roomSlotConflictMessage($roomId, $dayOfWeek, $startTime, $scheduleDate, $endTime);
+                        if ($roomMsg) {
+                            $conflicts[] = $roomMsg;
+                        }
+                    }
+                }
+
+                foreach ($cellRows as $row) {
+                    $primarySubject = $row['subject'];
+                    $primaryFaculty = $row['faculty_id'];
+                    if (! $primaryFaculty) {
+                        $conflicts[] = "{$sectionName}: subject \"{$primarySubject}\" has no teacher assigned.";
+                        continue;
+                    }
+
+                    $slotKey = $primaryFaculty . '|' . $timeKey;
+                    if (isset($seenTeacherSlots[$slotKey])) {
+                        $teacher = User::find((int) $primaryFaculty);
+                        $name = $teacher ? trim($teacher->first_name . ' ' . $teacher->last_name) : "Teacher #{$primaryFaculty}";
+                        $conflicts[] = "{$name} is assigned to multiple sections at {$startTime}.";
+                    }
+                    $seenTeacherSlots[$slotKey] = $sectionName;
+
+                    $teacherSlotMsg = self::teacherSlotConflictMessage(
+                        (int) $primaryFaculty, $dayOfWeek, $startTime, $scheduleDate, $endTime
+                    );
+                    if ($teacherSlotMsg) {
+                        $conflicts[] = $teacherSlotMsg;
+                    }
+
+                    if (in_array($primaryFaculty, $sharedFacultyIds, true)) {
+                        $crossExisting = ScheduleStoreSupport::crossSchoolApprovedConflict(
+                            (int) $primaryFaculty,
+                            $dayOfWeek,
+                            $startTime
+                        );
+                        if ($crossExisting) {
+                            $conflicts[] = self::duplicateScheduleForSlotMessage(
+                                (string) ($crossExisting->grade_level ?? ''),
+                                (string) ($crossExisting->section_name ?? ''),
+                                $dayOfWeek,
+                                $startTime,
+                                $scheduleDate,
+                                $endTime,
+                                null,
+                                $crossExisting
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique($conflicts));
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $slots
+     * @param  array<string, string>  $sectionDisplayMap
+     * @return list<string>
+     */
+    public static function collectGradeSchoolGridConflicts(
+        string $gradeLevel,
+        string $dayOfWeek,
+        ?string $scheduleDate,
+        array $slots,
+        array $sectionDisplayMap,
+        array $sectionRooms = [],
+    ): array {
+        $timeSlotMap = SchoolScheduleSlots::scheduleSlotKeyMap('grade_school');
+        $sharedFacultyIds = ScheduleStoreSupport::sharedFacultyIdStrings('mysql_gs');
+        $seenTeacherSlots = [];
+        $seenSectionSlots = [];
+        $seenRoomSlots = [];
+        $conflicts = [];
+
+        foreach ($slots as $timeKey => $sectionData) {
+            if (! isset($timeSlotMap[$timeKey])) {
+                continue;
+            }
+            $startTime = $timeSlotMap[$timeKey]['start'];
+            $endTime = $timeSlotMap[$timeKey]['end'];
+
+            foreach ($sectionData as $sectionKey => $data) {
+                if (! isset($sectionDisplayMap[$sectionKey])) {
+                    continue;
+                }
+                $displaySec = $sectionDisplayMap[$sectionKey];
+                $cellRows = self::collectCellRowsFromSlotData(is_array($data) ? $data : []);
+                if ($cellRows === []) {
+                    continue;
+                }
+
+                $cellDup = self::duplicateSubjectTeacherInCell($cellRows);
+                if ($cellDup) {
+                    $conflicts[] = "{$displaySec} at {$startTime}: {$cellDup}";
+                    continue;
+                }
+
+                $sectionSlotKey = $gradeLevel . '|' . $displaySec . '|' . $timeKey . '|' . ($scheduleDate ?? '');
+                if (isset($seenSectionSlots[$sectionSlotKey])) {
+                    $conflicts[] = self::duplicateScheduleForSlotMessage(
+                        $gradeLevel, $displaySec, $dayOfWeek, $startTime, $scheduleDate, $endTime
+                    );
+                } else {
+                    $seenSectionSlots[$sectionSlotKey] = true;
+                    $sectionMsg = self::sectionSlotConflictMessage(
+                        $gradeLevel, $displaySec, $dayOfWeek, $startTime, $scheduleDate, $endTime
+                    );
+                    if ($sectionMsg) {
+                        $conflicts[] = $sectionMsg;
+                    }
+                }
+
+                $roomId = ! empty($sectionRooms[$sectionKey]) ? (int) $sectionRooms[$sectionKey] : 0;
+                if ($roomId > 0) {
+                    $roomSlotKey = $roomId . '|' . $timeKey . '|' . ($scheduleDate ?? '');
+                    if (isset($seenRoomSlots[$roomSlotKey])) {
+                        $conflicts[] = "Room #{$roomId} at {$startTime} is assigned more than once in this form for the same date.";
+                    } else {
+                        $seenRoomSlots[$roomSlotKey] = true;
+                        $roomMsg = self::roomSlotConflictMessage($roomId, $dayOfWeek, $startTime, $scheduleDate, $endTime);
+                        if ($roomMsg) {
+                            $conflicts[] = $roomMsg;
+                        }
+                    }
+                }
+
+                foreach ($cellRows as $row) {
+                    $primaryFaculty = $row['faculty_id'];
+                    if (! $primaryFaculty) {
+                        $conflicts[] = "{$displaySec}: subject \"{$row['subject']}\" has no teacher assigned.";
+                        continue;
+                    }
+
+                    $teacherSlotMsg = self::teacherSlotConflictMessage(
+                        (int) $primaryFaculty, $dayOfWeek, $startTime, $scheduleDate, $endTime
+                    );
+                    if ($teacherSlotMsg) {
+                        $conflicts[] = $teacherSlotMsg;
+                    }
+
+                    if (in_array($primaryFaculty, $sharedFacultyIds, true)) {
+                        $crossExisting = ScheduleStoreSupport::crossSchoolApprovedConflict(
+                            (int) $primaryFaculty,
+                            $dayOfWeek,
+                            $startTime,
+                            'mysql_gs'
+                        );
+                        if ($crossExisting) {
+                            $conflicts[] = self::duplicateScheduleForSlotMessage(
+                                (string) ($crossExisting->grade_level ?? ''),
+                                (string) ($crossExisting->section_name ?? ''),
+                                $dayOfWeek,
+                                $startTime,
+                                $scheduleDate,
+                                $endTime,
+                                null,
+                                $crossExisting
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique($conflicts));
     }
 }
