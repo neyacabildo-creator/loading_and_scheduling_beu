@@ -25,7 +25,10 @@
 
 <section class="str-panel" aria-labelledby="str-shared-title">
     <div class="str-panel-header">
-        <h2 id="str-shared-title" class="str-section-title">Shared Teacher Requests</h2>
+        <div class="str-panel-header-row">
+            <h2 id="str-shared-title" class="str-section-title">Shared Teacher Requests</h2>
+            <input type="search" class="str-section-search" data-str-table="strTable" placeholder="Search teacher, subject, grade…" aria-label="Search shared teacher requests">
+        </div>
     </div>
     <div class="str-panel-body">
         @include('partials.admin-shared-teacher-requests-table', [
@@ -39,7 +42,10 @@
 
 <section class="str-panel str-section-block" aria-labelledby="str-teacher-title">
     <div class="str-panel-header">
-        <h2 id="str-teacher-title" class="str-section-title">Teacher Requests</h2>
+        <div class="str-panel-header-row">
+            <h2 id="str-teacher-title" class="str-section-title">Teacher Requests</h2>
+            <input type="search" class="str-section-search" data-str-table="tsrTable" placeholder="Search teacher, subject, grade…" aria-label="Search teacher requests">
+        </div>
     </div>
     <div class="str-panel-body">
         @include('partials.admin-teacher-requests-table', [
@@ -52,7 +58,13 @@
 
 <section class="str-panel str-section-block" aria-labelledby="str-leave-title">
     <div class="str-panel-header">
-        <h2 id="str-leave-title" class="str-section-title">Absence / Leave Requests</h2>
+        <div class="str-panel-header-row">
+            <div>
+                <h2 id="str-leave-title" class="str-section-title">Absence / Leave Requests</h2>
+                <p class="str-section-desc">Regular teachers and shared teachers — each row is labeled by role.</p>
+            </div>
+            <input type="search" class="str-section-search" data-str-table="tlrTable" placeholder="Search teacher, leave type…" aria-label="Search absence and leave requests">
+        </div>
     </div>
     <div class="str-panel-body">
         @include('partials.admin-teacher-leave-requests-table', [
@@ -62,3 +74,5 @@
         ])
     </div>
 </section>
+
+<script src="{{ asset('js/admin-all-requests-search.js') }}" defer></script>

@@ -400,12 +400,72 @@ class KinderScheduleSupport
      *
      * @param  array<string, string>  $subjectsByDay
      */
+    /**
+     * Block teacher or section double-booking for a Kinder activity slot.
+     */
+    public static function slotConflictMessage(
+        int $facultyId,
+        string $gradeLevel,
+        string $sectionName,
+        string $dayOfWeek,
+        ?string $scheduleDate = null,
+        ?int $excludeScheduleId = null
+    ): ?string {
+        $activity = self::activitySlot($gradeLevel);
+        if (! $activity) {
+            return null;
+        }
+
+        $start = $activity['start'];
+        $end = $activity['end'];
+        $date = self::resolveScheduleDateForDay($dayOfWeek, $scheduleDate);
+
+        $teacherExisting = ScheduleFormConflictSupport::findTeacherSlotConflict(
+            $facultyId,
+            $dayOfWeek,
+            $start,
+            $date,
+            $excludeScheduleId
+        );
+        if ($teacherExisting) {
+            return 'Teacher is already scheduled at this time on '
+                . $dayOfWeek
+                . ' for '
+                . trim($teacherExisting->grade_level . ' – ' . $teacherExisting->section_name)
+                . ' (' . ($teacherExisting->subject ?? 'class') . ').';
+        }
+
+        $sectionExisting = ScheduleFormConflictSupport::findSectionSlotConflict(
+            $gradeLevel,
+            $sectionName,
+            $dayOfWeek,
+            $start,
+            $date,
+            $excludeScheduleId
+        );
+        if ($sectionExisting) {
+            return ScheduleFormConflictSupport::duplicateScheduleForSlotMessage(
+                $gradeLevel,
+                $sectionName,
+                $dayOfWeek,
+                $start,
+                $date,
+                $end,
+                null,
+                $sectionExisting
+            );
+        }
+
+        return null;
+    }
+
     public static function storeWeeklyActivity(
         int $facultyId,
         string $gradeLevel,
         string $sectionName,
         array $subjectsByDay,
-        ?int $actorUserId = null
+        ?int $actorUserId = null,
+        ?string $scheduleDate = null
     ): int {
         if (! self::isKinderGrade($gradeLevel)) {
             throw new \InvalidArgumentException('Invalid kinder grade level.');
@@ -430,6 +490,18 @@ class KinderScheduleSupport
                 continue;
             }
 
+            $slotDate = self::resolveScheduleDateForDay($day, $scheduleDate);
+            $conflictMsg = self::slotConflictMessage(
+                $facultyId,
+                $gradeLevel,
+                $sectionName,
+                $day,
+                $scheduleDate
+            );
+            if ($conflictMsg !== null) {
+                throw new \InvalidArgumentException($conflictMsg);
+            }
+
             ClassSchedule::query()
                 ->where('faculty_id', $facultyId)
                 ->where('grade_level', $gradeLevel)
@@ -452,7 +524,7 @@ class KinderScheduleSupport
                 'grade_level'    => $gradeLevel,
                 'section_name'   => $sectionName,
                 'day_of_week'    => $day,
-                'schedule_date'  => self::resolveScheduleDateForDay($day, $scheduleDate),
+                'schedule_date'  => $slotDate,
                 'start_time'     => $activity['start'],
                 'end_time'       => $activity['end'],
                 'student_count'  => 0,

@@ -113,6 +113,9 @@
             <div class="table-header">
                 <div class="table-title">Rooms &amp; Sections</div>
                 <div style="display:flex; align-items:center; gap:.4rem; flex-wrap:wrap;">
+                    <button class="rs-grade-btn" data-grade="Kinder 2" onclick="rsSetGrade(this,'Kinder 2')">Kinder 2</button>
+                    <button class="rs-grade-btn" data-grade="Kinder 1" onclick="rsSetGrade(this,'Kinder 1')">Kinder 1</button>
+                    <button class="rs-grade-btn" data-grade="Nursery" onclick="rsSetGrade(this,'Nursery')">Nursery</button>
                     <button class="rs-grade-btn active" data-grade="1" onclick="rsSetGrade(this,'1')">Grade 1</button>
                     <button class="rs-grade-btn" data-grade="2" onclick="rsSetGrade(this,'2')">Grade 2</button>
                     <button class="rs-grade-btn" data-grade="3" onclick="rsSetGrade(this,'3')">Grade 3</button>
@@ -145,7 +148,11 @@
     <script>
         /* ── Rooms & sections connected to schedules ── */
         const GS_SCHEDULE_API = '{{ url("api/grade-school-admin/schedules") }}';
+        const GS_KINDER_GRADES = ['Kinder 2', 'Kinder 1', 'Nursery'];
         const GS_ALL_SECTIONS_MAP = {
+            'Kinder 2': ['K2 - GABRIEL', 'K2 - MICHAEL', 'K2 - RAPHAEL'],
+            'Kinder 1': ['NURSERY - CHERUBIM', 'K1 - SERAPHIM', 'K1 - URIEL'],
+            'Nursery':  ['NURSERY - CHERUBIM', 'K1 - SERAPHIM', 'K1 - URIEL'],
             '1': ['STEPHEN', 'PETER', 'ST. PAUL'],
             '2': ['ST. LUKE', 'ST. MARK', 'ST. MATTHEW'],
             '3': ['ST. JOHN', 'ST. JAMES', 'ST. JOSEPH'],
@@ -155,6 +162,34 @@
         };
         let rsAllSchedules = [];
         let rsCurrentGrade = '1';
+
+        function rsIsKinderGradeKey(gradeKey) {
+            return GS_KINDER_GRADES.indexOf(gradeKey) >= 0;
+        }
+
+        function rsRoomSectionLabel(s) {
+            if (GS_KINDER_GRADES.indexOf(s.grade_level) >= 0) {
+                return s.section_name || '—';
+            }
+            const m = String(s.grade_level || '').match(/\d+/);
+            return m ? `Gr.${m[0]}-${s.section_name || '?'}` : (s.section_name || '—');
+        }
+
+        function rsGradeDisplayLabel(gradeKey) {
+            return rsIsKinderGradeKey(gradeKey) ? gradeKey : `Grade ${gradeKey}`;
+        }
+
+        function rsSchedulesForSection(gradeKey, sec) {
+            const secUpper = sec.toUpperCase();
+            return rsAllSchedules.filter(s => {
+                const secName = (s.section_name || '').toUpperCase();
+                if (rsIsKinderGradeKey(gradeKey)) {
+                    return (s.grade_level === gradeKey) && secName === secUpper;
+                }
+                const m = String(s.grade_level || '').match(/\d+/);
+                return m && m[0] === gradeKey && secName === secUpper;
+            });
+        }
 
         /* ─── Time Helpers ─── */
         function rsNowMins() { const now = new Date(); return now.getHours()*60+now.getMinutes(); }
@@ -215,11 +250,7 @@
             if (!tbody) return;
             const sections = GS_ALL_SECTIONS_MAP[rsCurrentGrade] || [];
             const rows = sections.map((sec, i) => {
-                const secSched = rsAllSchedules.filter(s => {
-                    const m = String(s.grade_level||'').match(/\d+/);
-                    const secName = (s.section_name || '').toUpperCase();
-                    return m && m[0] === rsCurrentGrade && secName === sec.toUpperCase();
-                });
+                const secSched = rsSchedulesForSection(rsCurrentGrade, sec);
                 const count = secSched.length;
                 const inUseCount = secSched.filter(rsIsNowActive).length;
                 const next = rsNextSchedule(secSched);
@@ -249,17 +280,17 @@
                 return `<tr>
                     <td>${i+1}</td>
                     <td><strong>${roomSectionLabel}</strong></td>
-                    <td>Grade ${rsCurrentGrade}</td>
+                    <td>${rsGradeDisplayLabel(rsCurrentGrade)}</td>
                     <td>${inUseBadge}</td>
                     <td>${totalBadge}</td>
                     <td>${nextHtml}</td>
                     <td class="rs-actions-cell"><div class="rs-actions-wrap">
-                        <a href="{{ route('grade-school-admin.class-schedule') }}?grade=${rsCurrentGrade}&section=${encodeURIComponent(sec)}" class="action-btn btn-edit">View</a>
+                        <a href="{{ route('grade-school-admin.schedule.create') }}?grade_level=${encodeURIComponent(rsIsKinderGradeKey(rsCurrentGrade) ? rsCurrentGrade : ('Grade ' + rsCurrentGrade))}&section_name=${encodeURIComponent(sec)}" class="action-btn btn-edit">View</a>
                         <a href="{{ route('grade-school-admin.class-schedule') }}" class="action-btn" style="border-color:var(--green-primary);color:var(--green-primary);">Schedule</a>
                     </div></td>
                 </tr>`;
             });
-            tbody.innerHTML = rows.length ? rows.join('') : `<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--text-secondary);">No rooms &amp; sections for Grade ${rsCurrentGrade}.</td></tr>`;
+            tbody.innerHTML = rows.length ? rows.join('') : `<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--text-secondary);">No rooms &amp; sections for ${rsGradeDisplayLabel(rsCurrentGrade)}.</td></tr>`;
         }
 
         function rsNextOccurrenceDate(s) {
@@ -334,8 +365,7 @@
             }
 
             tbody.innerHTML = sorted.map(s => {
-                const m = String(s.grade_level||'').match(/\d+/);
-                const roomSec = m ? `Gr.${m[0]}-${s.section_name||'?'}` : s.section_name || '—';
+                const roomSec = rsRoomSectionLabel(s);
                 const displayDate = rsFormatDate(rsNextOccurrenceDate(s));
                 const statusBadge = s._status === 'now'
                     ? `<span class="in-use-badge">Now</span>`

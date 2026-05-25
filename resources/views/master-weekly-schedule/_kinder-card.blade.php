@@ -94,19 +94,6 @@
 </head>
 <body>
 
-@if(!$isAjax)
-<div class="card-toolbar">
-    <span class="tbr-title">Kinder Class Schedule</span>
-    <div style="display:flex;gap:0.5rem;">
-        <button type="button" class="btn-print-card" onclick="window.print()">Print</button>
-        @if($downloadUrl)
-            <a href="{{ $downloadUrl }}" class="btn-download-card" style="text-decoration:none;display:inline-flex;align-items:center;">Download</a>
-        @endif
-        <button type="button" class="btn-close-modal" onclick="window.close()">Close</button>
-    </div>
-</div>
-@endif
-
 <div class="sched-paper">
     <div class="sched-title-bar">KINDER WEEKLY SCHEDULE</div>
 

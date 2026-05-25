@@ -10,7 +10,7 @@
     </div>
 @else
     <div class="str-table-wrap">
-        <table class="str-data-table str-teacher-requests-table">
+        <table id="tlrTable" class="str-data-table str-teacher-requests-table">
             <thead>
                 <tr>
                     <th class="str-col-teacher">Teacher</th>
@@ -37,8 +37,11 @@
                             <div class="str-teacher-cell">
                                 <div class="str-teacher-cell-top">
                                     <span class="str-teacher-name">{{ $leaveTeacher }}</span>
+                                    @if(!empty($lr->requester_role_label))
+                                        <span class="str-school-level-badge str-role-{{ $lr->requester_role ?? 'teacher' }}">{{ $lr->requester_role_label }}</span>
+                                    @endif
                                     @if($leaveSchool !== '')
-                                        <span class="str-school-level-badge">{{ $leaveSchool }}</span>
+                                        <span class="str-school-level-badge str-role-school">{{ $leaveSchool }}</span>
                                     @endif
                                 </div>
                                 @if(!empty($lr->presence))

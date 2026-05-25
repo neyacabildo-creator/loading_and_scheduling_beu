@@ -994,9 +994,9 @@
             const frame   = document.getElementById('scheduleCardFrame');
             const spinner = document.getElementById('scheduleCardSpinner');
             const dlBtn   = document.getElementById('scheduleCardDownloadBtn');
-            let cardUrl = `{{ url('grade-school-admin/master-schedule') }}/${teacherId}/card`;
+            let cardUrl = `{{ url('grade-school-admin/master-schedule') }}/${teacherId}/card?ajax=1`;
             if (gradeLevel && GS_KINDER_GRADES.includes(gradeLevel)) {
-                cardUrl += '?grade_level=' + encodeURIComponent(gradeLevel);
+                cardUrl += '&grade_level=' + encodeURIComponent(gradeLevel);
                 scheduleCardDownloadUrl = `{{ url('grade-school-admin/master-schedule') }}/${teacherId}/kinder-download?grade_level=` + encodeURIComponent(gradeLevel || '');
             } else {
                 scheduleCardDownloadUrl = `{{ url('grade-school-admin/master-schedule') }}/${teacherId}/download`;

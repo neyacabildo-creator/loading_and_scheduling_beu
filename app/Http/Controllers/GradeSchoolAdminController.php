@@ -299,6 +299,27 @@ class GradeSchoolAdminController extends Controller
             $schedule = ClassSchedule::findOrFail($id);
             ScheduleAudit::setAuditUser((new ClassSchedule)->getConnectionName(), Auth::user()?->name);
 
+            if (\App\Support\KinderScheduleSupport::isKinderGrade($schedule->grade_level)
+                && $schedule->faculty_id && $schedule->day_of_week) {
+                $kinderConflict = \App\Support\KinderScheduleSupport::slotConflictMessage(
+                    (int) $schedule->faculty_id,
+                    (string) $schedule->grade_level,
+                    (string) $schedule->section_name,
+                    (string) $schedule->day_of_week,
+                    $schedule->schedule_date ? (string) $schedule->getRawOriginal('schedule_date') : null,
+                    (int) $schedule->id
+                );
+                if ($kinderConflict !== null) {
+                    $schedule->update(['status' => 'conflict']);
+
+                    return response()->json([
+                        'success'  => false,
+                        'conflict' => true,
+                        'message'  => '⚠ ' . $kinderConflict,
+                    ], 409);
+                }
+            }
+
             // ── Conflict detection before approving ──────────────────────────────
             if ($schedule->faculty_id && $schedule->day_of_week && $schedule->start_time) {
                 $existingConflict = ClassSchedule::where('faculty_id', $schedule->faculty_id)
@@ -464,6 +485,14 @@ class GradeSchoolAdminController extends Controller
             ScheduleAudit::setAuditUser((new ClassSchedule)->getConnectionName(), Auth::user()?->name);
             ScheduleUpdateHelper::mergeNormalizedInput($request);
             $validated = $request->validate(ScheduleUpdateHelper::validationRules());
+
+            $dayDateMsg = ScheduleUpdateHelper::dayDateMismatchMessage(
+                (string) ($validated['day_of_week'] ?? $schedule->day_of_week),
+                (string) ($validated['schedule_date'] ?? $schedule->schedule_date)
+            );
+            if ($dayDateMsg !== null) {
+                return response()->json(['success' => false, 'message' => $dayDateMsg], 422);
+            }
 
             $facultyId = (int) ($validated['faculty_id'] ?? $schedule->faculty_id);
             $dupMsg = \App\Support\DuplicateSubmissionSupport::scheduleDuplicateMessage(
@@ -1586,6 +1615,17 @@ class GradeSchoolAdminController extends Controller
             return back()->withInput()->withErrors(['activity' => $uniqueMsg]);
         }
 
+        $slotConflict = \App\Support\KinderScheduleSupport::slotConflictMessage(
+            (int) $validated['faculty_id'],
+            $validated['grade_level'],
+            $validated['section_name'],
+            $day,
+            $validated['schedule_date'] ?? null
+        );
+        if ($slotConflict !== null) {
+            return back()->withInput()->withErrors(['activity' => $slotConflict]);
+        }
+
         try {
             $toStore = array_fill_keys(\App\Support\KinderScheduleSupport::WEEKDAYS, '');
             $toStore[$day] = $daySubject;
@@ -1731,7 +1771,7 @@ class GradeSchoolAdminController extends Controller
         }
 
         $gradeLevels = array_merge(
-            \App\Support\KinderScheduleSupport::GRADES,
+            ['Nursery', 'Kinder 1', 'Kinder 2'],
             ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6']
         );
         $days        = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];

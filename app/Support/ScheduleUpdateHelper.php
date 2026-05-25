@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class ScheduleUpdateHelper
@@ -30,6 +31,30 @@ class ScheduleUpdateHelper
         if (!empty($merge)) {
             $request->merge($merge);
         }
+    }
+
+    /**
+     * Returns an error message when schedule_date does not fall on day_of_week.
+     */
+    public static function dayDateMismatchMessage(?string $dayOfWeek, ?string $scheduleDate): ?string
+    {
+        $day = trim((string) $dayOfWeek);
+        $date = trim((string) $scheduleDate);
+        if ($day === '' || $date === '') {
+            return null;
+        }
+
+        try {
+            $actual = Carbon::parse($date)->format('l');
+        } catch (\Throwable) {
+            return 'Schedule date is invalid.';
+        }
+
+        if ($actual !== $day) {
+            return 'Schedule date must fall on ' . $day . ' (the selected date is a ' . $actual . ').';
+        }
+
+        return null;
     }
 
     public static function validationRules(): array

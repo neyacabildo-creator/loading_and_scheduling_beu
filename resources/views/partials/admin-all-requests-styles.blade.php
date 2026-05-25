@@ -49,6 +49,45 @@
     color: var(--text-secondary);
     line-height: 1.45;
 }
+.str-panel-header-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+}
+.str-panel-header-row .str-section-title {
+    margin: 0;
+}
+.str-section-search {
+    min-width: 220px;
+    max-width: 100%;
+    flex: 1 1 220px;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid rgba(45, 122, 80, 0.35);
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+.str-section-search:focus {
+    outline: 2px solid rgba(45, 122, 80, 0.35);
+    border-color: var(--green-primary, #2d7a50);
+}
+.str-school-level-badge.str-role-shared_teacher {
+    background: rgba(37, 99, 235, 0.12);
+    color: #1d4ed8;
+    border: 1px solid rgba(37, 99, 235, 0.25);
+}
+.str-school-level-badge.str-role-teacher {
+    background: rgba(45, 122, 80, 0.12);
+    color: #2d7a50;
+    border: 1px solid rgba(45, 122, 80, 0.25);
+}
+.str-search-no-match {
+    margin: 0;
+    border-top: 1px solid rgba(45, 122, 80, 0.12);
+}
 .str-panel-body {
     padding: 0;
     background: var(--bg-secondary);

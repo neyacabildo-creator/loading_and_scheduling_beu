@@ -265,6 +265,7 @@
         </div>
     </div>
 
+    <script src="{{ asset('js/admin-schedule-edit-day-date.js') }}"></script>
     <script>
         let gsCurrentScheduleId = null;
         let gsCurrentAction = null;
@@ -870,6 +871,9 @@
                     editFacultySel.dataset.teacherLabel = facultyName || ('Teacher #' + s.faculty_id);
                 }
                 gsEditLoadTeachers(s.faculty_id);
+                if (window.AdminScheduleEditDayDate) {
+                    AdminScheduleEditDayDate.snapshot('editDay', 'editScheduleDate');
+                }
                 modal.style.display = 'flex';
             })
             .catch(err => alert('Error loading schedule: ' + err.message));
@@ -889,6 +893,13 @@
             if (!facultyId) {
                 alert('Please select a teacher before saving.');
                 return;
+            }
+            if (window.AdminScheduleEditDayDate) {
+                const dayDateCheck = AdminScheduleEditDayDate.validateBeforeSave('editDay', 'editScheduleDate');
+                if (!dayDateCheck.ok) {
+                    alert(dayDateCheck.message);
+                    return;
+                }
             }
             const payload = {
                 faculty_id:    facultyId,
@@ -933,6 +944,12 @@
         document.addEventListener('click', function(e) {
             if (e.target === document.getElementById('approvalModal')) gsCloseModal();
             if (e.target === document.getElementById('editModal')) gsCloseEditModal();
+        });
+
+        document.addEventListener('DOMContentLoaded', function () {
+            if (window.AdminScheduleEditDayDate) {
+                AdminScheduleEditDayDate.bind('editDay', 'editScheduleDate');
+            }
         });
 
     </script>

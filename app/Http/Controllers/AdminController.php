@@ -352,6 +352,14 @@ class AdminController extends Controller {
             ScheduleUpdateHelper::mergeNormalizedInput($request);
             $validated = $request->validate(ScheduleUpdateHelper::validationRules());
 
+            $dayDateMsg = ScheduleUpdateHelper::dayDateMismatchMessage(
+                (string) ($validated['day_of_week'] ?? $schedule->day_of_week),
+                (string) ($validated['schedule_date'] ?? $schedule->schedule_date)
+            );
+            if ($dayDateMsg !== null) {
+                return response()->json(['success' => false, 'message' => $dayDateMsg], 422);
+            }
+
             $changes = ScheduleAudit::collectChanges($schedule, $validated);
             $validated['version'] = (int) $schedule->version + 1;
             $validated['last_modified_by_admin'] = now();

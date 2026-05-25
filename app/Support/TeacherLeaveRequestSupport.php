@@ -175,6 +175,75 @@ class TeacherLeaveRequestSupport
     }
 
     /**
+     * All absence/leave rows for admin All Requests (regular + shared teachers), with role labels.
+     */
+    public static function listAllLeaveForAdmin(string $connection, array $sharedTeacherIds = []): Collection
+    {
+        if (! Schema::connection($connection)->hasTable(self::TABLE)) {
+            return collect();
+        }
+
+        $sharedSet = array_fill_keys(array_map('intval', $sharedTeacherIds), true);
+
+        $rows = DB::connection($connection)
+            ->table(self::TABLE)
+            ->orderByRaw("FIELD(status,'pending','approved','rejected','cancelled')")
+            ->orderByDesc('created_at')
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return collect();
+        }
+
+        $userIds = $rows->pluck('teacher_id')
+            ->merge($rows->pluck('reviewed_by'))
+            ->filter()
+            ->unique();
+        $users = User::whereIn('id', $userIds)->get()->keyBy('id');
+
+        $presenceMap = TeacherPresenceSupport::activeStatusMapForTeachers(
+            $connection,
+            $rows->pluck('teacher_id')->map(fn ($id) => (int) $id)->all()
+        );
+
+        return $rows->map(function ($r) use ($users, $presenceMap, $sharedSet) {
+            $teacherId = (int) $r->teacher_id;
+            $isShared = isset($sharedSet[$teacherId]);
+            $user = $users->get($teacherId);
+            $reviewer = $users->get($r->reviewed_by);
+            $from = substr((string) $r->date_from, 0, 10);
+            $to = substr((string) $r->date_to, 0, 10);
+
+            $submittedTo = $r->submitted_to_admin
+                ?? self::adminCodeForConnection($connection);
+
+            return (object) [
+                'id'                       => $r->id,
+                'source'                   => 'teacher_leave_requests',
+                'requester_role'         => $isShared ? 'shared_teacher' : 'teacher',
+                'requester_role_label'   => $isShared ? 'Shared Teacher' : 'Teacher',
+                'submitted_to_admin'       => $submittedTo,
+                'submitted_to_admin_label' => self::adminLabel($submittedTo),
+                'status'                   => $r->status,
+                'leave_type'               => $r->leave_type,
+                'request_type'             => $r->leave_type,
+                'request_type_label'       => self::leaveTypeLabel($r->leave_type),
+                'date_from'                => $from,
+                'date_to'                  => $to,
+                'total_days'               => $r->total_days,
+                'leave_dates'              => Carbon::parse($from)->format('M d, Y') . ' – ' . Carbon::parse($to)->format('M d, Y'),
+                'reason'                   => $r->reason,
+                'admin_notes'              => $r->admin_notes,
+                'created_at'               => $r->created_at,
+                'reviewed_at'              => $r->reviewed_at,
+                'user'                     => $user,
+                'reviewer'                 => $reviewer,
+                'presence'                 => $presenceMap[$teacherId] ?? null,
+            ];
+        })->values();
+    }
+
+    /**
      * Load leave rows for admin All Requests (excludes shared teachers).
      */
     public static function listForAdmin(string $connection, array $excludeTeacherIds = []): Collection

@@ -314,7 +314,7 @@ class SharedTeacherPortalController extends Controller
         $reviewers = $this->loadReviewers($requests);
         $teacherUsers = $this->loadTeacherUsers($requests);
         $teacherScheduleRequests = $this->loadTeacherAdjustmentRequests('mysql_jh', 'mysql_jh_teacher', $sharedTeacherIds);
-        $teacherLeaveRequests = \App\Support\TeacherLeaveRequestSupport::listForAdmin('mysql_jh', $sharedTeacherIds);
+        $teacherLeaveRequests = \App\Support\TeacherLeaveRequestSupport::listAllLeaveForAdmin('mysql_jh', $sharedTeacherIds);
         $absentToday = $this->collectAbsentTodaySummary('mysql_jh', $sharedTeacherIds);
 
         return view('junior-high-admin.shared-teacher-requests', compact('requests', 'reviewers', 'teacherUsers', 'teacherScheduleRequests', 'teacherLeaveRequests', 'absentToday'));
@@ -346,7 +346,7 @@ class SharedTeacherPortalController extends Controller
         $reviewers = $this->loadReviewers($requests);
         $teacherUsers = $this->loadTeacherUsers($requests);
         $teacherScheduleRequests = $this->loadTeacherAdjustmentRequests('mysql_gs', 'mysql_gs_teacher', $sharedTeacherIds);
-        $teacherLeaveRequests = \App\Support\TeacherLeaveRequestSupport::listForAdmin('mysql_gs', $sharedTeacherIds);
+        $teacherLeaveRequests = \App\Support\TeacherLeaveRequestSupport::listAllLeaveForAdmin('mysql_gs', $sharedTeacherIds);
         $absentToday = $this->collectAbsentTodaySummary('mysql_gs', $sharedTeacherIds);
 
         return view('grade-school-admin.shared-teacher-requests', compact('requests', 'reviewers', 'teacherUsers', 'teacherScheduleRequests', 'teacherLeaveRequests', 'absentToday'));
@@ -765,7 +765,7 @@ class SharedTeacherPortalController extends Controller
                 (int) $id
             );
 
-            return back()->with('success', 'Request ' . $status . '.' . $applyNote);
+            return back()->with('success', 'Request ' . $status . '.');
         } catch (\Throwable $e) {
             Log::error('reviewSharedTeacherRequest: ' . $e->getMessage());
 

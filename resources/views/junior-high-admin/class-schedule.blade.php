@@ -300,6 +300,7 @@
         }
     </style>
 
+    <script src="{{ asset('js/admin-schedule-edit-day-date.js') }}"></script>
     <script>
         let currentScheduleId = null;
         let currentAction = null;
@@ -963,6 +964,9 @@
                     editFacultySel.dataset.teacherLabel = facultyName || ('Teacher #' + s.faculty_id);
                 }
                 jhEditLoadTeachers(s.faculty_id);
+                if (window.AdminScheduleEditDayDate) {
+                    AdminScheduleEditDayDate.snapshot('editDay', 'editScheduleDate');
+                }
                 modal.style.display = 'flex';
             })
             .catch(error => {
@@ -987,6 +991,13 @@
             if (!facultyId) {
                 alert('Please select a teacher before saving.');
                 return;
+            }
+            if (window.AdminScheduleEditDayDate) {
+                const dayDateCheck = AdminScheduleEditDayDate.validateBeforeSave('editDay', 'editScheduleDate');
+                if (!dayDateCheck.ok) {
+                    alert(dayDateCheck.message);
+                    return;
+                }
             }
             const data = {
                 faculty_id:    facultyId,
@@ -1049,6 +1060,12 @@
             }
             if (e.target === editModal) {
                 closeEditModal();
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', function () {
+            if (window.AdminScheduleEditDayDate) {
+                AdminScheduleEditDayDate.bind('editDay', 'editScheduleDate');
             }
         });
 
