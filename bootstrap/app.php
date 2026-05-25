@@ -22,11 +22,15 @@ return Application::configure(basePath: dirname(__DIR__))
         // Reject deactivated accounts on every authenticated request
         $middleware->appendToGroup('web', \App\Http\Middleware\CheckUserActive::class);
 
+        // Idle tab timeout (~30 min without heartbeat) — force login again
+        $middleware->appendToGroup('web', \App\Http\Middleware\RequireRecentAuthActivity::class);
+
         // Require login for app URLs; one active session per account (blocks other browsers)
         $middleware->appendToGroup('web', \App\Http\Middleware\ProtectAuthenticatedRoutes::class);
         $middleware->appendToGroup('web', \App\Http\Middleware\EnforceSingleSession::class);
 
         $middleware->alias([
+            'recent.auth'      => \App\Http\Middleware\RequireRecentAuthActivity::class,
             'admin'            => \App\Http\Middleware\IsAdmin::class,
             'principal.admin'  => \App\Http\Middleware\IsPrincipal::class,
             'teacher'          => \App\Http\Middleware\IsTeacher::class,

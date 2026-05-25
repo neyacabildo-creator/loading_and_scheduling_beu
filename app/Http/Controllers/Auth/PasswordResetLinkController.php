@@ -26,19 +26,26 @@ class PasswordResetLinkController extends Controller
     /**
      * Handle an incoming password reset link request.
      *
-     * @throws \Illuminate\Validation\ValidationException
+     * Always returns the same message (does not reveal whether the email exists).
      */
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'email' => ['required', 'email', 'exists:users,email'],
+            'email' => ['required', 'email'],
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        $genericStatus = __('If that email address is registered, we sent a 6-digit reset code. Check your inbox (and spam folder) within 15 minutes.');
+
+        $user = User::where('email', $request->input('email'))->first();
 
         if (! $user) {
-            return back()->withInput($request->only('email'))
-                ->withErrors(['email' => __('We could not find an account with that email address.')]);
+            return back()->with('status', $genericStatus);
+        }
+
+        if (! Schema::hasTable('password_reset_codes')) {
+            Log::error('Password reset table missing — run migrations.');
+
+            return back()->with('status', $genericStatus);
         }
 
         $code = (string) random_int(100000, 999999);
@@ -54,19 +61,12 @@ class PasswordResetLinkController extends Controller
         );
 
         try {
-            if (! Schema::hasTable('password_reset_codes')) {
-                throw new \RuntimeException('Password reset is not configured. Run database migrations.');
-            }
-
             $user->notify(new PasswordResetCodeNotification($code));
         } catch (\Throwable $e) {
-            Log::error('Password reset mail failed: ' . $e->getMessage(), ['email' => $user->email]);
-
-            return back()->withInput($request->only('email'))
-                ->withErrors(['email' => __('Unable to send the reset code. Verify Gmail SMTP in .env (MAIL_MAILER=smtp) and try again.')]);
+            Log::error('Password reset mail failed: '.$e->getMessage(), ['email' => $user->email]);
         }
 
-        return redirect()->route('password.reset', ['email' => $user->email])
-            ->with('status', __('We sent a 6-digit reset code to :email. Enter it below within 15 minutes.', ['email' => $user->email]));
+        return redirect()->route('password.reset', ['email' => $request->input('email')])
+            ->with('status', $genericStatus);
     }
 }

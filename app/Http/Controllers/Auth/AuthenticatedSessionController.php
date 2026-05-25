@@ -93,6 +93,8 @@ class AuthenticatedSessionController extends Controller
             return response()->noContent(401);
         }
 
+        $request->session()->put('auth_tab_last_seen', now()->timestamp);
+
         return response()->noContent();
     }
 

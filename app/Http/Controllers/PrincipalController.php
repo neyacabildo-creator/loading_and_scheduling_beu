@@ -249,7 +249,7 @@ class PrincipalController extends Controller
             'email'        => 'required|email|max:255|unique:users,email',
             'role_id'      => 'required|exists:roles,id',
             'school_level' => 'nullable|in:grade_school,junior_high',
-            'password'     => 'required|string|min:8|confirmed',
+            'password'     => \App\Support\SecurePassword::rules(),
         ]);
 
         $role = Role::findOrFail($data['role_id']);
@@ -369,7 +369,7 @@ class PrincipalController extends Controller
             'email'        => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'role_id'      => 'nullable|exists:roles,id',
             'school_level' => 'nullable|in:grade_school,junior_high',
-            'password'     => 'nullable|string|min:8|confirmed',
+            'password'     => \App\Support\SecurePassword::optionalRules(),
         ]);
 
         $user->first_name = $data['first_name'];

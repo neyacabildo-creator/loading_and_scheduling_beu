@@ -28,6 +28,13 @@ class ProtectAuthenticatedRoutes
         'api/grade-school-admin',
         'api/grade-school-teacher',
         'api/shared-teacher',
+        'api/faculty-loads',
+        'api/rooms',
+        'api/teachers',
+        'api/schedules',
+        'api/shared-teachers-panel',
+        'api/stats',
+        'api/verify-setup',
     ];
 
     public function handle(Request $request, Closure $next): Response

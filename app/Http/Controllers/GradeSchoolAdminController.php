@@ -1197,7 +1197,7 @@ class GradeSchoolAdminController extends Controller
             'last_name'  => 'required|string|max:100',
             'email'      => 'required|email|max:191|unique:users,email',
             'role_id'    => 'required|integer',
-            'password'   => 'required|string|min:8|confirmed',
+            'password'   => \App\Support\SecurePassword::rules(),
         ], [
             'email.unique' => 'This email address is already registered. A user with this email already exists and cannot be created again.',
         ]);

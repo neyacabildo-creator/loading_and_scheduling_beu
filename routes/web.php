@@ -52,11 +52,13 @@ Route::get('/csrf-refresh', function () {
 
 Route::middleware('guest')->group(function () {
     // Public self-registration is disabled — accounts are created by Principals only.
-    // Login throttled to 10 attempts per minute per IP to slow brute-force attacks.
-    Route::post('login', [AuthenticatedSessionController::class, 'store'])->middleware('throttle:30,1');
+    // Login: route throttle + per-email lockout in LoginRequest (5 failures / 5 min).
+    Route::post('login', [AuthenticatedSessionController::class, 'store'])->middleware('throttle:10,1');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
-    Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
+    Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
+        ->middleware('throttle:5,1')
+        ->name('password.email');
 
     Route::get('reset-password', [NewPasswordController::class, 'create'])->name('password.reset');
     Route::post('reset-password', [NewPasswordController::class, 'store'])->name('password.store');
@@ -153,7 +155,7 @@ Route::middleware('auth')->group(function () {
             $user = Auth::user();
             $data = $request->validate([
                 'current_password' => 'required_with:password|string',
-                'password'         => 'nullable|string|min:8|confirmed',
+                'password'         => \App\Support\SecurePassword::optionalRules(),
             ]);
             if (!empty($data['password'])) {
                 if (!\Illuminate\Support\Facades\Hash::check($data['current_password'] ?? '', $user->password)) {
@@ -271,7 +273,7 @@ Route::middleware('auth')->group(function () {
                 'last_name'        => 'required|string|max:100',
                 'email'            => 'required|email|unique:users,email,' . $user->id,
                 'current_password' => 'required_with:password|string',
-                'password'         => 'nullable|string|min:8|confirmed',
+                'password'         => \App\Support\SecurePassword::optionalRules(),
             ]);
             $user->first_name = $data['first_name'];
             $user->last_name  = $data['last_name'];
@@ -628,7 +630,7 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolAdmin::class, 'scho
             'last_name'        => 'required|string|max:100',
             'email'            => 'required|email|unique:users,email,' . $user->id,
             'current_password' => 'required_with:password|string',
-            'password'         => 'nullable|string|min:8|confirmed',
+            'password'         => \App\Support\SecurePassword::optionalRules(),
         ]);
         $user->first_name = $data['first_name'];
         $user->last_name  = $data['last_name'];
@@ -1056,7 +1058,7 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolTeacher::class, 'sc
         $user = Auth::user();
         $data = $request->validate([
             'current_password' => 'required_with:password|string',
-            'password'         => 'nullable|string|min:8|confirmed',
+            'password'         => \App\Support\SecurePassword::optionalRules(),
         ]);
         if (!empty($data['password'])) {
             if (!\Illuminate\Support\Facades\Hash::check($data['current_password'] ?? '', $user->password)) {

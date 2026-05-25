@@ -563,29 +563,7 @@
     @include('partials.spup-responsive-script')
     @stack('scripts')
 
-    {{-- Session heartbeat: keeps auth alive while the tab is open --}}
-    <script>
-        (function () {
-            var csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-            if (!csrfToken) return;
-
-            function sendHeartbeat() {
-                fetch('/auth/heartbeat', {
-                    method: 'POST',
-                    headers: { 'X-CSRF-TOKEN': csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
-                    credentials: 'same-origin',
-                    keepalive: true,
-                }).catch(function () {});
-            }
-
-            sendHeartbeat();
-            setInterval(sendHeartbeat, 20000);
-
-            document.addEventListener('visibilitychange', function () {
-                if (document.visibilityState === 'visible') sendHeartbeat();
-            });
-        })();
-    </script>
+    @include('partials.auth-session-heartbeat')
     @include('partials.spup-toast')
 </body>
 </html>

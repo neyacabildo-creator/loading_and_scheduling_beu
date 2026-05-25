@@ -279,6 +279,7 @@
             updateThemeButton();
         }
     </script>
+    @include('partials.auth-session-heartbeat')
     @include('partials.spup-toast')
     @include('partials.spup-responsive-script')
     @stack('scripts')

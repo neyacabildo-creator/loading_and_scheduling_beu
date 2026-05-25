@@ -448,7 +448,7 @@ class AdminController extends Controller {
                 \Illuminate\Validation\Rule::unique('users', 'email')->ignore($user->id)],
             'position'   => 'nullable|string|max:100',
             'role_id'    => 'nullable|exists:roles,id',
-            'password'   => 'nullable|string|min:8|confirmed',
+            'password'   => \App\Support\SecurePassword::optionalRules(),
         ]);
 
         $data = \App\Support\AdminUserAccountsSupport::withNormalizedNames($data);
@@ -695,7 +695,7 @@ class AdminController extends Controller {
             'last_name'  => 'required|string|max:100',
             'email'      => 'required|email|max:191|unique:users,email',
             'role_id'    => 'required|integer',
-            'password'   => 'required|string|min:8|confirmed',
+            'password'   => \App\Support\SecurePassword::rules(),
         ]);
 
         $role = \App\Support\AdminUserRoleSupport::validateRoleForPortal('junior_high', (int) $validated['role_id']);

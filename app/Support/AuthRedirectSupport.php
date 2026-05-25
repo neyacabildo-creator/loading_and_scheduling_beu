@@ -229,12 +229,17 @@ class AuthRedirectSupport
     {
         $user = self::prepareUser($user);
         $home = self::homeRouteName($user);
+        $message = 'You do not have access to this portal.';
 
         if ($home === 'login' || $request->routeIs($home)) {
-            abort(403, 'Your account is not set up for this portal. Ask your administrator to assign the correct teacher role.');
+            abort(403, 'Your account is not set up for this portal. Ask your administrator to assign the correct role.');
         }
 
-        return redirect()->route($home);
+        if ($request->expectsJson()) {
+            abort(403, $message);
+        }
+
+        return redirect()->route($home)->with('error', $message);
     }
 
     private static function prepareUser(?User $user): ?User
