@@ -511,7 +511,7 @@
         .badge-inactive   { background: var(--bg-tertiary);        color: var(--text-secondary); }
         .badge-overload   { background: rgba(239, 68, 68, 0.1);   color: #ef4444; }
         /* Calendar layout */
-        .calendar-card { background: var(--bg-primary); border-radius: 0.75rem; border: 1px solid var(--border-color); box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden; padding: 1.5rem; margin-bottom: 2rem; }
+        .calendar-card { background: var(--bg-secondary, #fff); border-radius: 0.75rem; border: 1px solid var(--border-color); box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden; padding: 1.5rem; margin-bottom: 2rem; }
         .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
         .calendar-title { font-size: 1.25rem; font-weight: 600; color: var(--text-primary); margin: 0; }
         .month-nav { display: flex; gap: 0.5rem; }

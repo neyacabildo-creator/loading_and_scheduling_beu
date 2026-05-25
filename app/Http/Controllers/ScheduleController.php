@@ -888,37 +888,32 @@ class ScheduleController extends Controller
     public function getTeachersByGradeAndSubject(Request $request)
     {
         try {
-            $gradeLevel = $request->query('grade_level');
-            $subject = $request->query('subject');
+            $gradeLevel = trim((string) $request->query('grade_level', ''));
+            $subject = trim((string) $request->query('subject', ''));
 
-            if (!$gradeLevel && !$subject) {
+            if ($gradeLevel === '' || $subject === '') {
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Grade level or subject is required'
-                ], 400);
+                    'success' => true,
+                    'teachers' => [],
+                    'message' => 'Select both grade level and subject to list teachers.',
+                ]);
             }
 
-            // Get faculty loads matching the criteria
-            $query = FacultyLoad::query();
-
-            if ($gradeLevel) {
-                $query->where('grade_level', $gradeLevel);
-            }
-
-            $facultyLoads = $query->get();
-
-            if ($subject) {
-                $needle = strtolower(trim($subject));
-                $facultyLoads = $facultyLoads->filter(function ($load) use ($needle) {
+            $facultyLoads = FacultyLoad::query()
+                ->where('grade_level', $gradeLevel)
+                ->get()
+                ->filter(function ($load) use ($subject) {
+                    $needle = strtoupper($subject);
                     $parts = array_map('trim', explode(',', (string) ($load->subject ?? '')));
                     foreach ($parts as $part) {
-                        if ($part !== '' && (strtolower($part) === $needle || str_contains(strtolower($part), $needle))) {
+                        $partUpper = strtoupper($part);
+                        if ($part !== '' && ($partUpper === $needle || str_contains($partUpper, $needle) || str_contains($needle, $partUpper))) {
                             return true;
                         }
                     }
+
                     return false;
                 });
-            }
             $teacherIds = $facultyLoads->pluck('faculty_id')->unique()->toArray();
 
             if (empty($teacherIds)) {

@@ -10,6 +10,7 @@
     ];
 @endphp
 <style>
+.admin-weekly-timetable-card.calendar-card { background: var(--bg-secondary, #fff); }
 .{{ $dayClass }}{padding:.35rem .7rem;border:1px solid var(--border-color);border-radius:.375rem;background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;font-size:.78rem;font-weight:600;transition:all .2s;}
 .{{ $dayClass }}:hover{border-color:var(--green-primary);color:var(--green-primary);}
 .{{ $dayClass }}.active{background:var(--green-primary);border-color:var(--green-primary);color:#fff;}
@@ -18,7 +19,7 @@
 .{{ $gradeClass }}:hover{border-color:var(--green-primary);color:var(--green-primary);}
 .{{ $gradeClass }}.active{background:var(--green-primary);border-color:var(--green-primary);color:#fff;}
 </style>
-<div class="calendar-card">
+<div class="calendar-card admin-weekly-timetable-card">
     <div class="calendar-header">
         <h2 class="calendar-title">Weekly Timetable</h2>
         <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">

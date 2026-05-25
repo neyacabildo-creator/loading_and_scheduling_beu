@@ -30,12 +30,25 @@
             </thead>
             <tbody>
                 @foreach($requests as $req)
-                <tr data-status="{{ $req->status }}">
+                @php
+                    $teacherUser = $teacherUsers->get((int) ($req->faculty_id ?? 0));
+                    $teacherDisplay = $teacherUser ? UserProfileSupport::displayName($teacherUser) : ($req->teacher_name ?? '—');
+                    $gradeLabel = AdminRequestDisplay::gradeSectionLabel(null, $req->grade_level ?? null, $req->section_name ?? null);
+                    $dayLabel = trim((string) ($req->day_of_week ?? ''));
+                    $timeRange = AdminRequestDisplay::formatTimeRange($req->preferred_start_time ?? null, $req->preferred_end_time ?? null);
+                    $searchHaystack = strtolower(implode(' ', array_filter([
+                        $teacherDisplay,
+                        $req->subject ?? '',
+                        $gradeLabel,
+                        $req->grade_level ?? '',
+                        $req->section_name ?? '',
+                        $dayLabel,
+                        $timeRange,
+                        $req->status ?? '',
+                    ])));
+                @endphp
+                <tr data-status="{{ $req->status }}" data-search="{{ $searchHaystack }}">
                     <td class="str-col-teacher">
-                        @php
-                            $teacherUser = $teacherUsers->get((int) ($req->faculty_id ?? 0));
-                            $teacherDisplay = $teacherUser ? UserProfileSupport::displayName($teacherUser) : ($req->teacher_name ?? '—');
-                        @endphp
                         <div class="str-teacher-cell">
                             <div class="str-teacher-cell-top" style="display:flex;align-items:center;gap:0.5rem;">
                                 @include('partials.user-avatar', ['user' => $teacherUser, 'size' => 32])
@@ -51,14 +64,9 @@
                     </td>
                     <td class="str-col-subject str-cell-subject" style="font-weight:500;">{{ $req->subject ?? '—' }}</td>
                     <td class="str-col-grade">
-                        @php $gradeLabel = AdminRequestDisplay::gradeSectionLabel(null, $req->grade_level ?? null, $req->section_name ?? null); @endphp
                         @if($gradeLabel !== ''){{ $gradeLabel }}@endif
                     </td>
                     <td class="str-col-time">
-                        @php
-                            $dayLabel = trim((string) ($req->day_of_week ?? ''));
-                            $timeRange = AdminRequestDisplay::formatTimeRange($req->preferred_start_time ?? null, $req->preferred_end_time ?? null);
-                        @endphp
                         @if($dayLabel !== '')
                             <div class="str-day-line">{{ $dayLabel }}</div>
                         @endif

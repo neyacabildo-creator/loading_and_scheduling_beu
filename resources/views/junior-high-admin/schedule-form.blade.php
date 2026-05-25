@@ -126,6 +126,7 @@
     </div>
 </form>
 
+<script src="{{ asset('js/schedule-form-teacher-filter.js') }}"></script>
 <script id="sf-jh-teacher-subjects" type="application/json">{!! json_encode($teacherSubjects ?? []) !!}</script>
 <script id="sf-jh-teachers-by-grade" type="application/json">{!! json_encode($teachersByGrade ?? []) !!}</script>
 <script id="sf-jh-teachers-by-grade-subject" type="application/json">{!! json_encode($teachersByGradeAndSubject ?? []) !!}</script>
@@ -196,74 +197,21 @@ var SF_JH_ALL_TEACHERS = JSON.parse(document.getElementById('sf-jh-all-teachers'
 var SF_JH_TEACHERS_BY_SUBJECT = JSON.parse(document.getElementById('sf-jh-teachers-by-subject')?.textContent || '{}');
 var SF_JH_UNAVAILABLE_FACULTY = JSON.parse(document.getElementById('sf-jh-unavailable-faculty')?.textContent || '{}');
 
-// Rebuild a single teacher <select> based on current grade + its paired subject <select>
 function sfRebuildTeacherSel(teacherSel) {
-    var grade = document.getElementById('sfGrade').value;
-    var row = teacherSel.closest('.sf-subject-row');
-    var subjectSel = row ? row.querySelector('.sf-subject') : null;
-    var subject = subjectSel ? subjectSel.value.trim().toUpperCase() : '';
-
-    var allowedIds = null;
-    var subjectSelected = subject !== '';
-    if (subject) {
-        // Primary filter: by subject from faculty loads (works even without grade selected)
-        var subjectIds = SF_JH_TEACHERS_BY_SUBJECT[subject] || null;
-        if (subjectIds && subjectIds.length > 0) {
-            allowedIds = subjectIds.map(String);
-            // Optionally intersect with grade filter when grade is also selected
-            if (grade) {
-                var gradeIds = (SF_JH_TEACHERS_BY_GRADE[grade] || []).map(String);
-                if (gradeIds.length > 0) {
-                    var intersection = allowedIds.filter(function(id) { return gradeIds.includes(id); });
-                    if (intersection.length > 0) allowedIds = intersection;
-                    // Keep subject-only list if intersection is empty (teacher not yet in grade filter)
-                }
-            }
-        } else {
-            allowedIds = [];
-        }
-    } else if (grade) {
-        allowedIds = (SF_JH_TEACHERS_BY_GRADE[grade] || []).map(String);
+    if (!window.ScheduleFormTeacherFilter) {
+        return;
     }
-
-    var currentVal = teacherSel.value || teacherSel.dataset.lastTeacher || '';
-    teacherSel.innerHTML = '<option value="">-- Teacher --</option>';
-    var added = {};
-    SF_JH_ALL_TEACHERS.forEach(function(t) {
-        if (!subjectSelected && !grade) return;
-        var id = String(t.id);
-        var include = false;
-        if (allowedIds === null) {
-            include = true;
-        } else if (allowedIds.length === 0) {
-            include = (id === String(currentVal));
-        } else {
-            include = allowedIds.includes(id);
-        }
-        if (include) {
-            if (SF_JH_UNAVAILABLE_FACULTY[id] && id !== String(currentVal)) {
-                return;
-            }
-            var opt = document.createElement('option');
-            opt.value = t.id;
-            opt.textContent = t.name;
-            if (id === String(currentVal)) opt.selected = true;
-            teacherSel.appendChild(opt);
-            added[id] = true;
-        }
+    ScheduleFormTeacherFilter.rebuild(teacherSel, {
+        getGrade: function () {
+            var g = document.getElementById('sfGrade');
+            return g ? g.value : '';
+        },
+        byGradeSubject: SF_JH_TEACHERS_BY_GRADE_SUBJECT,
+        aliases: null,
+        allTeachers: SF_JH_ALL_TEACHERS,
+        unavailable: SF_JH_UNAVAILABLE_FACULTY,
+        placeholder: '-- Teacher --',
     });
-    if (currentVal && !added[String(currentVal)]) {
-        var kept = SF_JH_ALL_TEACHERS.find(function(t) { return String(t.id) === String(currentVal); });
-        if (kept) {
-            var opt = document.createElement('option');
-            opt.value = kept.id;
-            opt.textContent = kept.name;
-            opt.selected = true;
-            teacherSel.appendChild(opt);
-        }
-    }
-    if (currentVal) teacherSel.value = String(currentVal);
-    if (teacherSel.value) teacherSel.dataset.lastTeacher = teacherSel.value;
 }
 
 function sfFilterTeachersByGrade(grade) {

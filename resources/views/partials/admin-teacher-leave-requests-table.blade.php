@@ -25,15 +25,26 @@
             </thead>
             <tbody>
                 @foreach($teacherLeaveRequests as $lr)
-                <tr data-status="{{ $lr->status }}">
+                @php
+                    $leaveTeacher = ($lr->user ?? null)
+                        ? (trim(($lr->user->first_name ?? '') . ' ' . ($lr->user->last_name ?? '')) ?: ($lr->user->name ?? '—'))
+                        : '';
+                    $leaveSchool = ($lr->user->school_level ?? null)
+                        ? ucfirst(str_replace('_', ' ', $lr->user->school_level))
+                        : '';
+                    $searchHaystack = strtolower(implode(' ', array_filter([
+                        $leaveTeacher,
+                        $lr->requester_role_label ?? '',
+                        $lr->request_type_label ?? '',
+                        $lr->leave_dates ?? '',
+                        $lr->reason ?? '',
+                        $lr->submitted_to_admin_label ?? '',
+                        $lr->status ?? '',
+                    ])));
+                @endphp
+                <tr data-status="{{ $lr->status }}" data-search="{{ $searchHaystack }}">
                     <td class="str-col-teacher">
                         @if($lr->user ?? null)
-                            @php
-                                $leaveTeacher = trim(($lr->user->first_name ?? '') . ' ' . ($lr->user->last_name ?? '')) ?: ($lr->user->name ?? '—');
-                                $leaveSchool = ($lr->user->school_level ?? null)
-                                    ? ucfirst(str_replace('_', ' ', $lr->user->school_level))
-                                    : '';
-                            @endphp
                             <div class="str-teacher-cell">
                                 <div class="str-teacher-cell-top">
                                     <span class="str-teacher-name">{{ $leaveTeacher }}</span>

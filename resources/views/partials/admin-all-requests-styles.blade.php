@@ -60,10 +60,10 @@
     margin: 0;
 }
 .str-section-search {
-    min-width: 220px;
+    width: 220px;
     max-width: 100%;
-    flex: 1 1 220px;
-    padding: 0.5rem 0.75rem;
+    flex: 0 0 auto;
+    padding: 0.45rem 0.65rem;
     border: 1px solid rgba(45, 122, 80, 0.35);
     border-radius: 0.5rem;
     font-size: 0.875rem;

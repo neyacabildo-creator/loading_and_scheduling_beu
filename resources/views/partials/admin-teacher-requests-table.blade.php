@@ -26,18 +26,27 @@
             </thead>
             <tbody>
                 @foreach($teacherScheduleRequests as $tsr)
-                @php $view = AdminRequestDisplay::teacherRequestView($tsr); @endphp
-                <tr data-status="{{ $tsr->status }}">
+                @php
+                    $view = AdminRequestDisplay::teacherRequestView($tsr);
+                    $teacherUser = $tsr->user ?? null;
+                    $teacherDisplay = $teacherUser
+                        ? UserProfileSupport::displayName($teacherUser)
+                        : trim((string) ($tsr->teacher_name ?? ''));
+                    $schoolLevelLabel = ($teacherUser && !empty($teacherUser->school_level))
+                        ? ucfirst(str_replace('_', ' ', $teacherUser->school_level))
+                        : '';
+                    $searchHaystack = strtolower(implode(' ', array_filter([
+                        $teacherDisplay,
+                        $view['subject'] ?? '',
+                        $view['request_type_label'] ?? '',
+                        $view['grade_section'] ?? '',
+                        $view['day'] ?? '',
+                        $view['time_range'] ?? '',
+                        $tsr->status ?? '',
+                    ])));
+                @endphp
+                <tr data-status="{{ $tsr->status }}" data-search="{{ $searchHaystack }}">
                     <td class="str-col-teacher">
-                        @php
-                            $teacherUser = $tsr->user ?? null;
-                            $teacherDisplay = $teacherUser
-                                ? UserProfileSupport::displayName($teacherUser)
-                                : trim((string) ($tsr->teacher_name ?? ''));
-                            $schoolLevelLabel = ($teacherUser && !empty($teacherUser->school_level))
-                                ? ucfirst(str_replace('_', ' ', $teacherUser->school_level))
-                                : '';
-                        @endphp
                         @if($teacherDisplay !== '')
                             <div class="str-teacher-cell">
                                 <div class="str-teacher-cell-top" style="display:flex;align-items:center;gap:0.5rem;">

@@ -2,6 +2,21 @@
  * Client-side search for All Requests panels (shared / teacher / leave).
  */
 (function () {
+    function normalize(text) {
+        return String(text || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    }
+
+    function matchesQuery(haystack, query) {
+        if (!query) {
+            return true;
+        }
+        const h = normalize(haystack);
+        const tokens = normalize(query).split(' ').filter(Boolean);
+        return tokens.every(function (tok) {
+            return h.indexOf(tok) !== -1;
+        });
+    }
+
     function initSectionSearch(input) {
         const tableId = input.getAttribute('data-str-table');
         if (!tableId) {
@@ -30,11 +45,11 @@
         }
 
         function filter() {
-            const q = (input.value || '').trim().toLowerCase();
+            const q = (input.value || '').trim();
             let visible = 0;
             rows.forEach(function (row) {
-                const text = (row.textContent || '').toLowerCase();
-                const show = q === '' || text.indexOf(q) !== -1;
+                const hay = row.dataset.search || row.textContent || '';
+                const show = matchesQuery(hay, q);
                 row.hidden = !show;
                 if (show) {
                     visible += 1;

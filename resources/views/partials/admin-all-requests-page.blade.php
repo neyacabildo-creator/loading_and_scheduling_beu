@@ -27,7 +27,7 @@
     <div class="str-panel-header">
         <div class="str-panel-header-row">
             <h2 id="str-shared-title" class="str-section-title">Shared Teacher Requests</h2>
-            <input type="search" class="str-section-search" data-str-table="strTable" placeholder="Search teacher, subject, grade…" aria-label="Search shared teacher requests">
+            <input type="search" class="str-section-search" data-str-table="strTable" placeholder="Search name, subject, grade…" aria-label="Search shared teacher requests">
         </div>
     </div>
     <div class="str-panel-body">
@@ -44,7 +44,7 @@
     <div class="str-panel-header">
         <div class="str-panel-header-row">
             <h2 id="str-teacher-title" class="str-section-title">Teacher Requests</h2>
-            <input type="search" class="str-section-search" data-str-table="tsrTable" placeholder="Search teacher, subject, grade…" aria-label="Search teacher requests">
+            <input type="search" class="str-section-search" data-str-table="tsrTable" placeholder="Search name, subject, grade…" aria-label="Search teacher requests">
         </div>
     </div>
     <div class="str-panel-body">
@@ -63,7 +63,7 @@
                 <h2 id="str-leave-title" class="str-section-title">Absence / Leave Requests</h2>
                 <p class="str-section-desc">Regular teachers and shared teachers — each row is labeled by role.</p>
             </div>
-            <input type="search" class="str-section-search" data-str-table="tlrTable" placeholder="Search teacher, leave type…" aria-label="Search absence and leave requests">
+            <input type="search" class="str-section-search" data-str-table="tlrTable" placeholder="Search name, leave type…" aria-label="Search absence and leave requests">
         </div>
     </div>
     <div class="str-panel-body">
