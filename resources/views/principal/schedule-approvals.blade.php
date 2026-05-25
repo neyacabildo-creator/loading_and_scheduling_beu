@@ -137,7 +137,12 @@
                     data-day="{{ strtolower($s->day_of_week ?? '') }}"
                     data-search="{{ $jhSearch }}">
                     <td><span class="badge badge-principal">#{{ $s->id }}</span></td>
-                    <td>{{ $s->faculty_name }}</td>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:0.45rem;">
+                            @include('partials.user-avatar', ['user' => $s->faculty_user ?? null, 'size' => 28])
+                            <span>{{ $s->faculty_name }}</span>
+                        </div>
+                    </td>
                     <td>{{ $s->subject ?? 'N/A' }}</td>
                     <td>{{ $s->grade_section ?? 'N/A' }}</td>
                     <td>{{ $s->day_of_week ?? 'N/A' }}</td>
@@ -226,7 +231,12 @@
                     data-day="{{ strtolower($s->day_of_week ?? '') }}"
                     data-search="{{ $gsSearch }}">
                     <td><span class="badge badge-principal">#{{ $s->id }}</span></td>
-                    <td>{{ $s->faculty_name }}</td>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:0.45rem;">
+                            @include('partials.user-avatar', ['user' => $s->faculty_user ?? null, 'size' => 28])
+                            <span>{{ $s->faculty_name }}</span>
+                        </div>
+                    </td>
                     <td>{{ $s->subject ?? 'N/A' }}</td>
                     <td>{{ $s->grade_section ?? 'N/A' }}</td>
                     <td>{{ $s->day_of_week ?? 'N/A' }}</td>

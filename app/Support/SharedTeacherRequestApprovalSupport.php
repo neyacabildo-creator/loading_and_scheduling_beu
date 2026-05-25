@@ -50,6 +50,9 @@ class SharedTeacherRequestApprovalSupport
         if (Schema::connection($otherConnection)->hasColumn(self::TABLE, 'pair_key')) {
             $mirror['pair_key'] = $pairKey;
         }
+        if (Schema::connection($otherConnection)->hasColumn(self::TABLE, 'is_peer_mirror')) {
+            $mirror['is_peer_mirror'] = true;
+        }
 
         DB::connection($otherConnection)->table(self::TABLE)->insert($mirror);
 

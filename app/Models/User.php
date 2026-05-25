@@ -68,6 +68,13 @@ class User extends Authenticatable
 
     protected static function booted(): void
     {
+        static::saving(function (User $user) {
+            $full = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+            if ($full !== '') {
+                $user->name = $full;
+            }
+        });
+
         // Keep the principal all_users snapshot in sync whenever a user is saved or deleted.
         static::saved(function (User $user) {
             try {
@@ -75,12 +82,13 @@ class User extends Authenticatable
                 if ($roleName === 'super_admin') {
                     $roleName = 'principal';
                 }
+                $displayName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: ($user->name ?? '');
                 \Illuminate\Support\Facades\DB::connection('mysql_principal')
                     ->table('all_users')
                     ->updateOrInsert(
                         ['id' => $user->id],
                         [
-                            'name'         => $user->name,
+                            'name'         => $displayName,
                             'email'        => $user->email,
                             'role'         => $roleName,
                             'school_level' => $user->school_level ?? 'system',

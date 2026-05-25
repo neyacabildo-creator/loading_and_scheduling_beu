@@ -154,16 +154,23 @@ Route::middleware('auth')->group(function () {
             /** @var \App\Models\User $user */
             $user = Auth::user();
             $data = $request->validate([
+                'first_name'       => 'required|string|max:100',
+                'last_name'        => 'required|string|max:100',
+                'email'            => 'required|email|unique:users,email,' . $user->id,
                 'current_password' => 'required_with:password|string',
                 'password'         => \App\Support\SecurePassword::optionalRules(),
             ]);
-            if (!empty($data['password'])) {
-                if (!\Illuminate\Support\Facades\Hash::check($data['current_password'] ?? '', $user->password)) {
+            $user->first_name = $data['first_name'];
+            $user->last_name  = $data['last_name'];
+            $user->email      = $data['email'];
+            if (! empty($data['password'])) {
+                if (! \Illuminate\Support\Facades\Hash::check($data['current_password'] ?? '', $user->password)) {
                     return back()->withErrors(['current_password' => 'Current password is incorrect.']);
                 }
                 $user->password = \Illuminate\Support\Facades\Hash::make($data['password']);
-                $user->save();
             }
+            $user->save();
+            \App\Support\UserProfileSupport::syncTeacherNameReferences($user->fresh() ?? $user);
             return redirect()->route('teacher.settings')->with('success', 'Profile updated successfully.');
         })->name('teacher.profile.update');
         
@@ -285,6 +292,7 @@ Route::middleware('auth')->group(function () {
                 $user->password = \Illuminate\Support\Facades\Hash::make($data['password']);
             }
             $user->save();
+            \App\Support\UserProfileSupport::syncTeacherNameReferences($user->fresh() ?? $user);
             return redirect()->route('admin.settings')->with('success', 'Profile updated successfully.');
         })->name('admin.profile.update');
 
@@ -459,6 +467,43 @@ Route::middleware('auth')->group(function () {
             ->name('shared-teacher.requests.schedules');
         Route::post('requests', [\App\Http\Controllers\SharedTeacherPortalController::class, 'storeRequest'])
             ->name('shared-teacher.requests.store');
+        Route::get('settings', function () {
+            return view('shared-teacher.settings');
+        })->name('shared-teacher.settings');
+        Route::post('profile/photo', function (\Illuminate\Http\Request $request) {
+            $request->validate(['photo' => 'required|image|mimes:jpeg,png,jpg,gif,webp|max:2048']);
+            /** @var \App\Models\User $user */
+            $user = Auth::user();
+            if ($user->profile_photo_path) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($user->profile_photo_path);
+            }
+            $user->profile_photo_path = $request->file('photo')->store('profile-photos', 'public');
+            $user->save();
+            return redirect()->route('shared-teacher.settings')->with('success', 'Profile photo updated.');
+        })->name('shared-teacher.profile.photo');
+        Route::put('profile', function (\Illuminate\Http\Request $request) {
+            /** @var \App\Models\User $user */
+            $user = Auth::user();
+            $data = $request->validate([
+                'first_name'       => 'required|string|max:100',
+                'last_name'        => 'required|string|max:100',
+                'email'            => 'required|email|unique:users,email,' . $user->id,
+                'current_password' => 'required_with:password|string',
+                'password'         => \App\Support\SecurePassword::optionalRules(),
+            ]);
+            $user->first_name = $data['first_name'];
+            $user->last_name  = $data['last_name'];
+            $user->email      = $data['email'];
+            if (! empty($data['password'])) {
+                if (! \Illuminate\Support\Facades\Hash::check($data['current_password'] ?? '', $user->password)) {
+                    return back()->withErrors(['current_password' => 'Current password is incorrect.']);
+                }
+                $user->password = \Illuminate\Support\Facades\Hash::make($data['password']);
+            }
+            $user->save();
+            \App\Support\UserProfileSupport::syncTeacherNameReferences($user->fresh() ?? $user);
+            return redirect()->route('shared-teacher.settings')->with('success', 'Profile updated successfully.');
+        })->name('shared-teacher.profile.update');
         Route::get('api/shared-teacher/notifications', [\App\Http\Controllers\TeacherNotificationController::class, 'index']);
         Route::post('api/shared-teacher/notifications/read', [\App\Http\Controllers\TeacherNotificationController::class, 'markRead']);
     });
@@ -642,6 +687,7 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolAdmin::class, 'scho
             $user->password = \Illuminate\Support\Facades\Hash::make($data['password']);
         }
         $user->save();
+        \App\Support\UserProfileSupport::syncTeacherNameReferences($user->fresh() ?? $user);
         return redirect()->route('grade-school-admin.settings')->with('success', 'Profile updated successfully.');
     })->name('grade-school-admin.profile.update');
 
@@ -1057,16 +1103,23 @@ Route::middleware(['auth', \App\Http\Middleware\IsGradeSchoolTeacher::class, 'sc
         /** @var \App\Models\User $user */
         $user = Auth::user();
         $data = $request->validate([
+            'first_name'       => 'required|string|max:100',
+            'last_name'        => 'required|string|max:100',
+            'email'            => 'required|email|unique:users,email,' . $user->id,
             'current_password' => 'required_with:password|string',
             'password'         => \App\Support\SecurePassword::optionalRules(),
         ]);
-        if (!empty($data['password'])) {
-            if (!\Illuminate\Support\Facades\Hash::check($data['current_password'] ?? '', $user->password)) {
+        $user->first_name = $data['first_name'];
+        $user->last_name  = $data['last_name'];
+        $user->email      = $data['email'];
+        if (! empty($data['password'])) {
+            if (! \Illuminate\Support\Facades\Hash::check($data['current_password'] ?? '', $user->password)) {
                 return back()->withErrors(['current_password' => 'Current password is incorrect.']);
             }
             $user->password = \Illuminate\Support\Facades\Hash::make($data['password']);
-            $user->save();
         }
+        $user->save();
+        \App\Support\UserProfileSupport::syncTeacherNameReferences($user->fresh() ?? $user);
         return redirect()->route('grade-school-teacher.settings')->with('success', 'Profile updated successfully.');
     })->name('grade-school-teacher.profile.update');
 

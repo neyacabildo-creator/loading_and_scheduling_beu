@@ -202,18 +202,16 @@
             </a>
 
             <div class="nav-section">Schedules</div>
+            <a href="{{ route('shared-teacher.settings') }}" class="nav-item {{ request()->routeIs('shared-teacher.settings') ? 'active' : '' }}">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                <span>My Profile</span>
+            </a>
             <a href="{{ route('shared-teacher.requests') }}" class="nav-item {{ request()->routeIs('shared-teacher.requests') ? 'active' : '' }}" style="position:relative;">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
                 <span>Schedule Requests</span>
                 @php
                     try {
-                        $stPending =
-                            \Illuminate\Support\Facades\DB::connection('mysql_jh')
-                                ->table('shared_teacher_requests')
-                                ->where('faculty_id', Auth::id())->where('status','pending')->count()
-                            + \Illuminate\Support\Facades\DB::connection('mysql_gs')
-                                ->table('shared_teacher_requests')
-                                ->where('faculty_id', Auth::id())->where('status','pending')->count();
+                        $stPending = \App\Support\SharedTeacherRequestListSupport::countPendingForTeacher((int) Auth::id());
                     } catch (\Exception $e) { $stPending = 0; }
                 @endphp
                 @if($stPending > 0)
@@ -223,11 +221,16 @@
         </nav>
         <div class="sidebar-footer">
             <div class="user-card">
-                <div class="user-avatar">
-                    {{ strtoupper(substr(Auth::user()->first_name ?? 'S', 0, 1) . substr(Auth::user()->last_name ?? 'T', 0, 1)) }}
+                <div class="user-avatar" style="overflow:hidden;">
+                    @php $stUser = Auth::user(); $stPhoto = \App\Support\UserProfileSupport::photoUrl($stUser); @endphp
+                    @if($stPhoto)
+                        <img src="{{ $stPhoto }}" alt="" style="width:100%;height:100%;object-fit:cover;">
+                    @else
+                        {{ \App\Support\UserProfileSupport::initials($stUser) }}
+                    @endif
                 </div>
                 <div class="user-info">
-                    <div class="user-name">{{ Auth::user()->first_name }} {{ Auth::user()->last_name }}</div>
+                    <div class="user-name">{{ \App\Support\UserProfileSupport::displayName(Auth::user()) }}</div>
                     <div class="user-role">Shared Teacher</div>
                 </div>
                 <form method="POST" action="{{ route('logout') }}">

@@ -42,11 +42,7 @@ class SharedTeacherPortalController extends Controller
             ->get();
 
         // Count pending requests from both school-level DBs
-        $pendingRequests =
-            DB::connection('mysql_jh')->table(self::TBL)
-                ->where('faculty_id', $userId)->where('status', 'pending')->count()
-            + DB::connection('mysql_gs')->table(self::TBL)
-                ->where('faculty_id', $userId)->where('status', 'pending')->count();
+        $pendingRequests = \App\Support\SharedTeacherRequestListSupport::countPendingForTeacher((int) $userId);
 
         $weeklySchoolYear = '2025-2026';
         $jhWeeklyGrid = \App\Support\SharedTeacherTimetableSupport::fetchMasterWeeklyGrid('mysql_jh', (int) $userId, $weeklySchoolYear);
@@ -77,20 +73,7 @@ class SharedTeacherPortalController extends Controller
     {
         $userId = Auth::id();
 
-        $jhReqs = DB::connection('mysql_jh')->table(self::TBL)
-            ->where('faculty_id', $userId)
-            ->orderByDesc('created_at')
-            ->get()
-            ->each(function ($r) { $r->level = 'jh'; });
-
-        $gsReqs = DB::connection('mysql_gs')->table(self::TBL)
-            ->where('faculty_id', $userId)
-            ->orderByDesc('created_at')
-            ->get()
-            ->each(function ($r) { $r->level = 'gs'; });
-
-        // Merge and sort by created_at descending
-        $requests = $jhReqs->concat($gsReqs)->sortByDesc('created_at')->values();
+        $requests = \App\Support\SharedTeacherRequestListSupport::listForTeacher((int) $userId);
 
         return view('shared-teacher.requests', compact('requests'));
     }
@@ -184,6 +167,16 @@ class SharedTeacherPortalController extends Controller
                 $insert['schedule_id'] = $validated['schedule_id'] ?? null;
             }
 
+            if (empty($insert['schedule_date']) && ! empty($insert['schedule_id'])
+                && Schema::connection($conn)->hasTable('class_schedules')) {
+                $fromSchedule = DB::connection($conn)->table('class_schedules')
+                    ->where('id', (int) $insert['schedule_id'])
+                    ->value('schedule_date');
+                if ($fromSchedule) {
+                    $insert['schedule_date'] = substr((string) $fromSchedule, 0, 10);
+                }
+            }
+
             $dupMsg = \App\Support\DuplicateSubmissionSupport::pendingSharedTeacherRequestMessage(
                 $conn,
                 (int) $user->id,
@@ -237,12 +230,7 @@ class SharedTeacherPortalController extends Controller
     {
         $sharedTeacherIds = $this->sharedTeacherFacultyIds('mysql_jh');
 
-        $allRequests = DB::connection('mysql_jh')->table(self::TBL)
-            ->orderByRaw("FIELD(status,'pending','approved','rejected')")
-            ->orderByDesc('created_at')
-            ->get();
-
-        $requests = $allRequests->filter(fn ($r) => in_array((int) $r->faculty_id, $sharedTeacherIds, true))->values();
+        $requests = \App\Support\SharedTeacherRequestListSupport::listForAdmin('mysql_jh', $sharedTeacherIds);
         $sharedPresenceMap = \App\Support\TeacherPresenceSupport::activeStatusMapForTeachers('mysql_jh', $sharedTeacherIds);
         $requests = $requests->map(function ($r) use ($sharedPresenceMap) {
             $r->presence = $sharedPresenceMap[(int) $r->faculty_id] ?? null;
@@ -250,11 +238,12 @@ class SharedTeacherPortalController extends Controller
             return $r;
         });
         $reviewers = $this->loadReviewers($requests);
+        $teacherUsers = $this->loadTeacherUsers($requests);
         $teacherScheduleRequests = $this->loadTeacherAdjustmentRequests('mysql_jh', 'mysql_jh_teacher', $sharedTeacherIds);
         $teacherLeaveRequests = \App\Support\TeacherLeaveRequestSupport::listForAdmin('mysql_jh', $sharedTeacherIds);
         $absentToday = $this->collectAbsentTodaySummary('mysql_jh', $sharedTeacherIds);
 
-        return view('junior-high-admin.shared-teacher-requests', compact('requests', 'reviewers', 'teacherScheduleRequests', 'teacherLeaveRequests', 'absentToday'));
+        return view('junior-high-admin.shared-teacher-requests', compact('requests', 'reviewers', 'teacherUsers', 'teacherScheduleRequests', 'teacherLeaveRequests', 'absentToday'));
     }
 
     public function adminJhApprove(Request $request, int $id)
@@ -273,12 +262,7 @@ class SharedTeacherPortalController extends Controller
     {
         $sharedTeacherIds = $this->sharedTeacherFacultyIds('mysql_gs');
 
-        $allRequests = DB::connection('mysql_gs')->table(self::TBL)
-            ->orderByRaw("FIELD(status,'pending','approved','rejected')")
-            ->orderByDesc('created_at')
-            ->get();
-
-        $requests = $allRequests->filter(fn ($r) => in_array((int) $r->faculty_id, $sharedTeacherIds, true))->values();
+        $requests = \App\Support\SharedTeacherRequestListSupport::listForAdmin('mysql_gs', $sharedTeacherIds);
         $sharedPresenceMap = \App\Support\TeacherPresenceSupport::activeStatusMapForTeachers('mysql_gs', $sharedTeacherIds);
         $requests = $requests->map(function ($r) use ($sharedPresenceMap) {
             $r->presence = $sharedPresenceMap[(int) $r->faculty_id] ?? null;
@@ -286,11 +270,12 @@ class SharedTeacherPortalController extends Controller
             return $r;
         });
         $reviewers = $this->loadReviewers($requests);
+        $teacherUsers = $this->loadTeacherUsers($requests);
         $teacherScheduleRequests = $this->loadTeacherAdjustmentRequests('mysql_gs', 'mysql_gs_teacher', $sharedTeacherIds);
         $teacherLeaveRequests = \App\Support\TeacherLeaveRequestSupport::listForAdmin('mysql_gs', $sharedTeacherIds);
         $absentToday = $this->collectAbsentTodaySummary('mysql_gs', $sharedTeacherIds);
 
-        return view('grade-school-admin.shared-teacher-requests', compact('requests', 'reviewers', 'teacherScheduleRequests', 'teacherLeaveRequests', 'absentToday'));
+        return view('grade-school-admin.shared-teacher-requests', compact('requests', 'reviewers', 'teacherUsers', 'teacherScheduleRequests', 'teacherLeaveRequests', 'absentToday'));
     }
 
     public function adminGsApprove(Request $request, int $id)
@@ -350,6 +335,17 @@ class SharedTeacherPortalController extends Controller
     /**
      * Fetch reviewer User models from the main DB keyed by ID.
      */
+    private function loadTeacherUsers($requests): \Illuminate\Support\Collection
+    {
+        $ids = collect($requests)->pluck('faculty_id')->filter()->unique();
+
+        if ($ids->isEmpty()) {
+            return collect();
+        }
+
+        return User::whereIn('id', $ids)->get()->keyBy('id');
+    }
+
     private function loadReviewers($requests): \Illuminate\Support\Collection
     {
         $ids = $requests->pluck('reviewed_by')->filter()->unique()->values()->all();

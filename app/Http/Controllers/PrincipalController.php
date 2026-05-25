@@ -650,7 +650,11 @@ class PrincipalController extends Controller
                 : collect();
 
             return $rows->map(function ($row) use ($faculty, $rooms, $approvers) {
-                $row->faculty_name   = $faculty->get($row->faculty_id)?->name ?? 'N/A';
+                $teacher = $faculty->get($row->faculty_id);
+                $row->faculty_user     = $teacher;
+                $row->faculty_name     = $teacher
+                    ? \App\Support\UserProfileSupport::displayName($teacher)
+                    : 'N/A';
                 $row->room_label     = $rooms->get($row->room_id)?->room_number ?? '—';
                 $row->approver_name  = $approvers->get($row->approved_by)?->name ?? 'N/A';
                 // Compute grade/section display

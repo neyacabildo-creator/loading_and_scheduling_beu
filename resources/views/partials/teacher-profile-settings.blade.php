@@ -8,6 +8,7 @@
     $photoRoute = $photoRoute ?? route('teacher.profile.photo');
     $updateRoute = $updateRoute ?? route('teacher.profile.update');
     $divisionLabel = $divisionLabel ?? 'Teacher Portal';
+    $allowNameEdit = $allowNameEdit ?? false;
 @endphp
 
 <style>
@@ -103,7 +104,9 @@
         margin-bottom: 0.35rem;
     }
     .profile-field input[type="file"],
-    .profile-field input[type="password"] {
+    .profile-field input[type="password"],
+    .profile-field input[type="text"],
+    .profile-field input[type="email"] {
         width: 100%;
         padding: 0.65rem 0.75rem;
         border: 1px solid var(--border-color);
@@ -196,10 +199,34 @@
     </div>
 
     <div class="profile-card">
-        <h2 class="profile-card-title">Change Password</h2>
+        <h2 class="profile-card-title">{{ $allowNameEdit ? 'Profile & Password' : 'Change Password' }}</h2>
         <form method="POST" action="{{ $updateRoute }}">
             @csrf
             @method('PUT')
+            @if($allowNameEdit)
+            <div class="profile-field">
+                <label for="first_name">First name</label>
+                <input type="text" id="first_name" name="first_name" value="{{ old('first_name', $user->first_name) }}" required maxlength="100">
+                @error('first_name')
+                    <p class="profile-hint" style="color:#c62828;">{{ $message }}</p>
+                @enderror
+            </div>
+            <div class="profile-field">
+                <label for="last_name">Last name</label>
+                <input type="text" id="last_name" name="last_name" value="{{ old('last_name', $user->last_name) }}" required maxlength="100">
+                @error('last_name')
+                    <p class="profile-hint" style="color:#c62828;">{{ $message }}</p>
+                @enderror
+            </div>
+            <div class="profile-field">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" value="{{ old('email', $user->email) }}" required maxlength="255">
+                @error('email')
+                    <p class="profile-hint" style="color:#c62828;">{{ $message }}</p>
+                @enderror
+            </div>
+            <p class="profile-hint" style="margin-bottom:1rem;">Your name appears on admin and principal dashboards when you submit requests.</p>
+            @endif
             <div class="profile-field">
                 <label for="current_password">Current password</label>
                 <input type="password" id="current_password" name="current_password" autocomplete="current-password" placeholder="Required when setting a new password">
@@ -219,7 +246,7 @@
                 <input type="password" id="password_confirmation" name="password_confirmation" autocomplete="new-password" placeholder="Re-enter new password">
             </div>
             <p class="profile-hint">Leave new password fields blank to keep your current password.</p>
-            <button type="submit" class="profile-btn profile-btn-primary" style="margin-top:0.5rem;width:auto;">Update Password</button>
+            <button type="submit" class="profile-btn profile-btn-primary" style="margin-top:0.5rem;width:auto;">{{ $allowNameEdit ? 'Save Profile' : 'Update Password' }}</button>
         </form>
     </div>
 </div>

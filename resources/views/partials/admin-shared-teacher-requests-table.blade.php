@@ -1,7 +1,9 @@
 @php
     use App\Support\AdminRequestDisplay;
+    use App\Support\UserProfileSupport;
     $approveRouteName = $approveRouteName ?? 'admin.shared-teacher-requests.approve';
     $rejectRouteName = $rejectRouteName ?? 'admin.shared-teacher-requests.reject';
+    $teacherUsers = $teacherUsers ?? collect();
 @endphp
 
 @if($requests->isEmpty())
@@ -30,9 +32,14 @@
                 @foreach($requests as $req)
                 <tr data-status="{{ $req->status }}">
                     <td class="str-col-teacher">
+                        @php
+                            $teacherUser = $teacherUsers->get((int) ($req->faculty_id ?? 0));
+                            $teacherDisplay = $teacherUser ? UserProfileSupport::displayName($teacherUser) : ($req->teacher_name ?? '—');
+                        @endphp
                         <div class="str-teacher-cell">
-                            <div class="str-teacher-cell-top">
-                                <span class="str-teacher-name">{{ $req->teacher_name ?? '—' }}</span>
+                            <div class="str-teacher-cell-top" style="display:flex;align-items:center;gap:0.5rem;">
+                                @include('partials.user-avatar', ['user' => $teacherUser, 'size' => 32])
+                                <span class="str-teacher-name">{{ $teacherDisplay }}</span>
                                 @if(!empty($req->school_level))
                                     <span class="str-school-level-badge">{{ ucfirst(str_replace('_', ' ', $req->school_level)) }}</span>
                                 @endif

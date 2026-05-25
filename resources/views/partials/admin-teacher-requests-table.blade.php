@@ -1,5 +1,6 @@
 @php
     use App\Support\AdminRequestDisplay;
+    use App\Support\UserProfileSupport;
     $approveRouteName = $approveRouteName ?? 'admin.teacher-schedule-requests.approve';
     $rejectRouteName = $rejectRouteName ?? 'admin.teacher-schedule-requests.reject';
 @endphp
@@ -29,16 +30,18 @@
                 <tr data-status="{{ $tsr->status }}">
                     <td class="str-col-teacher">
                         @php
-                            $teacherDisplay = ($tsr->user ?? null)
-                                ? (trim(($tsr->user->first_name ?? '') . ' ' . ($tsr->user->last_name ?? '')) ?: ($tsr->user->name ?? ''))
+                            $teacherUser = $tsr->user ?? null;
+                            $teacherDisplay = $teacherUser
+                                ? UserProfileSupport::displayName($teacherUser)
                                 : trim((string) ($tsr->teacher_name ?? ''));
-                            $schoolLevelLabel = ($tsr->user && !empty($tsr->user->school_level))
-                                ? ucfirst(str_replace('_', ' ', $tsr->user->school_level))
+                            $schoolLevelLabel = ($teacherUser && !empty($teacherUser->school_level))
+                                ? ucfirst(str_replace('_', ' ', $teacherUser->school_level))
                                 : '';
                         @endphp
                         @if($teacherDisplay !== '')
                             <div class="str-teacher-cell">
-                                <div class="str-teacher-cell-top">
+                                <div class="str-teacher-cell-top" style="display:flex;align-items:center;gap:0.5rem;">
+                                    @include('partials.user-avatar', ['user' => $teacherUser, 'size' => 32])
                                     <span class="str-teacher-name">{{ $teacherDisplay }}</span>
                                     @if($schoolLevelLabel !== '')
                                         <span class="str-school-level-badge">{{ $schoolLevelLabel }}</span>

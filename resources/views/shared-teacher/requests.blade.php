@@ -511,6 +511,8 @@
                     <td class="st-req-date-cell">
                         @if(!empty($req->schedule_date))
                             {{ \Carbon\Carbon::parse($req->schedule_date)->format('M d, Y') }}
+                        @elseif(!empty($req->schedule_date_label))
+                            {{ $req->schedule_date_label }}
                         @else
                             —
                         @endif

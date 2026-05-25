@@ -7,5 +7,6 @@
         'divisionLabel' => 'Grade School Division',
         'photoRoute'    => route('grade-school-teacher.profile.photo'),
         'updateRoute'   => route('grade-school-teacher.profile.update'),
+        'allowNameEdit' => true,
     ])
 @endsection
