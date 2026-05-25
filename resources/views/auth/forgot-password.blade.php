@@ -22,7 +22,7 @@
             </div>
             <div class="login-heading">
                 <h1>RESET PASSWORD</h1>
-                <p>We will email a 6-digit code to your registered Gmail</p>
+                <p>Enter your registered email or mobile number. We send a 6-digit code right away.</p>
             </div>
 
             @if ($errors->any())
@@ -42,9 +42,9 @@
             <form method="POST" action="{{ route('password.email') }}">
                 @csrf
                 <div class="form-group">
-                    <label for="email">Email Address</label>
-                    <input id="email" type="email" name="email" value="{{ old('email') }}" placeholder="Enter your active Gmail" required autofocus autocomplete="email">
-                    <p class="form-hint">Use the same email address registered in BEU Scheduling System.</p>
+                    <label for="identifier">Email or phone number</label>
+                    <input id="identifier" type="text" name="identifier" value="{{ old('identifier', old('email')) }}" placeholder="you@school.edu or 09XX XXX XXXX" required autofocus autocomplete="username">
+                    <p class="form-hint">Use the same email or phone registered in the BEU Scheduling System.</p>
                 </div>
                 <button type="submit" class="btn-login">Send Reset Code</button>
             </form>

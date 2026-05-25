@@ -44,6 +44,10 @@ class LoginRequest extends FormRequest
         $this->ensureIsNotRateLimited();
 
         $existing = User::where('email', $this->input('email'))->first();
+        if ($existing) {
+            AuthSession::prepareUserForLogin($existing);
+            $existing = AuthSession::freshUser($existing);
+        }
         if ($existing && AuthSession::hasActiveSessionElsewhere($existing)) {
             throw ValidationException::withMessages([
                 'email' => 'This account is already signed in on another browser or device. Log out there first, or wait for that session to expire.',

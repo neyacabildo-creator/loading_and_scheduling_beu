@@ -435,6 +435,8 @@ class TeacherAdjustmentRequestSupport
             return ['applied' => false, 'message' => 'Schedule record no longer exists.'];
         }
 
+        $before = ScheduleApprovalPropagationSupport::snapshotFromScheduleObject($schedule);
+
         $changes = ScheduleAudit::collectChanges($record, $updates);
         $updates['version'] = ($record->version ?? 1) + 1;
         $updates['last_modified_by_admin'] = now();
@@ -444,6 +446,9 @@ class TeacherAdjustmentRequestSupport
         ]);
 
         $record->update($updates);
+        $record->refresh();
+
+        ScheduleApprovalPropagationSupport::afterClassScheduleUpdate($record, $before);
 
         return ['applied' => true, 'message' => 'Schedule updated from approved request.'];
     }
@@ -624,7 +629,7 @@ class TeacherAdjustmentRequestSupport
 
     private static function resolveTargetSchedule(string $connection, object $requestRow): ?object
     {
-        $facultyId = (int) ($requestRow->faculty_id ?? 0);
+        $facultyId = (int) ($requestRow->faculty_id ?? $requestRow->teacher_id ?? 0);
         if ($facultyId <= 0) {
             return null;
         }

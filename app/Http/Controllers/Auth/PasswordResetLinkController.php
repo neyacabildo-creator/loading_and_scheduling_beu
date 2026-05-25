@@ -3,8 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
-use App\Notifications\PasswordResetCodeNotification;
+use App\Support\PasswordResetDeliverySupport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,17 +25,17 @@ class PasswordResetLinkController extends Controller
     /**
      * Handle an incoming password reset link request.
      *
-     * Always returns the same message (does not reveal whether the email exists).
+     * Always returns the same message (does not reveal whether the account exists).
      */
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
-            'email' => ['required', 'email'],
+            'identifier' => ['required', 'string', 'max:255'],
         ]);
 
-        $genericStatus = __('If that email address is registered, we sent a 6-digit reset code. Check your inbox (and spam folder) within 15 minutes.');
+        $genericStatus = __('If that email or phone number is registered, we sent a 6-digit reset code. Check your inbox or messages within a minute.');
 
-        $user = User::where('email', $request->input('email'))->first();
+        $user = PasswordResetDeliverySupport::findUserByIdentifier($request->input('identifier'));
 
         if (! $user) {
             return back()->with('status', $genericStatus);
@@ -60,13 +59,11 @@ class PasswordResetLinkController extends Controller
             ]
         );
 
-        try {
-            $user->notify(new PasswordResetCodeNotification($code));
-        } catch (\Throwable $e) {
-            Log::error('Password reset mail failed: '.$e->getMessage(), ['email' => $user->email]);
-        }
+        PasswordResetDeliverySupport::deliverCode($user, $code);
 
-        return redirect()->route('password.reset', ['email' => $request->input('email')])
+        $redirectEmail = $user->email;
+
+        return redirect()->route('password.reset', ['email' => $redirectEmail])
             ->with('status', $genericStatus);
     }
 }

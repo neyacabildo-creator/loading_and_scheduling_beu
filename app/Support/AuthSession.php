@@ -88,17 +88,49 @@ class AuthSession
     }
 
     /**
-     * True when this account is already signed in on a different browser/tab.
+     * Remove expired session rows and clear dead active_session_id before login.
      */
-    public static function hasActiveSessionElsewhere(User $user): bool
+    public static function prepareUserForLogin(User $user): void
     {
         $user = self::freshUser($user);
 
+        if (self::usesDatabaseSessions()) {
+            $cutoff = now()->subMinutes(self::sessionLifetimeMinutes())->getTimestamp();
+            DB::table(self::sessionTable())
+                ->where('user_id', $user->id)
+                ->where('last_activity', '<', $cutoff)
+                ->delete();
+        }
+
+        if (self::hasActiveSessionColumn() && ! empty($user->active_session_id) && ! self::storedSessionIsAlive($user)) {
+            self::clearActiveSession($user);
+            $user = self::freshUser($user);
+        }
+    }
+
+    /**
+     * True when this account is already signed in on a different browser/tab.
+     */
+    public static function hasActiveSessionElsewhere(User $user, ?string $exceptSessionId = null): bool
+    {
+        self::prepareUserForLogin($user);
+        $user = self::freshUser($user);
+
+        if (self::usesDatabaseSessions() && ! self::userHasRecentlyActiveSession($user->id, $exceptSessionId)) {
+            DB::table(self::sessionTable())->where('user_id', $user->id)->delete();
+            self::clearActiveSession($user);
+            $user = self::freshUser($user);
+        }
+
         if (self::hasActiveSessionColumn() && ! empty($user->active_session_id)) {
+            if ($exceptSessionId !== null && hash_equals((string) $user->active_session_id, $exceptSessionId)) {
+                return false;
+            }
+
             return self::storedSessionIsAlive($user);
         }
 
-        return self::hasOtherLiveDatabaseSession($user);
+        return self::hasOtherLiveDatabaseSession($user, $exceptSessionId);
     }
 
     /**
@@ -193,7 +225,7 @@ class AuthSession
             ->exists();
     }
 
-    public static function hasOtherLiveDatabaseSession(User $user): bool
+    public static function hasOtherLiveDatabaseSession(User $user, ?string $exceptSessionId = null): bool
     {
         if (! self::usesDatabaseSessions()) {
             return false;
@@ -201,9 +233,36 @@ class AuthSession
 
         $cutoff = now()->subMinutes(self::sessionLifetimeMinutes())->getTimestamp();
 
-        return DB::table(self::sessionTable())
+        $query = DB::table(self::sessionTable())
             ->where('user_id', $user->id)
-            ->where('last_activity', '>=', $cutoff)
-            ->exists();
+            ->where('last_activity', '>=', $cutoff);
+
+        if ($exceptSessionId !== null && $exceptSessionId !== '') {
+            $query->where('id', '!=', $exceptSessionId);
+        }
+
+        return $query->exists();
+    }
+
+    /**
+     * True when the user has a session row touched recently (heartbeat / active use).
+     */
+    public static function userHasRecentlyActiveSession(int $userId, ?string $exceptSessionId = null): bool
+    {
+        if (! self::usesDatabaseSessions()) {
+            return false;
+        }
+
+        $recentCutoff = now()->subMinutes(5)->getTimestamp();
+
+        $query = DB::table(self::sessionTable())
+            ->where('user_id', $userId)
+            ->where('last_activity', '>=', $recentCutoff);
+
+        if ($exceptSessionId !== null && $exceptSessionId !== '') {
+            $query->where('id', '!=', $exceptSessionId);
+        }
+
+        return $query->exists();
     }
 }

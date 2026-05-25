@@ -48,10 +48,17 @@ class SharedTeacherPortalController extends Controller
             + DB::connection('mysql_gs')->table(self::TBL)
                 ->where('faculty_id', $userId)->where('status', 'pending')->count();
 
+        $stWeeklyTimetable = [
+            'days' => \App\Http\Controllers\MasterWeeklyScheduleController::days(),
+            'jh'   => \App\Support\SharedTeacherTimetableSupport::buildGrid($jhSchedules, 'junior_high'),
+            'gs'   => \App\Support\SharedTeacherTimetableSupport::buildGrid($gsSchedules, 'grade_school'),
+        ];
+
         return view('shared-teacher.dashboard', compact(
             'jhSchedules',
             'gsSchedules',
-            'pendingRequests'
+            'pendingRequests',
+            'stWeeklyTimetable'
         ));
     }
 
@@ -190,7 +197,13 @@ class SharedTeacherPortalController extends Controller
                     ->with('error', $dupMsg);
             }
 
-            $requestId = DB::connection($conn)->table(self::TBL)->insertGetId($insert);
+            if (\App\Support\SharedTeacherRequestApprovalSupport::isSharedTeacherUser((int) $user->id)
+                && \App\Support\SharedTeacherRequestApprovalSupport::tableHasDualApprovalColumns($conn)) {
+                $paired = \App\Support\SharedTeacherRequestApprovalSupport::insertPairedRequest($conn, $insert);
+                $requestId = $paired['primary_id'];
+            } else {
+                $requestId = DB::connection($conn)->table(self::TBL)->insertGetId($insert);
+            }
 
             \App\Support\AdminPortalNotificationSupport::notifyNewTeacherRequest(
                 $conn,
@@ -674,7 +687,7 @@ class SharedTeacherPortalController extends Controller
                 (int) $id
             );
 
-            return back()->with('success', 'Request ' . $status . '.');
+            return back()->with('success', 'Request ' . $status . '.' . $applyNote);
         } catch (\Throwable $e) {
             Log::error('reviewSharedTeacherRequest: ' . $e->getMessage());
 
