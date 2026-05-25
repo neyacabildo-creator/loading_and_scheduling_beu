@@ -185,8 +185,8 @@ class MasterWeeklyScheduleController extends Controller
                 fputcsv($out, []);
             }
 
-            fputcsv($out, ['WEEKLY SUBJECT SCHEDULE']);
-            fputcsv($out, ['TIME', 'SUBJECT']);
+            fputcsv($out, ['WEEKLY ACTIVITY SCHEDULE']);
+            fputcsv($out, ['TIME', 'Activity']);
             foreach (\App\Support\KinderScheduleSupport::WEEKDAYS as $day) {
                 fputcsv($out, [strtoupper($day), $weekly[$day] ?? '']);
             }

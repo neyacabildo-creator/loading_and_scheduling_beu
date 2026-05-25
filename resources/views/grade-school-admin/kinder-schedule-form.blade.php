@@ -13,7 +13,7 @@
 <div class="ks-header">
     <div>
         <h1 style="margin:0 0 0.35rem;font-size:1.5rem;font-weight:800;">Kinder Class Schedule</h1>
-        <p style="margin:0;color:var(--text-secondary);font-size:0.875rem;">Assign one subject per weekday (Reading, Language, Filipino, Mathematics, CLVE/PE/Arts).</p>
+        <p style="margin:0;color:var(--text-secondary);font-size:0.875rem;">Assign one activity per weekday from Subjects: Reading, Language, Filipino, Mathematics, CLVE/PE/Arts.</p>
     </div>
     <a href="{{ route('grade-school-admin.faculty-loading') }}" class="action-btn" style="text-decoration:none;">← Faculty Loads</a>
 </div>
@@ -66,7 +66,7 @@
     </div>
 
     <div class="ks-panel">
-        <h3>Weekly Subjects</h3>
+        <h3>Weekly Activity</h3>
         @include('partials.kinder-weekly-activity-table', [
             'gradeTitle' => strtoupper($gradeLevel),
             'weeklyActivity' => $weeklyActivity,

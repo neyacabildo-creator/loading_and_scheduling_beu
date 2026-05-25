@@ -155,13 +155,13 @@
         </div>
     @endforeach
 
-    <div class="sched-subtitle-bar">WEEKLY SUBJECT SCHEDULE — {{ strtoupper($gradeLevel) }} ({{ $sectionName }})</div>
+    <div class="sched-subtitle-bar">WEEKLY ACTIVITY SCHEDULE — {{ strtoupper($gradeLevel) }} ({{ $sectionName }})</div>
     <div class="sched-section">
         <table class="sched-table">
             <thead>
                 <tr>
                     <th class="th-role">TIME</th>
-                    <th>SUBJECT</th>
+                    <th>Activity</th>
                 </tr>
             </thead>
             <tbody>

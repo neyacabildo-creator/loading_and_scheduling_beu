@@ -909,6 +909,8 @@ Route::middleware(['auth'])->get('/api/shared-teachers-panel', function () {
     $defaultMaxClasses   = ['regular' => 6, 'coordinator' => 3, 'dept_head' => 4, 'shared' => 4, 'part_time' => 3];
     $defaultMaxLoadHours = ['regular' => 24, 'coordinator' => 12, 'dept_head' => 16, 'shared' => 16, 'part_time' => 12];
 
+    $kinderGrades = \App\Support\KinderScheduleSupport::GRADES;
+
     $jhLoads = \Illuminate\Support\Facades\DB::connection('mysql_jh')->table('faculty_loads')
         ->whereIn('faculty_id', $sharedIds)
         ->selectRaw('faculty_id, SUM(classes_assigned) as classes, SUM(load_hours) as hours')
@@ -916,27 +918,40 @@ Route::middleware(['auth'])->get('/api/shared-teachers-panel', function () {
 
     $gsLoads = \Illuminate\Support\Facades\DB::connection('mysql_gs')->table('faculty_loads')
         ->whereIn('faculty_id', $sharedIds)
+        ->where(function ($q) use ($kinderGrades) {
+            $q->whereNull('grade_level')->orWhereNotIn('grade_level', $kinderGrades);
+        })
         ->selectRaw('faculty_id, SUM(classes_assigned) as classes, SUM(load_hours) as hours')
         ->groupBy('faculty_id')->get()->keyBy('faculty_id');
 
-    // ── Subjects per teacher from faculty_loads ───────────────────────────
+    // ── Subjects per teacher from faculty_loads (Grade School & Junior High only; no Kinder) ──
     $jhSubjectsRaw = \Illuminate\Support\Facades\DB::connection('mysql_jh')->table('faculty_loads')
         ->whereIn('faculty_id', $sharedIds)->whereNotNull('subject')
-        ->select('faculty_id', 'subject')->get()->groupBy('faculty_id');
+        ->select('faculty_id', 'subject', 'grade_level')
+        ->get()
+        ->filter(fn ($r) => ! \App\Support\KinderScheduleSupport::isKinderGrade($r->grade_level ?? ''))
+        ->groupBy('faculty_id');
 
     $gsSubjectsRaw = \Illuminate\Support\Facades\DB::connection('mysql_gs')->table('faculty_loads')
         ->whereIn('faculty_id', $sharedIds)->whereNotNull('subject')
-        ->select('faculty_id', 'subject')->get()->groupBy('faculty_id');
+        ->select('faculty_id', 'subject', 'grade_level')
+        ->get()
+        ->filter(fn ($r) => ! \App\Support\KinderScheduleSupport::isKinderGrade($r->grade_level ?? ''))
+        ->groupBy('faculty_id');
 
     $jhScheds = \Illuminate\Support\Facades\DB::connection('mysql_jh')->table('class_schedules')
         ->whereIn('faculty_id', $sharedIds)->whereIn('status', ['active', 'approved', 'pending'])
-        ->select('faculty_id', 'subject', 'day_of_week', 'start_time', 'end_time', 'section_name')
-        ->get()->groupBy('faculty_id');
+        ->select('faculty_id', 'subject', 'day_of_week', 'start_time', 'end_time', 'section_name', 'grade_level')
+        ->get()
+        ->filter(fn ($r) => ! \App\Support\KinderScheduleSupport::isKinderGrade($r->grade_level ?? ''))
+        ->groupBy('faculty_id');
 
     $gsScheds = \Illuminate\Support\Facades\DB::connection('mysql_gs')->table('class_schedules')
         ->whereIn('faculty_id', $sharedIds)->whereIn('status', ['active', 'approved', 'pending'])
-        ->select('faculty_id', 'subject', 'day_of_week', 'start_time', 'end_time', 'section_name')
-        ->get()->groupBy('faculty_id');
+        ->select('faculty_id', 'subject', 'day_of_week', 'start_time', 'end_time', 'section_name', 'grade_level')
+        ->get()
+        ->filter(fn ($r) => ! \App\Support\KinderScheduleSupport::isKinderGrade($r->grade_level ?? ''))
+        ->groupBy('faculty_id');
 
     $result = [];
     $conflictCount = 0;
@@ -1000,20 +1015,11 @@ Route::middleware(['auth'])->get('/api/shared-teachers-panel', function () {
         $jhSubjectStr = $formatSubjects($jhSubjectsRaw[$id] ?? []);
         $gsSubjectStr = $formatSubjects($gsSubjectsRaw[$id] ?? []);
 
-        $gsPrimary = \Illuminate\Support\Facades\DB::connection('mysql_gs')->table('faculty_loads')
-            ->where('faculty_id', $id)
-            ->orderByDesc('updated_at')
-            ->first(['grade_level', 'subject']);
-        $primaryGsGrade = trim((string) ($gsPrimary->grade_level ?? ''));
-        $isKinderGs = \App\Support\KinderScheduleSupport::isKinderGrade($primaryGsGrade);
-
         $result[] = [
             'id'          => $id,
             'name'        => $name ?: "User #$id",
             'jh_subjects' => $jhSubjectStr ?: '—',
             'gs_subjects' => $gsSubjectStr ?: '—',
-            'primary_gs_grade' => $primaryGsGrade ?: null,
-            'is_kinder_gs'     => $isKinderGs,
             'jh_classes'     => $jhClasses,
             'jh_hours'       => $jhHours,
             'gs_classes'     => $gsClasses,
@@ -1023,8 +1029,20 @@ Route::middleware(['auth'])->get('/api/shared-teachers-panel', function () {
             'total_hours'    => $total,
             'status'         => $status,
             'conflicts'      => $conflicts,
-            'jh_schedules'   => $myJH->map(fn($s) => ['subject' => $s->subject, 'day' => $s->day_of_week, 'start' => $s->start_time, 'end' => $s->end_time, 'section' => $s->section_name])->values(),
-            'gs_schedules'   => $myGS->map(fn($s) => ['subject' => $s->subject, 'day' => $s->day_of_week, 'start' => $s->start_time, 'end' => $s->end_time, 'section' => $s->section_name])->values(),
+            'jh_schedules'   => $myJH->map(fn ($s) => [
+                'subject' => \App\Support\FacultyLoadSupport::normalizeSubjectsCsv($s->subject ?? ''),
+                'day'     => $s->day_of_week,
+                'start'   => $s->start_time,
+                'end'     => $s->end_time,
+                'section' => $s->section_name,
+            ])->values(),
+            'gs_schedules'   => $myGS->map(fn ($s) => [
+                'subject' => \App\Support\FacultyLoadSupport::normalizeSubjectsCsv($s->subject ?? ''),
+                'day'     => $s->day_of_week,
+                'start'   => $s->start_time,
+                'end'     => $s->end_time,
+                'section' => $s->section_name,
+            ])->values(),
         ];
     }
 

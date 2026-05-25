@@ -86,7 +86,7 @@
     <!-- Kinder: MonFri activity only -->
     <div class="sf-card" id="gsKinderPanel" style="display:none;">
         <h3 style="margin:0 0 1rem;font-size:1rem;font-weight:800;color:var(--green-primary);">Kinder Weekly Schedule</h3>
-        <p style="font-size:.8rem;color:var(--text-secondary);margin:0 0 1rem;">Choose grade, room/section, and teacher. Assign one subject per weekday (no duplicate subjects in the same week).</p>
+        <p style="font-size:.8rem;color:var(--text-secondary);margin:0 0 1rem;">Choose grade, room/section, and teacher. Assign one activity per weekday from the Subjects list (no duplicate in the same week).</p>
         <div class="sf-controls" style="margin-bottom:1rem;">
             <div class="sf-control-group">
                 <label for="kinder_section_name">Room / Section</label>
