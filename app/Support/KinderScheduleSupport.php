@@ -126,6 +126,26 @@ class KinderScheduleSupport
     }
 
     /**
+     * Single activity row for admin print/export (approved weekly subjects).
+     *
+     * @return list<array{start: string, end: string, label: string, type: string}>
+     */
+    public static function printExportTimeSlots(?string $grade): array
+    {
+        $activity = self::activitySlot($grade);
+        if (! $activity) {
+            return [];
+        }
+
+        return [[
+            'start' => $activity['start'],
+            'end'   => $activity['end'],
+            'label' => $activity['label'],
+            'type'  => 'class',
+        ]];
+    }
+
+    /**
      * Teachers-in-charge matrix (from official form).
      *
      * @return list<array{grade: string, section: string, teacher: string, assistant: string}>
@@ -160,6 +180,64 @@ class KinderScheduleSupport
     public static function subjectsCsv(): string
     {
         return implode(', ', self::ACTIVITY_SUBJECTS);
+    }
+
+    /**
+     * Match a faculty-load subject string to a canonical Kinder activity subject.
+     */
+    public static function normalizeActivitySubject(?string $raw): ?string
+    {
+        $needle = mb_strtolower(trim((string) $raw));
+        if ($needle === '') {
+            return null;
+        }
+
+        foreach (self::ACTIVITY_SUBJECTS as $canonical) {
+            if (mb_strtolower($canonical) === $needle) {
+                return $canonical;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Subjects this teacher may assign (from faculty load), limited to Kinder activity list.
+     *
+     * @return list<string>
+     */
+    public static function activitySubjectsForFaculty(int $facultyId, ?string $gradeLevel = null): array
+    {
+        if ($facultyId <= 0) {
+            return [];
+        }
+
+        config(['database.school_connection' => 'mysql_gs']);
+        $query = FacultyLoad::query()->where('faculty_id', $facultyId);
+        if (self::isKinderGrade($gradeLevel)) {
+            $query->where('grade_level', $gradeLevel);
+        } else {
+            $query->whereIn('grade_level', self::GRADES);
+        }
+
+        $subjects = [];
+        foreach ($query->get(['subject']) as $load) {
+            foreach (explode(',', (string) ($load->subject ?? '')) as $part) {
+                $canonical = self::normalizeActivitySubject($part);
+                if ($canonical !== null) {
+                    $subjects[mb_strtolower($canonical)] = $canonical;
+                }
+            }
+        }
+
+        $ordered = [];
+        foreach (self::ACTIVITY_SUBJECTS as $canonical) {
+            if (isset($subjects[mb_strtolower($canonical)])) {
+                $ordered[] = $canonical;
+            }
+        }
+
+        return $ordered;
     }
 
     /**
@@ -231,7 +309,9 @@ class KinderScheduleSupport
             ->where('grade_level', $gradeLevel)
             ->where('section_name', $sectionName)
             ->where('start_time', $activity['start'])
-            ->where('end_time', $activity['end']);
+            ->where('end_time', $activity['end'])
+            ->where('admin_approved', true)
+            ->where('status', 'active');
 
         if ($facultyId) {
             $query->where('faculty_id', $facultyId);
@@ -246,8 +326,8 @@ class KinderScheduleSupport
         }
 
         foreach (self::WEEKDAYS as $day) {
-            if (empty($map[$day])) {
-                $map[$day] = self::WEEKLY_ACTIVITY_BY_DAY[$day] ?? '';
+            if (! isset($map[$day])) {
+                $map[$day] = '';
             }
         }
 
@@ -272,7 +352,7 @@ class KinderScheduleSupport
             'sections'         => $sections,
             'routineSlots'     => self::routineSlots($grade),
             'weeklyActivity'   => self::savedWeeklyActivity($grade, $section, (int) $teacher->id),
-            'activitySubjects' => self::ACTIVITY_SUBJECTS,
+            'activitySubjects' => self::activitySubjectsForFaculty((int) $teacher->id, $grade),
             'weekdays'         => self::WEEKDAYS,
             'teachersInCharge'       => self::teachersInCharge(),
             'teachersInChargeTables' => self::teachersInChargeTables(),
@@ -324,7 +404,14 @@ class KinderScheduleSupport
                 ->where('end_time', $activity['end'])
                 ->delete();
 
-            ClassSchedule::create([
+            $changeLog = ScheduleAudit::appendChangeLog(
+                [],
+                'created',
+                $actorUserId ? (\App\Models\User::find($actorUserId)?->name) : (auth()->user()?->name),
+                ['details' => 'Kinder/Nursery weekly activity submitted for approval']
+            );
+
+            ScheduleStoreSupport::createPendingSchedule([
                 'faculty_id'     => $facultyId,
                 'subject'        => $subject,
                 'grade_level'    => $gradeLevel,
@@ -332,9 +419,11 @@ class KinderScheduleSupport
                 'day_of_week'    => $day,
                 'start_time'     => $activity['start'],
                 'end_time'       => $activity['end'],
-                'status'         => 'active',
+                'student_count'  => 0,
+                'status'         => 'pending',
                 'admin_approved' => false,
-            ]);
+                'change_log'     => $changeLog,
+            ], $actorUserId ?? $facultyId);
             $saved++;
         }
 

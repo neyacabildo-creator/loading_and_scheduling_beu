@@ -1,7 +1,6 @@
 @php
     $isAjax = $isAjax ?? false;
     $teacherName = trim(($teacher->first_name ?? '') . ' ' . ($teacher->last_name ?? '')) ?: ($teacher->name ?? 'Teacher');
-    $tables = $teachersInChargeTables ?? \App\Support\KinderScheduleSupport::teachersInChargeTables();
     $downloadUrl = $downloadUrl ?? null;
 @endphp
 <!doctype html>
@@ -109,7 +108,7 @@
 @endif
 
 <div class="sched-paper">
-    <div class="sched-title-bar">TEACHERS-IN-CHARGE</div>
+    <div class="sched-title-bar">KINDER WEEKLY SCHEDULE</div>
 
     <div class="sched-info-row">
         <div class="sched-info-cell" style="flex:2">
@@ -130,31 +129,6 @@
         </div>
     </div>
 
-    @foreach($tables as $table)
-        <div class="sched-section">
-            <table class="sched-table">
-                <thead>
-                    <tr>
-                        <th class="th-role">{{ $table['title'] }}</th>
-                        @foreach($table['columns'] as $col)
-                            <th>{{ $col }}</th>
-                        @endforeach
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($table['rows'] as $row)
-                        <tr>
-                            <td class="td-role">{{ $row['label'] }}</td>
-                            @foreach($row['values'] as $val)
-                                <td>{{ $val }}</td>
-                            @endforeach
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-    @endforeach
-
     <div class="sched-subtitle-bar">WEEKLY ACTIVITY SCHEDULE — {{ strtoupper($gradeLevel) }} ({{ $sectionName }})</div>
     <div class="sched-section">
         <table class="sched-table">
@@ -168,7 +142,7 @@
                 @foreach($weekdays as $day)
                     <tr class="activity-row">
                         <td class="td-role">{{ strtoupper($day) }}</td>
-                        <td>{{ $weeklyActivity[$day] ?? '—' }}</td>
+                        <td>{{ ($weeklyActivity[$day] ?? '') !== '' ? $weeklyActivity[$day] : '—' }}</td>
                     </tr>
                 @endforeach
             </tbody>

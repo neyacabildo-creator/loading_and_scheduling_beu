@@ -86,7 +86,7 @@
     <!-- Kinder: MonFri activity only -->
     <div class="sf-card" id="gsKinderPanel" style="display:none;">
         <h3 style="margin:0 0 1rem;font-size:1rem;font-weight:800;color:var(--green-primary);">Kinder Weekly Schedule</h3>
-        <p style="font-size:.8rem;color:var(--text-secondary);margin:0 0 1rem;">Choose grade, day of week, room/section, and teacher (faculty load required). Assign one subject for that day (no duplicate subjects in the same week).</p>
+        <p style="font-size:.8rem;color:var(--text-secondary);margin:0 0 1rem;">Choose grade, day of week, room/section, and teacher (faculty load required). Assign one subject from that teacher&apos;s load for the day. Submissions go to Pending Schedules for approval before they appear on the weekly timetable and Kinder class schedule.</p>
         <div class="sf-controls" style="margin-bottom:1rem;">
             <div class="sf-control-group">
                 <label for="kinder_section_name">Room / Section</label>
@@ -206,6 +206,7 @@
     var SF_GS_ALL_TEACHERS              = JSON.parse(document.getElementById('sf-gs-all-teachers')?.textContent || '[]');
     var SF_GS_TEACHERS_BY_SUBJECT       = JSON.parse(document.getElementById('sf-gs-teachers-by-subject')?.textContent || '{}');
     var SF_GS_UNAVAILABLE_FACULTY       = JSON.parse(document.getElementById('sf-gs-unavailable-faculty')?.textContent || '{}');
+    var GS_TEACHER_SUBJECTS             = JSON.parse(document.getElementById('sf-gs-teacher-subjects')?.textContent || '{}');
 
     function gsRebuildKinderTeachers(grade) {
         var sel = document.getElementById('kinder_faculty_id');
@@ -235,19 +236,34 @@
         return weekly;
     }
 
-    function gsBuildKinderSubjectOptions(selected, includeSubjects) {
+    function gsKinderSubjectsForTeacher(facultyId) {
+        if (!facultyId) return [];
+        var raw = GS_TEACHER_SUBJECTS[String(facultyId)] || GS_TEACHER_SUBJECTS[facultyId] || [];
+        var allowed = [];
+        raw.forEach(function (s) {
+            var label = String(s).trim();
+            var match = KINDER_ACTIVITY_SUBJECTS.find(function (k) {
+                return k.toLowerCase() === label.toLowerCase();
+            });
+            if (match && allowed.indexOf(match) < 0) allowed.push(match);
+        });
+        return allowed;
+    }
+
+    function gsBuildKinderSubjectOptions(selected, includeSubjects, subjectList) {
+        var list = subjectList && subjectList.length ? subjectList : [];
         var opts = '<option value="">Select Subject</option>';
         if (includeSubjects) {
-            KINDER_ACTIVITY_SUBJECTS.forEach(function (subj) {
+            list.forEach(function (subj) {
                 opts += '<option value="' + subj.replace(/"/g, '&quot;') + '"' + (selected === subj ? ' selected' : '') + '>' + subj + '</option>';
             });
         }
         return opts;
     }
 
-    function gsPopulateKinderSubjectSelect(sel, selected) {
+    function gsPopulateKinderSubjectSelect(sel, selected, subjectList) {
         if (!sel) return;
-        sel.innerHTML = gsBuildKinderSubjectOptions(selected || sel.value, true);
+        sel.innerHTML = gsBuildKinderSubjectOptions(selected || sel.value, true, subjectList);
         sel.dataset.kinderSubjectsReady = '1';
     }
 
@@ -255,17 +271,18 @@
         if (!sel) return;
         delete sel.dataset.kinderSubjectsReady;
         if (prefillSelected) {
-            gsPopulateKinderSubjectSelect(sel, prefillSelected);
+            var facultyId = document.getElementById('kinder_faculty_id')?.value;
+            gsPopulateKinderSubjectSelect(sel, prefillSelected, gsKinderSubjectsForTeacher(facultyId));
             return;
         }
-        sel.addEventListener('focus', function () {
+        function openSubjects() {
             if (sel.dataset.kinderSubjectsReady === '1') return;
-            gsPopulateKinderSubjectSelect(sel, '');
-        });
-        sel.addEventListener('mousedown', function () {
-            if (sel.dataset.kinderSubjectsReady === '1') return;
-            gsPopulateKinderSubjectSelect(sel, '');
-        });
+            var facultyId = document.getElementById('kinder_faculty_id')?.value;
+            if (!facultyId) return;
+            gsPopulateKinderSubjectSelect(sel, '', gsKinderSubjectsForTeacher(facultyId));
+        }
+        sel.addEventListener('focus', openSubjects);
+        sel.addEventListener('mousedown', openSubjects);
     }
 
     function gsUpdateKinderDayTable() {
@@ -283,13 +300,15 @@
             tbody.innerHTML = '<tr id="gsKinderDayPlaceholder"><td colspan="2" style="border:1px solid var(--border-color);padding:1rem;text-align:center;color:var(--text-secondary);font-size:0.85rem;">Select a day of week above to assign a subject.</td></tr>';
             return;
         }
+        var facultyId = document.getElementById('kinder_faculty_id')?.value || '';
+        var subjectList = gsKinderSubjectsForTeacher(facultyId);
         var selected = weekly[day] || '';
-        var readyOnLoad = !!selected;
+        var readyOnLoad = !!selected && subjectList.length > 0;
         tbody.innerHTML = '<tr data-kinder-day="' + day + '">' +
             '<td style="border:1px solid var(--border-color);padding:.5rem;font-weight:700;text-transform:uppercase;">' + day.toUpperCase() + '</td>' +
             '<td style="border:1px solid var(--border-color);padding:.35rem;">' +
             '<select name="activity[' + day + ']" required title="Subjects" style="width:100%;padding:.45rem;border:1px solid var(--border-color);border-radius:.35rem;background:var(--bg-secondary);">' +
-            gsBuildKinderSubjectOptions(selected, readyOnLoad) +
+            gsBuildKinderSubjectOptions(selected, readyOnLoad, subjectList) +
             '</select></td></tr>';
         gsWireKinderSubjectSelect(
             tbody.querySelector('select[name="activity[' + day + ']"]'),
@@ -462,10 +481,13 @@
     if (daySelect) daySelect.addEventListener('change', function () {
         if (isKinderGrade(gradeSelect.value)) gsUpdateKinderDayTable();
     });
+    var kinderFacultySel = document.getElementById('kinder_faculty_id');
+    if (kinderFacultySel) {
+        kinderFacultySel.addEventListener('change', function () {
+            if (isKinderGrade(gradeSelect.value)) gsUpdateKinderDayTable();
+        });
+    }
     updateBadges();
-
-    // Teacher?subjects map from faculty loads (kept for backward compat)
-    var GS_TEACHER_SUBJECTS = JSON.parse(document.getElementById('sf-gs-teacher-subjects')?.textContent || '{}');
 
     function gsWireSubjectFilter(inp, sel) {
         if (!inp || !sel) return;
@@ -835,8 +857,17 @@
             return false;
         }
         var subjectSel = document.querySelector('#gsKinderScheduleBody select[name="activity[' + day + ']"]');
+        var handled = gsKinderSubjectsForTeacher(teacher.value);
+        if (!handled.length) {
+            gsToast('This teacher has no Kinder/Nursery subjects on their faculty load.');
+            return false;
+        }
         if (!subjectSel || !subjectSel.value) {
             gsToast('Please select a Subject for ' + day + '.');
+            return false;
+        }
+        if (handled.indexOf(subjectSel.value) < 0) {
+            gsToast('Please select a subject assigned to this teacher.');
             return false;
         }
         return true;

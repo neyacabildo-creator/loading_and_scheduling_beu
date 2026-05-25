@@ -1559,8 +1559,12 @@ class GradeSchoolAdminController extends Controller
 
         $day = $validated['day_of_week'];
         $daySubject = trim((string) ($validated['activity'][$day] ?? ''));
-        if ($daySubject === '' || ! in_array($daySubject, \App\Support\KinderScheduleSupport::ACTIVITY_SUBJECTS, true)) {
-            return back()->withInput()->withErrors(['activity' => 'Select a subject for ' . $day . '.']);
+        $allowedSubjects = \App\Support\KinderScheduleSupport::activitySubjectsForFaculty(
+            (int) $validated['faculty_id'],
+            $validated['grade_level']
+        );
+        if ($daySubject === '' || ! in_array($daySubject, $allowedSubjects, true)) {
+            return back()->withInput()->withErrors(['activity' => 'Select a subject assigned to this teacher for ' . $day . '.']);
         }
 
         $merged = \App\Support\KinderScheduleSupport::savedWeeklyActivity(
@@ -1580,7 +1584,8 @@ class GradeSchoolAdminController extends Controller
                 (int) $validated['faculty_id'],
                 $validated['grade_level'],
                 $validated['section_name'],
-                $merged
+                $merged,
+                (int) (Auth::id() ?? 0)
             );
 
             $this->syncKinderFacultyLoadSubjects(
@@ -1589,6 +1594,13 @@ class GradeSchoolAdminController extends Controller
                 $merged
             );
 
+            if ($redirectRoute === 'grade-school-admin.schedule.create') {
+                return redirect()
+                    ->to(route('grade-school-admin.class-schedule') . '#pending-schedules')
+                    ->with('success', $count . ' kinder schedule entr' . ($count === 1 ? 'y' : 'ies')
+                        . ' submitted. Approve in Pending Schedules to show on the weekly timetable and Kinder class schedule.');
+            }
+
             $params = [
                 'grade_level'  => $validated['grade_level'],
                 'section_name' => $validated['section_name'],
@@ -1596,7 +1608,7 @@ class GradeSchoolAdminController extends Controller
             ];
 
             return redirect()
-                ->route($redirectRoute, $redirectRoute === 'grade-school-admin.schedule.create' ? [] : $params)
+                ->route($redirectRoute, $params)
                 ->with('success', "Kinder schedule saved ({$count} day(s)).");
         } catch (\InvalidArgumentException $e) {
             return back()->withInput()->with('error', $e->getMessage());
@@ -1641,17 +1653,23 @@ class GradeSchoolAdminController extends Controller
         $dayOfWeek    = $request->input('day_of_week');
         $scheduleDate = $request->input('schedule_date');
 
-        $sectionsByGrade = [
-            'Grade 1' => ['STEPHEN', 'PETER', 'ST. PAUL'],
-            'Grade 2' => ['ST. LUKE', 'ST. MARK', 'ST. MATTHEW'],
-            'Grade 3' => ['ST. JOHN', 'ST. JAMES', 'ST. JOSEPH'],
-            'Grade 4' => ['ST. FRANCIS', 'ST. AQUINAS', 'ST. LORENZO'],
-            'Grade 5' => ['ST. MARGARETTE', 'ST. THERESE', 'ST. AGATHA'],
-            'Grade 6' => ['ST. MA. GORETTI', 'ST. CATHERINE', 'ST. CLAIRE'],
-        ];
+        $sectionsByGrade = array_merge(
+            \App\Support\KinderScheduleSupport::SECTIONS_BY_GRADE,
+            [
+                'Grade 1' => ['STEPHEN', 'PETER', 'ST. PAUL'],
+                'Grade 2' => ['ST. LUKE', 'ST. MARK', 'ST. MATTHEW'],
+                'Grade 3' => ['ST. JOHN', 'ST. JAMES', 'ST. JOSEPH'],
+                'Grade 4' => ['ST. FRANCIS', 'ST. AQUINAS', 'ST. LORENZO'],
+                'Grade 5' => ['ST. MARGARETTE', 'ST. THERESE', 'ST. AGATHA'],
+                'Grade 6' => ['ST. MA. GORETTI', 'ST. CATHERINE', 'ST. CLAIRE'],
+            ]
+        );
 
         $schoolLevel = 'grade_school';
-        $timeSlots = \App\Support\SchoolScheduleSlots::printExportSlots($schoolLevel);
+        $isKinderExport = \App\Support\KinderScheduleSupport::isKinderGrade($gradeLevel);
+        $timeSlots = $isKinderExport
+            ? \App\Support\KinderScheduleSupport::printExportTimeSlots($gradeLevel)
+            : \App\Support\SchoolScheduleSlots::printExportSlots($schoolLevel);
 
         $scheduleGrid  = [];
         $sections      = [];
@@ -1660,7 +1678,8 @@ class GradeSchoolAdminController extends Controller
             $sections = $sectionsByGrade[$gradeLevel] ?? [];
 
             $query = ClassSchedule::where('grade_level', $gradeLevel)
-                ->where('admin_approved', true);
+                ->where('admin_approved', true)
+                ->where('status', 'active');
 
             if ($dayOfWeek)    $query->where('day_of_week', $dayOfWeek);
             if ($scheduleDate) $query->where('schedule_date', $scheduleDate);
@@ -1700,13 +1719,16 @@ class GradeSchoolAdminController extends Controller
             }
         }
 
-        $gradeLevels = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'];
+        $gradeLevels = array_merge(
+            \App\Support\KinderScheduleSupport::GRADES,
+            ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6']
+        );
         $days        = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
         return view('grade-school-admin.print-export', compact(
             'gradeLevel', 'dayOfWeek', 'scheduleDate',
             'sections', 'scheduleGrid', 'timeSlots',
-            'gradeLevels', 'days', 'sectionsByGrade', 'schoolLevel'
+            'gradeLevels', 'days', 'sectionsByGrade', 'schoolLevel', 'isKinderExport'
         ));
     }
 

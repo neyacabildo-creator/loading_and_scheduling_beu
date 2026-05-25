@@ -87,60 +87,107 @@
 
     @php
         $displayDays = $dayOfWeek ? [$dayOfWeek] : ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+        $kinderActivity = ($isKinderExport ?? false)
+            ? \App\Support\KinderScheduleSupport::activitySlot($gradeLevel)
+            : null;
+        $kinderStart = $kinderActivity['start'] ?? '';
     @endphp
 
-    @foreach($displayDays as $day)
-        @php
-            $daySched = $scheduleGrid[$day] ?? [];
-            $dayTimeSlots = \App\Support\SchoolScheduleSlots::printExportSlotsForDay($schoolLevel ?? 'grade_school', $day);
-        @endphp
+    @if($isKinderExport ?? false)
         <div class="pe-day-block">
-            <div class="pe-day-title">{{ strtoupper($day) }}</div>
+            <div class="pe-day-title">WEEKLY ACTIVITY — {{ strtoupper($gradeLevel) }}</div>
             <div style="overflow-x:auto;">
                 <table class="pe-sched-table">
                     <thead>
                         <tr>
-                            <th style="min-width:72px;">{{ strtoupper($day) }} / TIME</th>
+                            <th style="min-width:90px;">TIME</th>
                             @foreach($sections as $sec)
                                 <th>{{ $sec }}</th>
                             @endforeach
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($dayTimeSlots as $slot)
-                            @if(isset($slot['type']) && $slot['type'] === 'break')
-                                <tr class="break-row">
-                                    <td class="time-cell" style="white-space:pre-line;">{{ \App\Support\SchoolScheduleSlots::formatTimeCellLabel($slot) }}</td>
-                                    <td colspan="{{ count($sections) }}" style="text-align:center;letter-spacing:.1em;">&#10022; {{ $slot['name'] }} &#10022;</td>
-                                </tr>
-                            @else
-                                <tr>
-                                    <td class="time-cell" style="white-space:pre-line;">{{ \App\Support\SchoolScheduleSlots::formatTimeCellLabel($slot) }}</td>
-                                    @foreach($sections as $sec)
-                                        <td>
-                                            @php $entries = $daySched[$sec][$slot['start']] ?? []; @endphp
-                                            @if(!empty($entries))
-                                                @foreach($entries as $entry)
-                                                    <div class="pe-cell-entry">
-                                                        <div class="pe-cell-subject">{{ $entry['subject'] }}</div>
-                                                        @if($entry['teacher'])
-                                                            <div class="pe-cell-teacher">({{ $entry['teacher'] }})</div>
-                                                        @endif
-                                                    </div>
-                                                @endforeach
-                                            @else
-                                                <span class="pe-empty-cell">-</span>
-                                            @endif
-                                        </td>
-                                    @endforeach
-                                </tr>
-                            @endif
+                        @foreach($displayDays as $day)
+                            <tr>
+                                <td class="time-cell" style="font-weight:700;text-transform:uppercase;">{{ $day }}</td>
+                                @foreach($sections as $sec)
+                                    @php $entries = ($scheduleGrid[$day][$sec][$kinderStart] ?? []); @endphp
+                                    <td>
+                                        @if(!empty($entries))
+                                            @foreach($entries as $entry)
+                                                <div class="pe-cell-entry">
+                                                    <div class="pe-cell-subject">{{ $entry['subject'] }}</div>
+                                                    @if($entry['teacher'])
+                                                        <div class="pe-cell-teacher">({{ $entry['teacher'] }})</div>
+                                                    @endif
+                                                </div>
+                                            @endforeach
+                                        @else
+                                            <span class="pe-empty-cell">-</span>
+                                        @endif
+                                    </td>
+                                @endforeach
+                            </tr>
                         @endforeach
                     </tbody>
                 </table>
             </div>
+            <p style="font-size:.75rem;color:#6b7280;margin-top:.5rem;">Approved Kinder/Nursery weekly subjects only.</p>
         </div>
-    @endforeach
+    @else
+        @foreach($displayDays as $day)
+            @php
+                $daySched = $scheduleGrid[$day] ?? [];
+                $dayTimeSlots = \App\Support\SchoolScheduleSlots::printExportSlotsForDay($schoolLevel ?? 'grade_school', $day);
+            @endphp
+            <div class="pe-day-block">
+                <div class="pe-day-title">{{ strtoupper($day) }}</div>
+                <div style="overflow-x:auto;">
+                    <table class="pe-sched-table">
+                        <thead>
+                            <tr>
+                                <th style="min-width:72px;">{{ strtoupper($day) }} / TIME</th>
+                                @foreach($sections as $sec)
+                                    <th>{{ $sec }}</th>
+                                @endforeach
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($dayTimeSlots as $slot)
+                                @if(isset($slot['type']) && $slot['type'] === 'break')
+                                    <tr class="break-row">
+                                        <td class="time-cell" style="white-space:pre-line;">{{ \App\Support\SchoolScheduleSlots::formatTimeCellLabel($slot) }}</td>
+                                        <td colspan="{{ count($sections) }}" style="text-align:center;letter-spacing:.1em;">&#10022; {{ $slot['name'] }} &#10022;</td>
+                                    </tr>
+                                @else
+                                    <tr>
+                                        <td class="time-cell" style="white-space:pre-line;">{{ \App\Support\SchoolScheduleSlots::formatTimeCellLabel($slot) }}</td>
+                                        @foreach($sections as $sec)
+                                            <td>
+                                                @php $entries = $daySched[$sec][$slot['start']] ?? []; @endphp
+                                                @if(!empty($entries))
+                                                    @foreach($entries as $entry)
+                                                        <div class="pe-cell-entry">
+                                                            <div class="pe-cell-subject">{{ $entry['subject'] }}</div>
+                                                            @if($entry['teacher'])
+                                                                <div class="pe-cell-teacher">({{ $entry['teacher'] }})</div>
+                                                            @endif
+                                                        </div>
+                                                    @endforeach
+                                                @else
+                                                    <span class="pe-empty-cell">-</span>
+                                                @endif
+                                            </td>
+                                        @endforeach
+                                    </tr>
+                                @endif
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @endforeach
+    @endif
 </div>
 
 @else
