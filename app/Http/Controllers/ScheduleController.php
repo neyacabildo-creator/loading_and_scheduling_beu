@@ -154,12 +154,13 @@ class ScheduleController extends Controller
             $request->validate([
                 'grade_level' => 'required|string|max:20',
                 'day_of_week' => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday',
+                'schedule_date' => 'required|date',
             ]);
 
             $gradeLevel = $request->input('grade_level');
             $dayOfWeek  = $request->input('day_of_week');
             $slots      = $request->input('slots', []);
-            $scheduleDate = $request->input('schedule_date') ?: null;
+            $scheduleDate = $request->input('schedule_date');
             $sectionRooms = $request->input('section_rooms', []);
 
             // Section names indexed by grade
@@ -962,13 +963,14 @@ class ScheduleController extends Controller
             $request->validate([
                 'grade_level' => 'required|string|max:20',
                 'day_of_week' => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday',
+                'schedule_date' => 'required|date',
                 'slots' => 'nullable|array',
             ]);
 
             $gradeLevel = $request->input('grade_level');
             $dayOfWeek = $request->input('day_of_week');
             $slots = $request->input('slots', []);
-            $scheduleDate = $request->input('schedule_date') ?: null;
+            $scheduleDate = $request->input('schedule_date');
             $sectionRooms = $request->input('section_rooms', []);
 
             $sectionsByGrade = [

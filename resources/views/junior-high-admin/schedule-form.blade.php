@@ -20,7 +20,7 @@
 .sf-subject:focus{outline:none;border-color:var(--green-primary);}
 .sf-teacher{width:100%;padding:.3rem .35rem;border:1px solid var(--border-color);border-radius:.25rem;background:var(--bg-secondary);color:var(--text-primary);font-size:.72rem;box-sizing:border-box;}
 .sf-teacher:focus{outline:none;border-color:var(--green-primary);}
-.sf-submit-btn{padding:.75rem 2rem;background:linear-gradient(135deg,var(--green-primary),#0d3d20);color:#fff;border:none;border-radius:.5rem;cursor:pointer;font-weight:600;font-size:.9rem;transition:all .2s;}
+.sf-submit-btn{padding:.75rem 2rem;background:linear-gradient(135deg,var(--green-primary),#0d3d20);color:#fff;border:none;border-radius:.5rem;cursor:pointer;font-weight:600;font-size:.9rem;transition:all .2s;pointer-events:auto;position:relative;z-index:30;}
 .sf-submit-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(45,122,80,.3);}
 .sf-add-subject-btn{display:none;}/* removed ? kept for any future use */
 .sf-conflict-warn{font-size:.67rem;color:#dc2626;margin-top:.2rem;display:none;line-height:1.3;}
@@ -40,7 +40,7 @@
     </div>
 </div>
 
-<form action="{{ route('admin.schedule.store') }}" method="POST" id="sfForm">
+<form action="{{ route('admin.schedule.store') }}" method="POST" id="sfForm" novalidate>
     @csrf
 
     <!-- Controls -->
@@ -69,22 +69,23 @@
             </div>
             <div class="sf-control-group">
                 <label>Schedule Date</label>
-                <input type="date" name="schedule_date" id="sfDate" class="sf-select" value="{{ old('schedule_date') }}">
+                <input type="date" name="schedule_date" id="sfDate" class="sf-select" required value="{{ old('schedule_date', now()->toDateString()) }}">
             </div>
         </div>
-        <p style="font-size:.8rem;color:var(--text-secondary);margin:0;">Select a grade level and day, then fill in the subjects and assign teachers per section/time slot.</p>
+        <p style="font-size:.8rem;color:var(--text-secondary);margin:0;">Select grade, day, and schedule date, then fill subjects and teachers per section/time slot. Duplicate day + time + date + section (or double-booked teacher) is not allowed.</p>
         <div id="sfSlotAssistantStatus" style="margin-top:.75rem;"></div>
     </div>
 
     <!-- Grid -->
-    <div class="sf-card" style="overflow-x:auto;position:relative;" id="sfGridCard">
-        <div id="sfGridOverlay" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.04);display:flex;align-items:center;justify-content:center;z-index:10;border-radius:.75rem;backdrop-filter:blur(3px);">
-            <div style="background:var(--bg-secondary);border:2px dashed var(--border-color);border-radius:.75rem;padding:2rem 3rem;text-align:center;box-shadow:var(--shadow-sm);">
-                <svg width="40" height="40" fill="none" stroke="#2d7a50" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto .75rem;display:block;"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                <p style="font-size:1rem;font-weight:700;color:var(--text-primary);margin:0 0 .4rem 0;">Select a Grade Level First</p>
-                <p style="font-size:.82rem;color:var(--text-secondary);margin:0;">Choose a grade level above to unlock the schedule grid.</p>
+    <div class="sf-card" style="overflow-x:auto;" id="sfGridCard">
+        <div style="position:relative;min-height:120px;" id="sfGridTableWrap">
+            <div id="sfGridOverlay" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.04);display:flex;align-items:center;justify-content:center;z-index:10;border-radius:.75rem;backdrop-filter:blur(3px);">
+                <div style="background:var(--bg-secondary);border:2px dashed var(--border-color);border-radius:.75rem;padding:2rem 3rem;text-align:center;box-shadow:var(--shadow-sm);">
+                    <svg width="40" height="40" fill="none" stroke="#2d7a50" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto .75rem;display:block;"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    <p style="font-size:1rem;font-weight:700;color:var(--text-primary);margin:0 0 .4rem 0;">Select a Grade Level First</p>
+                    <p style="font-size:.82rem;color:var(--text-secondary);margin:0;">Choose a grade level above to unlock the schedule grid.</p>
+                </div>
             </div>
-        </div>
         <table class="sf-table">
             <thead>
                 <tr>
@@ -117,12 +118,13 @@
                 ])
             </tbody>
         </table>
+        </div>
     </div>
 
     <!-- Submit -->
     <div style="display:flex;justify-content:flex-end;gap:1rem;">
         <a href="{{ route('admin.class-schedule') }}" style="padding:.75rem 1.5rem;border:1px solid var(--border-color);border-radius:.5rem;background:var(--bg-secondary);color:var(--text-primary);text-decoration:none;font-weight:500;font-size:.9rem;">Cancel</a>
-        <button type="submit" class="sf-submit-btn" id="sfSubmitBtn">Save Schedule</button>
+        <button type="button" class="sf-submit-btn" id="sfSubmitBtn">Save Schedule</button>
     </div>
 </form>
 
@@ -181,12 +183,12 @@ function sfUpdateSections() {
 
     // Toggle grid overlay and submit button based on grade selection
     const overlay = document.getElementById('sfGridOverlay');
-    const submitBtn = document.querySelector('.sf-submit-btn');
+    const submitBtn = document.getElementById('sfSubmitBtn');
     if (overlay) overlay.style.display = grade ? 'none' : 'flex';
     if (submitBtn) {
-        submitBtn.disabled = !grade;
-        submitBtn.style.opacity = grade ? '1' : '0.45';
-        submitBtn.style.cursor = grade ? 'pointer' : 'not-allowed';
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = grade ? '1' : '0.7';
+        submitBtn.style.cursor = 'pointer';
     }
 }
 
@@ -243,13 +245,24 @@ function sfToast(msg, type) {
     }
 }
 
+function sfActiveTbody() {
+    const day = (document.getElementById('sfDay') || {}).value || '';
+    const isTuesday = day === 'Tuesday';
+    return document.getElementById(isTuesday ? 'sf-tbody-tuesday' : 'sf-tbody-weekday');
+}
+
 function sfValidate() {
     const grade = document.getElementById('sfGrade').value;
     const day   = document.getElementById('sfDay').value;
+    const dateVal = (document.getElementById('sfDate') || {}).value || '';
     if (!grade) { sfToast('Please select a Grade Level first.', 'error'); return false; }
     if (!day)   { sfToast('Please select a Day of Week first.', 'error'); return false; }
-    // Block submission if any subject row has a subject selected but no teacher
-    const rows = document.querySelectorAll('.sf-subject-row');
+    if (!dateVal) {
+        sfToast('Please select a Schedule Date. Duplicates are checked by day, time, and date.', 'error');
+        return false;
+    }
+    const tbody = sfActiveTbody();
+    const rows = tbody ? tbody.querySelectorAll('.sf-subject-row') : [];
     for (const row of rows) {
         const subj  = row.querySelector('.sf-subject');
         const teach = row.querySelector('.sf-teacher');
@@ -258,9 +271,9 @@ function sfValidate() {
             return false;
         }
     }
-    if (typeof window.sfDuplicateSubjectTeacherInCell === 'function') {
+    if (typeof window.sfDuplicateSubjectTeacherInCell === 'function' && tbody) {
         let hasCellDup = false;
-        document.querySelectorAll('.sf-cell').forEach(function(cell) {
+        tbody.querySelectorAll('.sf-cell').forEach(function(cell) {
             if (window.sfDuplicateSubjectTeacherInCell(cell)) hasCellDup = true;
         });
         if (hasCellDup) {
@@ -268,16 +281,137 @@ function sfValidate() {
             return false;
         }
     }
-    // Block submission if any conflict warning is visible
-    const warnEls = document.querySelectorAll('.sf-conflict-warn');
+    const gridCard = document.getElementById('sfGridCard');
+    const warnScope = gridCard || document;
+    const warnEls = warnScope.querySelectorAll('.sf-conflict-warn');
     for (var w of warnEls) {
-        if (w.style.display !== 'none' && w.textContent.trim()) {
+        if (w.offsetParent !== null && w.textContent.trim()) {
             sfToast('Cannot save: ' + w.textContent.trim(), 'error');
             return false;
         }
     }
+    const secs = JH_SECTIONS[grade] || [];
+    let inFormDup = false;
+    let hasEntry = false;
+    if (tbody && typeof window.sfGetCellAssignmentPairs === 'function') {
+        const seenTeachers = {};
+        const seenSections = {};
+        tbody.querySelectorAll('.sf-cell').forEach(function(cell) {
+            if (inFormDup) return;
+            const sub = cell.querySelector('.sf-subject');
+            if (!sub || !sub.name) return;
+            const m = sub.name.match(/slots\[([^\]]+)\]\[([^\]]+)\]/);
+            if (!m) return;
+            const timeKey = m[1];
+            const idx = parseInt(m[2], 10);
+            const secName = secs[idx] || ('SECTION ' + (idx + 1));
+            window.sfGetCellAssignmentPairs(cell).forEach(function(p) {
+                if (!p.subject || !p.facultyId) return;
+                hasEntry = true;
+                const tKey = p.facultyId + '|' + day + '|' + timeKey + '|' + dateVal;
+                if (seenTeachers[tKey]) {
+                    inFormDup = true;
+                    sfToast('Duplicate: the same teacher cannot teach two sections at the same time on this date.', 'error');
+                    return;
+                }
+                seenTeachers[tKey] = true;
+                const sKey = grade + '|' + secName + '|' + day + '|' + timeKey + '|' + dateVal;
+                if (seenSections[sKey]) {
+                    inFormDup = true;
+                    sfToast('Duplicate: ' + secName + ' already has an assignment for this time on the selected date.', 'error');
+                    return;
+                }
+                seenSections[sKey] = true;
+            });
+        });
+    }
+    if (inFormDup) return false;
+    if (!hasEntry) {
+        sfToast('Please fill at least one time slot with both a subject and a teacher before submitting.', 'error');
+        return false;
+    }
     return true;
 }
+
+function sfShowConflictToasts(messages) {
+    const list = Array.isArray(messages) ? messages : [String(messages)];
+    if (!window.spupToast) {
+        alert(list.join('\n'));
+        return;
+    }
+    list.forEach(function (msg, i) {
+        if (!msg) return;
+        setTimeout(function () {
+            window.spupToast.error(msg, 9000);
+        }, i * 350);
+    });
+}
+
+window.sfSubmitScheduleForm = function (clickedBtn) {
+    const form = document.getElementById('sfForm');
+    if (!form || !sfValidate()) return;
+    const btn = clickedBtn || document.getElementById('sfSubmitBtn');
+    const checkUrl = @json(route('admin.schedules.check-grid'));
+    const csrf = document.querySelector('meta[name="csrf-token"]');
+    if (btn) {
+        if (!btn.dataset.sfOrigLabel) btn.dataset.sfOrigLabel = btn.textContent.trim();
+        btn.disabled = false;
+        btn.textContent = 'Checking…';
+    }
+    fetch(checkUrl, {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': csrf ? csrf.getAttribute('content') : '',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json',
+        },
+        credentials: 'same-origin',
+        body: new FormData(form),
+    })
+        .then(function (res) { return res.text().then(function (text) {
+            let data = {};
+            try { data = text ? JSON.parse(text) : {}; } catch (e) { data = {}; }
+            return { ok: res.ok, data: data };
+        }); })
+        .then(function (result) {
+            let conflicts = (result.data && result.data.conflicts) || [];
+            if (result.data && result.data.errors) {
+                Object.keys(result.data.errors).forEach(function (k) {
+                    (result.data.errors[k] || []).forEach(function (m) { conflicts.push(m); });
+                });
+            }
+            if (conflicts.length) {
+                if (btn) btn.textContent = btn.dataset.sfOrigLabel || 'Save Schedule';
+                sfShowConflictToasts(conflicts);
+                return;
+            }
+            if (!result.ok && !(result.data && result.data.ok)) {
+                if (btn) btn.textContent = btn.dataset.sfOrigLabel || 'Save Schedule';
+                sfShowConflictToasts([(result.data && result.data.message) || 'Could not verify schedule. Please review your entries.']);
+                return;
+            }
+            if (btn) btn.textContent = 'Saving…';
+            form.submit();
+        })
+        .catch(function () {
+            if (btn) btn.textContent = 'Saving…';
+            form.submit();
+        });
+};
+
+(function () {
+    const form = document.getElementById('sfForm');
+    const btn = document.getElementById('sfSubmitBtn');
+    if (btn) {
+        btn.addEventListener('click', function () { window.sfSubmitScheduleForm(btn); });
+    }
+    if (form) {
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            window.sfSubmitScheduleForm();
+        });
+    }
+})();
 
 // Init
 sfUpdateSections();
@@ -533,6 +667,7 @@ sfUpdateSections();
     sfOnDayChange();
 
     window.sfDuplicateSubjectTeacherInCell = sfDuplicateSubjectTeacherInCell;
+    window.sfGetCellAssignmentPairs = sfGetCellAssignmentPairs;
 }());
 </script>
 <script>
@@ -543,14 +678,3 @@ window.SF_SLOT_ASSISTANT = {
 </script>
 <script src="{{ asset('js/schedule-slot-assistant.js') }}"></script>
 @endsection
-
-@push('scripts')
-<script>
-window.SCHEDULE_FORM_GUARD = {
-    formId: 'sfForm',
-    checkUrl: @json(route('admin.schedules.check-grid')),
-    clientValidate: function () { return sfValidate(); },
-};
-</script>
-<script src="{{ asset('js/schedule-form-submit-guard.js') }}?v={{ @filemtime(public_path('js/schedule-form-submit-guard.js')) }}"></script>
-@endpush

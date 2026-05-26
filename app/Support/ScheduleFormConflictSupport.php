@@ -399,7 +399,6 @@ class ScheduleFormConflictSupport
         $seenTeacherSlots = [];
         $seenSectionSlots = [];
         $seenRoomSlots = [];
-        $dailyNewCounts = [];
         $conflicts = [];
 
         foreach ($slots as $timeKey => $sectionSlots) {
@@ -422,9 +421,12 @@ class ScheduleFormConflictSupport
                     continue;
                 }
 
-                $sectionSlotKey = $gradeLevel . '|' . $sectionName . '|' . $timeKey . '|' . ($scheduleDate ?? '');
+                $dateKey = ($scheduleDate !== null && trim($scheduleDate) !== '')
+                    ? substr(trim($scheduleDate), 0, 10)
+                    : '';
+                $sectionSlotKey = $gradeLevel . '|' . $sectionName . '|' . $dayOfWeek . '|' . $timeKey . '|' . $dateKey;
                 if (isset($seenSectionSlots[$sectionSlotKey])) {
-                    $conflicts[] = self::duplicateScheduleForSlotMessage(
+                    $conflicts[] = self::inFormSectionSlotDuplicateMessage(
                         $gradeLevel, $sectionName, $dayOfWeek, $startTime, $scheduleDate, $endTime
                     );
                 } else {
@@ -439,7 +441,7 @@ class ScheduleFormConflictSupport
 
                 $roomId = ! empty($sectionRooms[$idx]) ? (int) $sectionRooms[$idx] : 0;
                 if ($roomId > 0) {
-                    $roomSlotKey = $roomId . '|' . $timeKey . '|' . ($scheduleDate ?? '');
+                    $roomSlotKey = $roomId . '|' . $timeKey . '|' . $dateKey;
                     if (isset($seenRoomSlots[$roomSlotKey])) {
                         $conflicts[] = "Room #{$roomId} at {$startTime} is assigned more than once in this form for the same date.";
                     } else {
@@ -465,13 +467,14 @@ class ScheduleFormConflictSupport
                         continue;
                     }
 
-                    $slotKey = $primaryFaculty . '|' . $timeKey;
-                    if (isset($seenTeacherSlots[$slotKey])) {
-                        $teacher = User::find((int) $primaryFaculty);
-                        $name = $teacher ? trim($teacher->first_name . ' ' . $teacher->last_name) : "Teacher #{$primaryFaculty}";
-                        $conflicts[] = "{$name} is assigned to multiple sections at {$startTime}.";
+                    $teacherSlotKey = $primaryFaculty . '|' . $dayOfWeek . '|' . $timeKey . '|' . $dateKey;
+                    if (isset($seenTeacherSlots[$teacherSlotKey])) {
+                        $conflicts[] = self::inFormTeacherSlotDuplicateMessage(
+                            (int) $primaryFaculty, $dayOfWeek, $startTime, $scheduleDate, $endTime
+                        );
+                    } else {
+                        $seenTeacherSlots[$teacherSlotKey] = $sectionName;
                     }
-                    $seenTeacherSlots[$slotKey] = $sectionName;
 
                     $teacherSlotMsg = self::teacherSlotConflictMessage(
                         (int) $primaryFaculty, $dayOfWeek, $startTime, $scheduleDate, $endTime
