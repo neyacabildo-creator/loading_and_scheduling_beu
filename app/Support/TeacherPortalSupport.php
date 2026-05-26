@@ -33,7 +33,7 @@ class TeacherPortalSupport
             return collect();
         }
 
-        return ClassSchedule::on($connection ?? config('database.school_connection', 'mysql_jh'))
+        $rows = ClassSchedule::on($connection ?? config('database.school_connection', 'mysql_jh'))
             ->where('faculty_id', $facultyId)
             ->where(function ($q) {
                 $q->where('admin_approved', true)->orWhere('status', 'active');
@@ -41,6 +41,8 @@ class TeacherPortalSupport
             ->orderBy('day_of_week')
             ->orderBy('start_time')
             ->get();
+
+        return self::dedupeClassSchedulesBySlot($rows, $connection);
     }
 
     /**
@@ -230,28 +232,31 @@ class TeacherPortalSupport
      */
     public static function workloadDedupeKey(array $row): string
     {
-        $subject = trim((string) ($row['subject'] ?? $row['subject_name'] ?? ''));
-        if (strcasecmp($subject, 'unassigned') === 0) {
-            $subject = '';
+        $grade = self::normalizeWorkloadGradeKey($row);
+        $day = strtolower(trim((string) ($row['day_of_week'] ?? '')));
+        $start = self::normalizeTimeKey($row['start_time'] ?? $row['time_start'] ?? null);
+
+        // One teacher cannot teach two distinct classes at the same slot — merge aliases (COMP vs Computer Education).
+        if ($grade !== '' && $day !== '' && $start !== '') {
+            return 'slot|' . $grade . '|' . $day . '|' . $start;
         }
 
-        $gradeSection = trim((string) ($row['grade_section'] ?? ''));
-        if ($gradeSection === '' && (! empty($row['grade_level']) || ! empty($row['section_name']))) {
-            $gradeSection = self::gradeSectionLabel($row['grade_level'] ?? null, $row['section_name'] ?? null);
-        }
+        $subject = self::canonicalSubjectToken((string) ($row['subject'] ?? $row['subject_name'] ?? ''));
+        $section = self::normalizeWorkloadSectionForKey($row, $grade);
 
         $base = strtolower(implode('|', [
             $subject,
-            $gradeSection,
-            trim((string) ($row['day_of_week'] ?? '')),
-            trim((string) ($row['start_time'] ?? $row['time_start'] ?? '')),
+            $grade,
+            $section,
+            $day,
+            $start,
         ]));
 
         if (trim(str_replace('|', '', $base)) === '') {
             return ($row['source'] ?? 'row') . ':' . (string) ($row['id'] ?? '0');
         }
 
-        return ($row['source'] ?? '') . ':' . (string) ($row['id'] ?? '') . '|' . $base;
+        return 'row|' . $base;
     }
 
     /**
@@ -277,9 +282,28 @@ class TeacherPortalSupport
         };
 
         $merged = $a;
-        foreach (['subject', 'subject_name', 'subject_code', 'grade_level', 'section_name', 'grade_section', 'day_of_week', 'start_time', 'end_time', 'school_year', 'status'] as $field) {
+        foreach (['subject_code', 'day_of_week', 'start_time', 'end_time', 'school_year', 'status'] as $field) {
             $merged[$field] = $pick($field);
         }
+
+        $merged['subject'] = self::preferSubjectLabel(
+            (string) ($a['subject'] ?? $a['subject_name'] ?? ''),
+            (string) ($b['subject'] ?? $b['subject_name'] ?? '')
+        );
+        $merged['subject_name'] = $merged['subject'];
+
+        $gradeLevel = self::preferSectionLabel(
+            (string) ($a['grade_level'] ?? ''),
+            (string) ($b['grade_level'] ?? '')
+        );
+        $sectionName = self::preferSectionLabel(
+            (string) ($a['section_name'] ?? $a['section'] ?? ''),
+            (string) ($b['section_name'] ?? $b['section'] ?? ''),
+            $gradeLevel
+        );
+        $merged['grade_level'] = $gradeLevel !== '' ? $gradeLevel : $pick('grade_level');
+        $merged['section_name'] = $sectionName !== '' ? $sectionName : $pick('section_name');
+        $merged['grade_section'] = self::gradeSectionLabel($merged['grade_level'], $merged['section_name']);
 
         $merged['units'] = max(
             (int) ($a['units'] ?? 0),
@@ -657,14 +681,207 @@ class TeacherPortalSupport
 
     public static function subjectsMatch(string $a, string $b): bool
     {
-        $a = trim(strtolower($a));
-        $b = trim(strtolower($b));
+        $a = trim($a);
+        $b = trim($b);
 
         if ($a === '' || $b === '') {
             return false;
         }
 
-        return $a === $b || str_contains($a, $b) || str_contains($b, $a);
+        $ca = self::canonicalSubjectToken($a);
+        $cb = self::canonicalSubjectToken($b);
+        if ($ca !== '' && $cb !== '' && $ca === $cb) {
+            return true;
+        }
+
+        $aLower = strtolower($a);
+        $bLower = strtolower($b);
+
+        return $aLower === $bLower || str_contains($aLower, $bLower) || str_contains($bLower, $aLower);
+    }
+
+    /**
+     * Map subject codes/aliases to one canonical token (e.g. COMP → COMPUTER EDUCATION).
+     */
+    public static function canonicalSubjectToken(string $subject, ?string $schoolConnection = null): string
+    {
+        $subject = strtoupper(trim($subject));
+        if ($subject === '' || strcasecmp($subject, 'unassigned') === 0) {
+            return '';
+        }
+
+        $connection = $schoolConnection ?? config('database.school_connection', 'mysql_jh');
+        $maps = $connection === 'mysql_gs'
+            ? [ScheduleFormSupport::GS_SUBJECT_NORM, ScheduleFormSupport::GS_SUBJECT_NORM_FOR_GRADE]
+            : [ScheduleFormSupport::JH_SUBJECT_NORM];
+
+        foreach ($maps as $map) {
+            foreach ($map as $canonical => $aliases) {
+                $canonicalUpper = strtoupper($canonical);
+                if ($subject === $canonicalUpper) {
+                    return $canonicalUpper;
+                }
+                foreach ($aliases as $alias) {
+                    if ($subject === strtoupper(trim((string) $alias))) {
+                        return $canonicalUpper;
+                    }
+                }
+            }
+        }
+
+        return $subject;
+    }
+
+    public static function normalizeTimeKey(mixed $time): string
+    {
+        if ($time === null || $time === '') {
+            return '';
+        }
+
+        $raw = trim((string) $time);
+        if (preg_match('/(\d{1,2}):(\d{2})/', $raw, $m)) {
+            return sprintf('%02d:%02d', (int) $m[1], (int) $m[2]);
+        }
+
+        return strtolower($raw);
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    public static function normalizeWorkloadGradeKey(array $row): string
+    {
+        $grade = trim((string) ($row['grade_level'] ?? ''));
+        if ($grade === '' && ! empty($row['grade_section'])) {
+            [$parsed] = ScheduleDisplaySupport::parseGradeSection($row['grade_section']);
+            $grade = $parsed;
+        }
+
+        return strtolower($grade);
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    public static function normalizeWorkloadSectionForKey(array $row, string $gradeKey = ''): string
+    {
+        $section = trim((string) ($row['section_name'] ?? $row['section'] ?? ''));
+        if ($section === '') {
+            return '';
+        }
+
+        $sectionLower = strtolower($section);
+        if ($gradeKey !== '' && $sectionLower === $gradeKey) {
+            return '';
+        }
+        if (preg_match('/^grade\s+\d+$/', $sectionLower)) {
+            return '';
+        }
+
+        return $sectionLower;
+    }
+
+    public static function preferSubjectLabel(string $a, string $b): string
+    {
+        $a = trim($a);
+        $b = trim($b);
+        if ($a === '') {
+            return $b;
+        }
+        if ($b === '') {
+            return $a;
+        }
+        if (self::subjectsMatch($a, $b)) {
+            return strlen($a) >= strlen($b) ? $a : $b;
+        }
+
+        return strlen($a) >= strlen($b) ? $a : $b;
+    }
+
+    public static function preferSectionLabel(string $a, string $b, string $gradeLevel = ''): string
+    {
+        $score = static function (string $value) use ($gradeLevel): int {
+            $value = trim($value);
+            if ($value === '') {
+                return 0;
+            }
+            if ($gradeLevel !== '' && strcasecmp($value, $gradeLevel) === 0) {
+                return 1;
+            }
+            if (preg_match('/^grade\s+\d+$/i', $value)) {
+                return 1;
+            }
+
+            return 10;
+        };
+
+        $aScore = $score($a);
+        $bScore = $score($b);
+
+        if ($aScore === $bScore) {
+            return strlen(trim($a)) >= strlen(trim($b)) ? trim($a) : trim($b);
+        }
+
+        return $aScore > $bScore ? trim($a) : trim($b);
+    }
+
+    /**
+     * Collapse duplicate approved schedules for the same teaching slot (alias subjects / bad section data).
+     *
+     * @param  \Illuminate\Support\Collection<int, \App\Models\ClassSchedule>  $schedules
+     * @return \Illuminate\Support\Collection<int, \App\Models\ClassSchedule>
+     */
+    public static function dedupeClassSchedulesBySlot(Collection $schedules, ?string $connection = null): Collection
+    {
+        if ($schedules->isEmpty()) {
+            return $schedules;
+        }
+
+        $byKey = [];
+        foreach ($schedules as $schedule) {
+            $grade = self::normalizeWorkloadGradeKey([
+                'grade_level' => $schedule->grade_level,
+                'grade_section' => null,
+            ]);
+            $day = strtolower(trim((string) ($schedule->day_of_week ?? '')));
+            $start = self::normalizeTimeKey($schedule->start_time ?? null);
+            $key = $grade !== '' && $day !== '' && $start !== ''
+                ? 'slot|' . $grade . '|' . $day . '|' . $start
+                : 'id|' . (string) $schedule->id;
+
+            if (! isset($byKey[$key])) {
+                $byKey[$key] = $schedule;
+
+                continue;
+            }
+
+            $byKey[$key] = self::preferClassScheduleRow($byKey[$key], $schedule);
+        }
+
+        return collect(array_values($byKey))->sortBy([
+            fn ($s) => array_search(ucfirst(strtolower((string) ($s->day_of_week ?? ''))), ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], true) ?: 99,
+            fn ($s) => self::normalizeTimeKey($s->start_time ?? null),
+        ])->values();
+    }
+
+    /**
+     * @param  \App\Models\ClassSchedule  $keep
+     * @param  \App\Models\ClassSchedule  $candidate
+     * @return \App\Models\ClassSchedule
+     */
+    public static function preferClassScheduleRow($keep, $candidate)
+    {
+        $keep->subject = self::preferSubjectLabel(
+            (string) ($keep->subject ?? ''),
+            (string) ($candidate->subject ?? '')
+        );
+        $keep->section_name = self::preferSectionLabel(
+            (string) ($keep->section_name ?? ''),
+            (string) ($candidate->section_name ?? ''),
+            (string) ($keep->grade_level ?? '')
+        );
+
+        return $keep;
     }
 
     /**
