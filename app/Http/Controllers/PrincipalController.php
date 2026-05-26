@@ -229,7 +229,10 @@ class PrincipalController extends Controller
             return $user;
         });
 
-        $roles = Role::orderBy('name')->get();
+        $roles = Role::query()
+            ->whereIn('name', \App\Support\AuthRedirectSupport::PRINCIPAL_ASSIGNABLE_ROLE_NAMES)
+            ->orderBy('name')
+            ->get();
 
         return view('principal.users', compact('users', 'roles'));
     }
@@ -244,23 +247,28 @@ class PrincipalController extends Controller
             'role_id'      => 'required|exists:roles,id',
             'school_level' => 'nullable|in:grade_school,junior_high',
             'password'     => \App\Support\SecurePassword::rules(),
+            'subject1'     => 'nullable|string|max:191',
+            'subject2'     => 'nullable|string|max:191',
         ]);
 
         $role = Role::findOrFail($data['role_id']);
 
-        // Prevent creating additional principal accounts through this form.
-        // Principal accounts are provisioned exclusively via the seeder.
         if ($role->name === 'principal') {
             return back()->withErrors(['role_id' => 'Principal accounts cannot be created through this interface.'])->withInput();
         }
 
-        $schoolLevel = $data['school_level'] ?? null;
-        // Auto-infer school level from role name if not explicitly provided
-        if (!$schoolLevel && str_contains($role->name, 'junior_high')) {
-            $schoolLevel = 'junior_high';
-        } elseif (!$schoolLevel && str_contains($role->name, 'grade_school')) {
-            $schoolLevel = 'grade_school';
+        if (! in_array($role->name, \App\Support\AuthRedirectSupport::PRINCIPAL_ASSIGNABLE_ROLE_NAMES, true)) {
+            return back()->withErrors(['role_id' => 'This role cannot be assigned through the principal portal.'])->withInput();
         }
+
+        $schoolLevel = \App\Support\PrincipalUserProvisioningSupport::resolveSchoolLevel($role, $data['school_level'] ?? null);
+        if ($schoolLevel === null && \App\Support\PrincipalUserProvisioningSupport::requiresSchoolLevel($role->name)) {
+            return back()->withErrors([
+                'school_level' => 'School level is required for this role (Grade School or Junior High).',
+            ])->withInput();
+        }
+
+        $role = \App\Support\PrincipalUserProvisioningSupport::normalizeAssignableRole($role, $schoolLevel);
 
         $user = User::create([
             'name'         => trim($data['first_name'] . ' ' . $data['last_name']),
@@ -268,69 +276,22 @@ class PrincipalController extends Controller
             'last_name'    => $data['last_name'],
             'email'        => $data['email'],
             'password'     => Hash::make($data['password']),
-            'role_id'      => $data['role_id'],
+            'role_id'      => $role->id,
             'school_level' => $schoolLevel,
             'is_active'    => true,
         ]);
 
         \App\Support\UserPasswordSupport::storeEncryptedCopy($user->id, $data['password']);
+        $user->load('role');
+        \App\Support\PrincipalUserProvisioningSupport::provisionNewUser($user, $role, $request);
+        \App\Support\AuthRedirectSupport::repairAccountForPortalAccess($user);
 
-        // Auto-create a faculty load record for teacher accounts so they appear in Faculty Loads immediately
-        if (stripos($role->name, 'teacher') !== false) {
-            $loadData = [
-                'faculty_id'       => $user->id,
-                'teacher_name'     => $user->name,
-                'department'       => 'Unassigned',
-                'classes_assigned' => 0,
-                'load_hours'       => 0,
-                'status'           => 'active',
-                'notes'            => 'Auto-created on account registration.',
-                'created_at'       => now(),
-                'updated_at'       => now(),
-            ];
+        $portal = \App\Support\AuthRedirectSupport::portalLabelForUser($user->fresh(['role']));
 
-            if ($role->name === 'shared_teacher') {
-                // Shared teachers need a faculty load record in BOTH school databases
-                foreach (['mysql_jh', 'mysql_gs'] as $conn) {
-                    DB::connection($conn)->table('faculty_loads')->insertOrIgnore($loadData);
-                }
-            } elseif ($schoolLevel) {
-                $schoolConn = $schoolLevel === 'grade_school' ? 'mysql_gs' : 'mysql_jh';
-                config(['database.school_connection' => $schoolConn]);
-                FacultyLoad::create(array_diff_key($loadData, array_flip(['created_at', 'updated_at'])));
-            }
-        }
-
-        // Sync shared teacher to shared_teachers table in both JH and GS databases
-        if ($role->name === 'shared_teacher') {
-            $subjects = array_values(array_filter([
-                trim($request->input('subject1', '')),
-                trim($request->input('subject2', '')),
-            ]));
-            $department = $subjects[0] ?? 'Unassigned';
-            $stData = [
-                'faculty_id'   => $user->id,
-                'teacher_name' => $user->name,
-                'email'        => $user->email,
-                'department'   => $department,
-                'subjects'     => json_encode($subjects),
-                'is_active'    => true,
-                'created_at'   => now(),
-                'updated_at'   => now(),
-            ];
-            foreach (['mysql_jh', 'mysql_gs'] as $conn) {
-                $sl = $conn === 'mysql_jh' ? 'junior_high' : 'grade_school';
-                DB::connection($conn)->table('shared_teachers')->updateOrInsert(
-                    ['faculty_id' => $user->id, 'school_level' => $sl],
-                    array_merge($stData, ['school_level' => $sl, 'updated_at' => now()])
-                );
-            }
-            if ($subjects !== []) {
-                \App\Support\SharedTeacherSupport::persistSubjectsOnUser($user->id, $subjects);
-            }
-        }
-
-        return redirect()->route('principal.users')->with('success', 'Account created successfully. The user can now log in with their assigned credentials.');
+        return redirect()->route('principal.users')->with(
+            'success',
+            "Account created successfully. The user can sign in and will be directed to the {$portal}."
+        );
     }
 
     /** Toggle active/inactive for any user */
@@ -352,6 +313,8 @@ class PrincipalController extends Controller
      */
     public function updateUser(Request $request, User $user)
     {
+        $previousRoleName = $user->role?->name;
+
         $data = $request->validate([
             'first_name'   => 'required|string|max:100',
             'last_name'    => 'required|string|max:100',
@@ -359,6 +322,8 @@ class PrincipalController extends Controller
             'role_id'      => 'nullable|exists:roles,id',
             'school_level' => 'nullable|in:grade_school,junior_high',
             'password'     => \App\Support\SecurePassword::optionalRules(),
+            'subject1'     => 'nullable|string|max:191',
+            'subject2'     => 'nullable|string|max:191',
         ]);
 
         $user->first_name = $data['first_name'];
@@ -366,34 +331,59 @@ class PrincipalController extends Controller
         $user->name       = trim($data['first_name'] . ' ' . $data['last_name']);
         $user->email      = $data['email'];
 
-        if (array_key_exists('school_level', $data)) {
-            $user->school_level = $data['school_level'] ?: null;
-        }
-
-        // Update role (preventing escalation to principal)
+        $newRole = null;
         if (! empty($data['role_id'])) {
             $newRole = Role::find((int) $data['role_id']);
-            if ($newRole && $newRole->name !== 'principal') {
-                $user->role_id = $newRole->id;
-                if (empty($data['school_level'])) {
-                    if (str_contains($newRole->name, 'junior_high')) {
-                        $user->school_level = 'junior_high';
-                    } elseif (str_contains($newRole->name, 'grade_school')) {
-                        $user->school_level = 'grade_school';
-                    }
-                }
+            if ($newRole && $newRole->name === 'principal') {
+                return back()->withErrors(['role_id' => 'Principal role cannot be assigned here.'])->withInput();
+            }
+            if ($newRole && ! in_array($newRole->name, \App\Support\AuthRedirectSupport::PRINCIPAL_ASSIGNABLE_ROLE_NAMES, true)) {
+                return back()->withErrors(['role_id' => 'This role cannot be assigned through the principal portal.'])->withInput();
             }
         }
 
-        if (!empty($data['password'])) {
+        $roleForLevel = $newRole ?? $user->role;
+        if ($roleForLevel) {
+            $resolved = \App\Support\PrincipalUserProvisioningSupport::resolveSchoolLevel(
+                $roleForLevel,
+                $data['school_level'] ?? $user->school_level
+            );
+            if ($resolved === null && \App\Support\PrincipalUserProvisioningSupport::requiresSchoolLevel($roleForLevel->name)) {
+                return back()->withErrors([
+                    'school_level' => 'School level is required for this role.',
+                ])->withInput();
+            }
+            $user->school_level = $resolved;
+            $roleForLevel = \App\Support\PrincipalUserProvisioningSupport::normalizeAssignableRole($roleForLevel, $resolved);
+        } elseif (array_key_exists('school_level', $data)) {
+            $user->school_level = $data['school_level'] ?: null;
+        }
+
+        if ($newRole) {
+            $user->role_id = $roleForLevel->id;
+        }
+
+        if (! empty($data['password'])) {
             $user->password = Hash::make($data['password']);
         }
 
         $user->save();
+        $user->load('role');
 
-        if (!empty($data['password'])) {
+        if (! empty($data['password'])) {
             \App\Support\UserPasswordSupport::storeEncryptedCopy($user->id, $data['password']);
         }
+
+        if ($user->role) {
+            \App\Support\PrincipalUserProvisioningSupport::syncAfterUpdate(
+                $user,
+                $user->role,
+                $request,
+                $previousRoleName
+            );
+        }
+
+        \App\Support\AuthRedirectSupport::repairAccountForPortalAccess($user->fresh(['role']));
 
         return back()->with('success', "Account for {$user->name} updated successfully.");
     }

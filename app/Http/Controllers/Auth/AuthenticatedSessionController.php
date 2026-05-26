@@ -51,9 +51,9 @@ class AuthenticatedSessionController extends Controller
             'user_agent' => $request->userAgent(),
         ]);
 
-        AuthRedirectSupport::repairKnownAdminAccounts($user);
-        AuthRedirectSupport::normalizeTeacherSchoolLevel($user);
+        AuthRedirectSupport::repairAccountForPortalAccess($user);
         AuthRedirectSupport::applyDepartmentSession($user);
+        $user->loadMissing('role');
 
         return redirect()->route(AuthRedirectSupport::homeRouteName($user));
     }

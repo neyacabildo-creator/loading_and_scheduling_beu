@@ -149,7 +149,11 @@ class FacultyLoadController extends Controller
             (int) $validated['faculty_id'],
             $validated['grade_level'] ?? null
         );
-        $validated['status'] = FacultyLoadStats::resolveStatus((int) $validated['faculty_id']);
+        if (! empty($validated['status'])) {
+            $validated['status'] = FacultyLoadSupport::normalizeAvailabilityStatus($validated['status']);
+        } else {
+            $validated['status'] = FacultyLoadStats::resolveStatus((int) $validated['faculty_id']);
+        }
 
         $load = FacultyLoad::create($validated);
         FacultyLoadSupport::refreshTeacherLoadingScheduleRow($load);
@@ -239,7 +243,11 @@ class FacultyLoadController extends Controller
                 (int) $validated['faculty_id'],
                 $validated['grade_level'] ?? null
             );
-            $validated['status'] = FacultyLoadStats::resolveStatus((int) $validated['faculty_id']);
+            if (! empty($validated['status'])) {
+                $validated['status'] = FacultyLoadSupport::normalizeAvailabilityStatus($validated['status']);
+            } else {
+                $validated['status'] = FacultyLoadStats::resolveStatus((int) $validated['faculty_id']);
+            }
 
             $facultyLoad->update($validated);
             $facultyLoad->refresh();

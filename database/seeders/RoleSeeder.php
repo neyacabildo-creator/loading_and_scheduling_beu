@@ -40,6 +40,16 @@ class RoleSeeder extends Seeder
                 'display_name' => 'Teacher (Generic)',
                 'description' => 'Generic teacher role (deprecated - use specific school roles)',
             ],
+            [
+                'name' => 'admin',
+                'display_name' => 'Admin (Generic)',
+                'description' => 'School admin — requires school level (Grade School or Junior High)',
+            ],
+            [
+                'name' => 'shared_teacher',
+                'display_name' => 'Shared Teacher',
+                'description' => 'Teacher assigned across Grade School and Junior High',
+            ],
         ];
 
         foreach ($roles as $role) {

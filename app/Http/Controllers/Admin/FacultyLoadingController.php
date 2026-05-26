@@ -158,7 +158,7 @@ class FacultyLoadingController extends Controller
             (int) $validated['faculty_id'],
             $validated['grade_level'] ?? null
         );
-        $validated['status'] = $this->computeAvailabilityStatus((int) $validated['faculty_id']);
+        $validated['status'] = FacultyLoadSupport::normalizeAvailabilityStatus($validated['status'] ?? 'available');
 
         $load = FacultyLoad::create($validated);
         FacultyLoadSupport::refreshTeacherLoadingScheduleRow($load);
@@ -240,7 +240,7 @@ class FacultyLoadingController extends Controller
             (int) $validated['faculty_id'],
             $validated['grade_level'] ?? null
         );
-        $validated['status'] = $this->computeAvailabilityStatus((int) $validated['faculty_id']);
+        $validated['status'] = FacultyLoadSupport::normalizeAvailabilityStatus($validated['status'] ?? 'available');
 
         $facultyLoad->update($validated);
         $facultyLoad->refresh();

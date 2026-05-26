@@ -983,7 +983,11 @@ class GradeSchoolAdminController extends Controller
                 (int) $validated['faculty_id'],
                 $validated['grade_level'] ?? null
             );
-            $validated['status'] = $this->computeAvailabilityStatus((int) $validated['faculty_id']);
+            if (! empty($validated['status'])) {
+                $validated['status'] = FacultyLoadSupport::normalizeAvailabilityStatus($validated['status']);
+            } else {
+                $validated['status'] = FacultyLoadStats::resolveStatus((int) $validated['faculty_id']);
+            }
 
             $load = FacultyLoad::create($validated);
             FacultyLoadSupport::syncSharedTeacherAfterGsLoad($load);
@@ -1090,7 +1094,11 @@ class GradeSchoolAdminController extends Controller
                     (int) $validated['faculty_id'],
                     $validated['grade_level'] ?? null
                 );
-                $validated['status'] = \App\Support\FacultyLoadStats::resolveStatus((int) $validated['faculty_id']);
+                if (! empty($validated['status'])) {
+                    $validated['status'] = \App\Support\FacultyLoadSupport::normalizeAvailabilityStatus($validated['status']);
+                } else {
+                    $validated['status'] = \App\Support\FacultyLoadStats::resolveStatus((int) $validated['faculty_id']);
+                }
             }
 
             $load->update($validated);

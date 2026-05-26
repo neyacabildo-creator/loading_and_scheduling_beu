@@ -20,6 +20,17 @@ class AuthRedirectSupport
         'super_admin',
     ];
 
+    /** Roles the principal may assign when creating users. */
+    public const PRINCIPAL_ASSIGNABLE_ROLE_NAMES = [
+        'admin_grade_school',
+        'admin_junior_high',
+        'admin',
+        'teacher_grade_school',
+        'teacher_junior_high',
+        'teacher',
+        'shared_teacher',
+    ];
+
     /** @var list<string> */
     public const TEACHER_ROLE_NAMES = [
         'teacher_grade_school',
@@ -45,7 +56,10 @@ class AuthRedirectSupport
         return match ($roleName) {
             'principal', 'super_admin' => 'principal.dashboard',
             'admin_grade_school' => 'grade-school-admin.dashboard',
-            'admin_junior_high', 'admin' => 'admin.dashboard',
+            'admin' => ($user->school_level ?? '') === 'grade_school'
+                ? 'grade-school-admin.dashboard'
+                : 'admin.dashboard',
+            'admin_junior_high' => 'admin.dashboard',
             'teacher_grade_school' => 'grade-school-teacher.dashboard',
             'teacher_junior_high', 'teacher' => self::canAccessJuniorHighTeacherPortal($user)
                 ? 'teacher.dashboard'
@@ -92,6 +106,57 @@ class AuthRedirectSupport
     /**
      * Restore seeded GS/JH admin accounts if a prior bug overwrote their role as teacher.
      */
+    /**
+     * Normalize role/school_level after principal provisioning or legacy data so login reaches the right portal.
+     */
+    public static function repairAccountForPortalAccess(?User $user = null): void
+    {
+        $user = self::prepareUser($user);
+        if (! $user) {
+            return;
+        }
+
+        self::repairKnownAdminAccounts($user);
+        $user = self::prepareUser($user);
+
+        $roleName = $user->role?->name;
+
+        if ($roleName === 'admin_grade_school' && $user->school_level !== 'grade_school') {
+            $user->forceFill(['school_level' => 'grade_school'])->saveQuietly();
+        }
+
+        if ($roleName === 'admin_junior_high' && $user->school_level !== 'junior_high') {
+            $user->forceFill(['school_level' => 'junior_high'])->saveQuietly();
+        }
+
+        if ($roleName === 'shared_teacher' && empty($user->school_level)) {
+            $user->forceFill(['school_level' => 'grade_school'])->saveQuietly();
+        }
+
+        if (self::isTeacherRole($roleName) || $roleName === 'shared_teacher') {
+            self::repairTeacherAccount($user);
+            self::normalizeTeacherSchoolLevel($user);
+        }
+    }
+
+    public static function portalLabelForUser(?User $user = null): string
+    {
+        $user = self::prepareUser($user);
+        if (! $user) {
+            return 'login page';
+        }
+
+        return match (self::homeRouteName($user)) {
+            'grade-school-admin.dashboard' => 'Grade School Admin dashboard',
+            'admin.dashboard' => 'Junior High Admin dashboard',
+            'grade-school-teacher.dashboard' => 'Grade School Teacher dashboard',
+            'teacher.dashboard' => 'Junior High Teacher dashboard',
+            'shared-teacher.dashboard' => 'Shared Teacher dashboard',
+            'principal.dashboard' => 'Principal dashboard',
+            default => 'correct portal',
+        };
+    }
+
     public static function repairKnownAdminAccounts(?User $user = null): void
     {
         $user = self::prepareUser($user);
