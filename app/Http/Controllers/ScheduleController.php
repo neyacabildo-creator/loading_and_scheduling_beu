@@ -956,41 +956,58 @@ class ScheduleController extends Controller
      */
     public function checkScheduleGrid(Request $request)
     {
-        config(['database.school_connection' => config('database.school_connection') ?: 'mysql_jh']);
+        try {
+            config(['database.school_connection' => config('database.school_connection') ?: 'mysql_jh']);
 
-        $request->validate([
-            'grade_level' => 'required|string|max:20',
-            'day_of_week' => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday',
-            'slots' => 'nullable|array',
-        ]);
+            $request->validate([
+                'grade_level' => 'required|string|max:20',
+                'day_of_week' => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday',
+                'slots' => 'nullable|array',
+            ]);
 
-        $gradeLevel = $request->input('grade_level');
-        $dayOfWeek = $request->input('day_of_week');
-        $slots = $request->input('slots', []);
-        $scheduleDate = $request->input('schedule_date') ?: null;
-        $sectionRooms = $request->input('section_rooms', []);
+            $gradeLevel = $request->input('grade_level');
+            $dayOfWeek = $request->input('day_of_week');
+            $slots = $request->input('slots', []);
+            $scheduleDate = $request->input('schedule_date') ?: null;
+            $sectionRooms = $request->input('section_rooms', []);
 
-        $sectionsByGrade = [
-            'Grade 7' => ['SERAPHIM', 'CHERUBIM', 'MICHAEL', 'RAPHAEL', 'GABRIEL'],
-            'Grade 8' => ['THERESE', 'ALOYSIUS', 'AGNES', 'JOHN', 'GORETTI'],
-            'Grade 9' => ['CHARTRES', 'PIAT', 'FATIMA', 'CARMEL', 'LOURDES'],
-            'Grade 10' => ['PAUL', 'PLC', 'MBF', 'MICHEAU', 'MARIA'],
-        ];
-        $sections = $sectionsByGrade[$gradeLevel] ?? ['SECTION 1', 'SECTION 2', 'SECTION 3', 'SECTION 4', 'SECTION 5'];
+            $sectionsByGrade = [
+                'Grade 7' => ['SERAPHIM', 'CHERUBIM', 'MICHAEL', 'RAPHAEL', 'GABRIEL'],
+                'Grade 8' => ['THERESE', 'ALOYSIUS', 'AGNES', 'JOHN', 'GORETTI'],
+                'Grade 9' => ['CHARTRES', 'PIAT', 'FATIMA', 'CARMEL', 'LOURDES'],
+                'Grade 10' => ['PAUL', 'PLC', 'MBF', 'MICHEAU', 'MARIA'],
+            ];
+            $sections = $sectionsByGrade[$gradeLevel] ?? ['SECTION 1', 'SECTION 2', 'SECTION 3', 'SECTION 4', 'SECTION 5'];
 
-        $conflicts = \App\Support\ScheduleFormConflictSupport::collectJuniorHighGridConflicts(
-            $gradeLevel,
-            $dayOfWeek,
-            $scheduleDate,
-            $slots,
-            $sections,
-            $sectionRooms
-        );
+            $conflicts = \App\Support\ScheduleFormConflictSupport::collectJuniorHighGridConflicts(
+                $gradeLevel,
+                $dayOfWeek,
+                $scheduleDate,
+                $slots,
+                $sections,
+                $sectionRooms
+            );
 
-        return response()->json([
-            'ok' => $conflicts === [],
-            'conflicts' => $conflicts,
-        ]);
+            return response()->json([
+                'ok' => $conflicts === [],
+                'conflicts' => $conflicts,
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Validation failed.',
+                'errors' => $e->errors(),
+                'conflicts' => array_values($e->validator->errors()->all()),
+            ], 422);
+        } catch (\Throwable $e) {
+            Log::error('JH checkScheduleGrid: '.$e->getMessage());
+
+            return response()->json([
+                'ok' => false,
+                'message' => 'Could not verify schedule: '.$e->getMessage(),
+                'conflicts' => [],
+            ], 500);
+        }
     }
 
     public function checkDuplicate(Request $request)

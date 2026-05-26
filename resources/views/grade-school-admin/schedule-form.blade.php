@@ -83,7 +83,7 @@
         <div id="sfSlotAssistantStatus" style="margin-top:.75rem;"></div>
     </div>
 
-    <!-- Kinder: MonùFri activity only -->
+    <!-- Kinder: MonÔøΩFri activity only -->
     <div class="sf-card" id="gsKinderPanel" style="display:none;">
         <h3 style="margin:0 0 1rem;font-size:1rem;font-weight:800;color:var(--green-primary);">Kinder Weekly Schedule</h3>
         <p style="font-size:.8rem;color:var(--text-secondary);margin:0 0 1rem;">Choose grade, day of week, room/section, and teacher (faculty load required). Assign one subject from that teacher&apos;s load for the day. Submissions go to Pending Schedules for approval before they appear on the weekly timetable and Kinder class schedule.</p>
@@ -123,6 +123,10 @@
                 <p style="font-size:.82rem;color:var(--text-secondary);margin:0;">Choose a grade level above to unlock the schedule grid.</p>
             </div>
         </div>
+        {{-- Hidden inputs carry section names (outside table so all browsers include them in POST) --}}
+        <input type="hidden" name="section_names[0]" id="gs-sec-name-0" value="STEPHEN">
+        <input type="hidden" name="section_names[1]" id="gs-sec-name-1" value="PETER">
+        <input type="hidden" name="section_names[2]" id="gs-sec-name-2" value="ST. PAUL">
         <table class="sf-table">
             <thead>
                 <tr>
@@ -132,10 +136,6 @@
                     <th id="gs-sec-th-2">ST. PAUL</th>
                 </tr>
             </thead>
-            {{-- Hidden inputs carry the actual section names to the server --}}
-            <input type="hidden" name="section_names[0]" id="gs-sec-name-0" value="STEPHEN">
-            <input type="hidden" name="section_names[1]" id="gs-sec-name-1" value="PETER">
-            <input type="hidden" name="section_names[2]" id="gs-sec-name-2" value="ST. PAUL">
             <tbody>
                 @php
                     $gsSubjectOptions = ['SCIENCE','COMPUTER','READING AND LITERACY','LANGUAGE','CLVE','MAKABANSA','MATHEMATICS','ENGLISH','FILIPINO','HELE','AP','MAPEH'];
@@ -721,7 +721,7 @@
                 var chip = document.createElement('span');
                 chip.className = 'sf-shared-item';
                 chip.textContent = st.teacher_name;
-                chip.title = (st.department || 'Shared') + ' ù click to assign';
+                chip.title = (st.department || 'Shared') + ' ÔøΩ click to assign';
                 chip.dataset.stSubjects = JSON.stringify(stSubjects);
                 chip.style.display = 'none'; // hidden until subject matches
                 chip.addEventListener('click', function() {
@@ -874,7 +874,7 @@ window.SF_SLOT_ASSISTANT = {
 window.SCHEDULE_FORM_GUARD = {
     formId: 'scheduleGridForm',
     checkUrl: @json(route('grade-school-admin.schedule.check-grid')),
-    submitSelector: '#sfSubmitBtn',
+    submitSelector: 'button[type="submit"]:not(:disabled)',
     clientValidate: function () { return window.gsFormClientValidate ? window.gsFormClientValidate() : true; },
     skipGridCheck: function () {
         var g = document.getElementById('grade_level');

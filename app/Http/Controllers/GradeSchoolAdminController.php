@@ -1375,34 +1375,56 @@ class GradeSchoolAdminController extends Controller
      */
     public function checkScheduleGrid(Request $request)
     {
-        $request->validate([
-            'grade_level' => 'required|string|in:Grade 1,Grade 2,Grade 3,Grade 4,Grade 5,Grade 6',
-            'day_of_week' => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday',
-            'slots' => 'nullable|array',
-        ]);
+        try {
+            $gradeLevel = trim((string) $request->input('grade_level', ''));
+            if (\App\Support\KinderScheduleSupport::isKinderGrade($gradeLevel)) {
+                return response()->json(['ok' => true, 'conflicts' => []]);
+            }
 
-        $sectionNamesInput = $request->input('section_names', []);
-        $sectionDisplayMap = [
-            '0' => $sectionNamesInput[0] ?? 'STEPHEN',
-            '1' => $sectionNamesInput[1] ?? 'PETER',
-            '2' => $sectionNamesInput[2] ?? 'ST. PAUL',
-        ];
+            $request->validate([
+                'grade_level' => 'required|string|in:Grade 1,Grade 2,Grade 3,Grade 4,Grade 5,Grade 6',
+                'day_of_week' => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday',
+                'slots' => 'nullable|array',
+            ]);
 
-        config(['database.school_connection' => 'mysql_gs']);
+            $sectionNamesInput = $request->input('section_names', []);
+            $sectionDisplayMap = [
+                '0' => $sectionNamesInput[0] ?? 'STEPHEN',
+                '1' => $sectionNamesInput[1] ?? 'PETER',
+                '2' => $sectionNamesInput[2] ?? 'ST. PAUL',
+            ];
 
-        $conflicts = \App\Support\ScheduleFormConflictSupport::collectGradeSchoolGridConflicts(
-            $request->input('grade_level'),
-            $request->input('day_of_week'),
-            $request->input('schedule_date') ?: null,
-            $request->input('slots', []),
-            $sectionDisplayMap,
-            $request->input('section_rooms', [])
-        );
+            config(['database.school_connection' => 'mysql_gs']);
 
-        return response()->json([
-            'ok' => $conflicts === [],
-            'conflicts' => $conflicts,
-        ]);
+            $conflicts = \App\Support\ScheduleFormConflictSupport::collectGradeSchoolGridConflicts(
+                $gradeLevel,
+                $request->input('day_of_week'),
+                $request->input('schedule_date') ?: null,
+                $request->input('slots', []),
+                $sectionDisplayMap,
+                $request->input('section_rooms', [])
+            );
+
+            return response()->json([
+                'ok' => $conflicts === [],
+                'conflicts' => $conflicts,
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Validation failed.',
+                'errors' => $e->errors(),
+                'conflicts' => array_values($e->validator->errors()->all()),
+            ], 422);
+        } catch (\Throwable $e) {
+            Log::error('GS checkScheduleGrid: '.$e->getMessage());
+
+            return response()->json([
+                'ok' => false,
+                'message' => 'Could not verify schedule: '.$e->getMessage(),
+                'conflicts' => [],
+            ], 500);
+        }
     }
 
     public function storeSchedule(Request $request) {
