@@ -15,6 +15,15 @@
 }
 .principal-user-actions form { margin: 0; display: inline-flex; }
 .principal-user-actions .btn { margin: 0; white-space: nowrap; flex-shrink: 0; }
+.principal-users-pwd {
+    max-width: 11rem;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+.principal-users-pwd code {
+    display: inline-block;
+    max-width: 100%;
+}
 </style>
 <div class="header">
     <div class="header-left">
@@ -30,6 +39,20 @@
         </button>
     </div>
 </div>
+
+@if(session('success'))
+    <div class="alert alert-success" style="margin-bottom:1rem;">{{ session('success') }}</div>
+@endif
+@if(session('error'))
+    <div class="alert alert-error" style="margin-bottom:1rem;">{{ session('error') }}</div>
+@endif
+@if($errors->any() && !old('first_name'))
+    <div class="alert alert-error" style="margin-bottom:1rem;">
+        <ul style="margin:0;padding-left:1.2rem;">
+            @foreach($errors->all() as $err)<li>{{ $err }}</li>@endforeach
+        </ul>
+    </div>
+@endif
 
 {{-- Create User Form (collapsible) --}}
 <div id="create-user-form" style="display:none;">
@@ -125,34 +148,34 @@
             </thead>
             <tbody>
                 @forelse($users as $user)
-                <tr>
-                    <td>
+                @php $roleName = $user->role?->name ?? ''; @endphp
+                <tr data-user-id="{{ $user->id }}">
+                    <td class="js-user-name">
                         <div style="font-weight:500;">{{ $user->first_name }} {{ $user->last_name }}</div>
                     </td>
-                    <td style="font-size:0.8rem;color:var(--text-secondary);">{{ $user->email }}</td>
-                    <td style="font-size:0.8rem;">
+                    <td class="js-user-email" style="font-size:0.8rem;color:var(--text-secondary);">{{ $user->email }}</td>
+                    <td class="js-user-password principal-users-pwd" style="font-size:0.8rem;">
                         @if(!empty($user->display_password))
-                            <code style="background:var(--bg-tertiary,#f3f4f6);padding:.15rem .4rem;border-radius:.25rem;word-break:break-all;">{{ $user->display_password }}</code>
+                            <code style="background:var(--bg-tertiary,#f3f4f6);padding:.15rem .4rem;border-radius:.25rem;">{{ $user->display_password }}</code>
                         @else
                             <span style="color:var(--text-secondary);" title="No encrypted copy stored — set a new password via Edit">—</span>
                         @endif
                     </td>
-                    <td>
-                        @php $roleName = $user->role?->name ?? ''; @endphp
+                    <td class="js-user-role">
                         @if($roleName === 'principal')
                             <span class="badge badge-principal">Principal</span>
                         @elseif(str_contains($roleName, 'admin'))
                             <span class="badge badge-admin">Admin</span>
                         @else
                             <span class="badge" style="background:rgba(107,114,128,0.12);color:#374151;">
-                                {{ $user->role?->display_name ?? ucfirst(str_replace('_',' ', $roleName)) }}
+                                {{ $user->role_label ?? ($user->role?->display_name ?? ucfirst(str_replace('_',' ', $roleName))) }}
                             </span>
                         @endif
                     </td>
-                    <td style="font-size:0.8rem;">
+                    <td class="js-user-school-level" style="font-size:0.8rem;">
                         {{ $user->school_level ? ucfirst(str_replace('_',' ', $user->school_level)) : '—' }}
                     </td>
-                    <td>
+                    <td class="js-user-status">
                         <span class="badge {{ $user->is_active ? 'badge-active' : 'badge-inactive' }}">
                             {{ $user->is_active ? 'Active' : 'Inactive' }}
                         </span>
@@ -214,9 +237,12 @@
             <button onclick="closeEditModal()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-secondary);">&times;</button>
         </div>
 
-        <form id="edit-user-form" method="POST">
+        <div id="edit-form-errors" class="alert alert-error" style="display:none;margin-bottom:1rem;"></div>
+
+        <form id="edit-user-form" method="POST" action="">
             @csrf
             @method('PATCH')
+            <input type="hidden" name="page" id="edit_page" value="{{ request('page') }}">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
                 <div class="form-group">
                     <label class="form-label">First Name</label>
@@ -284,6 +310,90 @@
 </div>
 
 <script>
+const principalUserUpdateUrl = @json(route('principal.users.update', ['user' => '__ID__']));
+const principalUsersListUrl = @json(route('principal.users'));
+const principalCsrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text == null ? '' : String(text);
+    return div.innerHTML;
+}
+
+function renderRoleBadge(roleName, roleLabel) {
+    if (roleName === 'principal') {
+        return '<span class="badge badge-principal">Principal</span>';
+    }
+    if (roleName && roleName.indexOf('admin') !== -1) {
+        return '<span class="badge badge-admin">Admin</span>';
+    }
+    return '<span class="badge" style="background:rgba(107,114,128,0.12);color:#374151;">' + escapeHtml(roleLabel || '') + '</span>';
+}
+
+function renderPasswordCell(displayPassword) {
+    if (displayPassword) {
+        return '<code style="background:var(--bg-tertiary,#f3f4f6);padding:.15rem .4rem;border-radius:.25rem;">' + escapeHtml(displayPassword) + '</code>';
+    }
+    return '<span style="color:var(--text-secondary);" title="No encrypted copy stored — set a new password via Edit">—</span>';
+}
+
+function updateUserTableRow(user) {
+    const row = document.querySelector('tr[data-user-id="' + user.id + '"]');
+    if (!row) return false;
+
+    const nameCell = row.querySelector('.js-user-name');
+    if (nameCell) {
+        nameCell.innerHTML = '<div style="font-weight:500;">' + escapeHtml(user.first_name) + ' ' + escapeHtml(user.last_name) + '</div>';
+    }
+
+    const emailCell = row.querySelector('.js-user-email');
+    if (emailCell) emailCell.textContent = user.email;
+
+    const pwdCell = row.querySelector('.js-user-password');
+    if (pwdCell) pwdCell.innerHTML = renderPasswordCell(user.display_password);
+
+    const roleCell = row.querySelector('.js-user-role');
+    if (roleCell) roleCell.innerHTML = renderRoleBadge(user.role_name, user.role_label);
+
+    const levelCell = row.querySelector('.js-user-school-level');
+    if (levelCell) levelCell.textContent = user.school_level_label || '—';
+
+    const statusCell = row.querySelector('.js-user-status');
+    if (statusCell) {
+        const active = !!user.is_active;
+        statusCell.innerHTML = '<span class="badge ' + (active ? 'badge-active' : 'badge-inactive') + '">' + (active ? 'Active' : 'Inactive') + '</span>';
+    }
+
+    const editBtn = row.querySelector('button[onclick^="openEditModal"]');
+    if (editBtn) {
+        editBtn.setAttribute('onclick', 'openEditModal(' + [
+            user.id,
+            JSON.stringify(user.first_name || ''),
+            JSON.stringify(user.last_name || ''),
+            JSON.stringify(user.email || ''),
+            user.role_id == null ? 'null' : String(user.role_id),
+            JSON.stringify(user.school_level || ''),
+            JSON.stringify(user.role_name || ''),
+        ].join(', ') + ')');
+    }
+
+    return true;
+}
+
+function showEditErrors(messages) {
+    const box = document.getElementById('edit-form-errors');
+    if (!box) return;
+    if (!messages.length) {
+        box.style.display = 'none';
+        box.innerHTML = '';
+        return;
+    }
+    box.style.display = 'block';
+    box.innerHTML = '<ul style="margin:0;padding-left:1.2rem;">' + messages.map(function (m) {
+        return '<li>' + escapeHtml(m) + '</li>';
+    }).join('') + '</ul>';
+}
+
 function openEditModal(id, firstName, lastName, email, roleId, schoolLevel, roleName) {
     document.getElementById('edit_first_name').value = firstName;
     document.getElementById('edit_last_name').value  = lastName;
@@ -311,8 +421,8 @@ function openEditModal(id, firstName, lastName, email, roleId, schoolLevel, role
         if (roleHint) roleHint.textContent = 'Principal role cannot be assigned through this form.';
     }
 
-    document.getElementById('edit-user-form').action = '/principal/users/' + id;
-    // Clear password fields
+    document.getElementById('edit-user-form').action = principalUserUpdateUrl.replace('__ID__', String(id));
+    showEditErrors([]);
     // Clear password fields and reset eye icons
     ['edit_password', 'edit_password_confirmation'].forEach(function(id) {
         var el = document.getElementById(id);
@@ -323,7 +433,84 @@ function openEditModal(id, firstName, lastName, email, roleId, schoolLevel, role
 }
 function closeEditModal() {
     document.getElementById('edit-user-modal').style.display = 'none';
+    showEditErrors([]);
 }
+
+document.getElementById('edit-user-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    const form = this;
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalLabel = submitBtn ? submitBtn.textContent : '';
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Saving…';
+    }
+
+    const formData = new FormData(form);
+
+    fetch(form.action, {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': principalCsrfToken,
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'same-origin',
+        body: formData,
+    })
+    .then(function (res) {
+        return res.json().then(function (data) {
+            return { ok: res.ok, status: res.status, data: data };
+        }).catch(function () {
+            return { ok: res.ok, status: res.status, data: {} };
+        });
+    })
+    .then(function (result) {
+        if (result.ok && result.data && result.data.success && result.data.user) {
+            const updated = updateUserTableRow(result.data.user);
+            closeEditModal();
+            if (!updated) {
+                window.location.href = principalUsersListUrl;
+                return;
+            }
+            let banner = document.getElementById('principal-users-success-banner');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'principal-users-success-banner';
+                banner.className = 'alert alert-success';
+                banner.style.marginBottom = '1rem';
+                const header = document.querySelector('.header');
+                if (header && header.parentNode) {
+                    header.parentNode.insertBefore(banner, header.nextSibling);
+                }
+            }
+            banner.textContent = result.data.message || 'Account updated successfully.';
+            banner.style.display = 'block';
+            return;
+        }
+
+        const messages = [];
+        if (result.data && result.data.errors) {
+            Object.keys(result.data.errors).forEach(function (key) {
+                (result.data.errors[key] || []).forEach(function (msg) { messages.push(msg); });
+            });
+        } else if (result.data && result.data.message) {
+            messages.push(result.data.message);
+        } else {
+            messages.push('Could not save changes. Please try again.');
+        }
+        showEditErrors(messages);
+    })
+    .catch(function () {
+        showEditErrors(['Network error. Please check your connection and try again.']);
+    })
+    .finally(function () {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalLabel;
+        }
+    });
+});
 function togglePwd(inputId, btn) {
     var input = document.getElementById(inputId);
     if (!input) return;

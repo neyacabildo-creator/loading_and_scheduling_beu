@@ -220,11 +220,9 @@ class PrincipalController extends Controller
             ->paginate(30);
 
         $users->getCollection()->transform(function (User $user) {
-            $plain = \App\Support\UserPasswordSupport::decryptPlainPassword($user->id);
-            if ($plain === null && ($user->role?->name ?? '') === 'principal') {
-                $plain = \App\Support\UserPassword::plainText($user);
-            }
-            $user->setAttribute('display_password', $plain);
+            $row = $this->formatUserForPrincipalTable($user);
+            $user->setAttribute('display_password', $row['display_password']);
+            $user->setAttribute('role_label', $row['role_label']);
 
             return $user;
         });
@@ -383,9 +381,55 @@ class PrincipalController extends Controller
             );
         }
 
-        \App\Support\AuthRedirectSupport::repairAccountForPortalAccess($user->fresh(['role']));
+        $user->refresh();
+        $user->load('role');
+        \App\Support\AuthRedirectSupport::repairAccountForPortalAccess($user);
+        $user->refresh();
+        $user->load('role');
 
-        return back()->with('success', "Account for {$user->name} updated successfully.");
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Account for {$user->name} updated successfully.",
+                'user'    => $this->formatUserForPrincipalTable($user),
+            ]);
+        }
+
+        return redirect()
+            ->route('principal.users', ['page' => $request->input('page')])
+            ->with('success', "Account for {$user->name} updated successfully.");
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatUserForPrincipalTable(User $user): array
+    {
+        $user->loadMissing('role');
+
+        $plain = \App\Support\UserPasswordSupport::decryptPlainPassword($user->id);
+        if ($plain === null && ($user->role?->name ?? '') === 'principal') {
+            $plain = \App\Support\UserPassword::plainText($user);
+        }
+
+        $roleName = $user->role?->name ?? '';
+
+        return [
+            'id'                 => $user->id,
+            'first_name'         => $user->first_name,
+            'last_name'          => $user->last_name,
+            'name'               => $user->name,
+            'email'              => $user->email,
+            'display_password'   => $plain,
+            'role_id'            => $user->role_id,
+            'role_name'          => $roleName,
+            'role_label'         => $user->role?->display_name ?? ucfirst(str_replace('_', ' ', $roleName)),
+            'school_level'       => $user->school_level,
+            'school_level_label' => $user->school_level
+                ? ucfirst(str_replace('_', ' ', $user->school_level))
+                : '—',
+            'is_active'          => (bool) $user->is_active,
+        ];
     }
 
     /** Permanently delete a user account (irreversible). */
