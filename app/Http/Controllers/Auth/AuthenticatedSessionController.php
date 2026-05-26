@@ -95,6 +95,7 @@ class AuthenticatedSessionController extends Controller
         }
 
         $request->session()->put('auth_tab_last_seen', now()->timestamp);
+        AuthSession::touchActiveSession(Auth::user());
 
         return response()->noContent();
     }

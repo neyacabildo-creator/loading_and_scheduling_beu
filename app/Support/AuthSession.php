@@ -21,6 +21,13 @@ class AuthSession
         return (int) config('session.lifetime', 120);
     }
 
+    public static function singleSessionIdleMinutes(): int
+    {
+        $configured = (int) config('auth.single_session_idle_minutes', 5);
+
+        return max(1, min(self::sessionLifetimeMinutes(), $configured));
+    }
+
     public static function usesDatabaseSessions(): bool
     {
         return config('session.driver') === 'database'
@@ -53,7 +60,7 @@ class AuthSession
             $payload['active_session_at'] = now();
         }
 
-        $user->forceFill($payload)->save();
+        User::whereKey($user->id)->update($payload);
     }
 
     public static function touchActiveSession(User $user): void
@@ -62,7 +69,7 @@ class AuthSession
             return;
         }
 
-        $user->forceFill(['active_session_at' => now()])->save();
+        User::whereKey($user->id)->update(['active_session_at' => now()]);
     }
 
     public static function clearActiveSession(User $user): void
@@ -76,7 +83,7 @@ class AuthSession
             $payload['active_session_at'] = null;
         }
 
-        $user->forceFill($payload)->save();
+        User::whereKey($user->id)->update($payload);
     }
 
     /**
@@ -118,6 +125,23 @@ class AuthSession
     }
 
     /**
+     * Clear a stale lock when nobody is actively using the account.
+     */
+    public static function releaseStaleLoginLock(User $user): void
+    {
+        $user = self::freshUser($user);
+
+        if (empty($user->active_session_id)) {
+            return;
+        }
+
+        if (! self::loginLockIsActive($user)) {
+            self::releaseLoginLock($user);
+            self::purgeAllSessionsForUser((int) $user->id);
+        }
+    }
+
+    /**
      * Remove expired session rows and clear dead active_session_id before login.
      */
     public static function prepareUserForLogin(User $user): void
@@ -132,11 +156,8 @@ class AuthSession
                 ->delete();
         }
 
-        if (self::hasActiveSessionColumn() && ! empty($user->active_session_id) && ! self::storedSessionIsAlive($user)) {
-            self::clearActiveSession($user);
-            self::purgeAllSessionsForUser((int) $user->id);
-            $user = self::freshUser($user);
-        }
+        self::releaseStaleLoginLock($user);
+        $user = self::freshUser($user);
 
         if (self::usesDatabaseSessions() && empty($user->active_session_id)) {
             DB::table(self::sessionTable())->where('user_id', $user->id)->delete();
@@ -159,7 +180,7 @@ class AuthSession
             return false;
         }
 
-        return self::storedSessionIsAlive($user);
+        return self::loginLockIsActive($user);
     }
 
     /**
@@ -179,25 +200,36 @@ class AuthSession
                 return false;
             }
 
-            return self::storedSessionIsAlive($user);
+            if (self::usesDatabaseSessions()) {
+                return self::databaseSessionIsCurrentForUser($user, $sessionId);
+            }
+
+            return self::loginLockIsActive($user);
         }
 
         return self::databaseSessionIsCurrentForUser($user, $sessionId);
     }
 
-    public static function storedSessionIsAlive(User $user): bool
+    /**
+     * True when another login should be blocked (account actively in use).
+     *
+     * Uses users.active_session_at (refreshed by page loads and heartbeat), not the
+     * full session lifetime, so closing a tab or logging out does not block for hours.
+     */
+    public static function loginLockIsActive(User $user): bool
     {
         if (empty($user->active_session_id)) {
             return false;
         }
 
         if (self::usesDatabaseSessions()) {
-            $cutoff = now()->subMinutes(self::sessionLifetimeMinutes())->getTimestamp();
-
-            return DB::table(self::sessionTable())
+            $exists = DB::table(self::sessionTable())
                 ->where('id', $user->active_session_id)
-                ->where('last_activity', '>=', $cutoff)
                 ->exists();
+
+            if (! $exists) {
+                return false;
+            }
         }
 
         if (! Schema::hasColumn('users', 'active_session_at') || $user->active_session_at === null) {
@@ -213,7 +245,15 @@ class AuthSession
             }
         }
 
-        return $seenAt->gte(now()->subMinutes(self::sessionLifetimeMinutes()));
+        return $seenAt->gte(now()->subMinutes(self::singleSessionIdleMinutes()));
+    }
+
+    /**
+     * @deprecated Prefer loginLockIsActive() for login blocking.
+     */
+    public static function storedSessionIsAlive(User $user): bool
+    {
+        return self::loginLockIsActive($user);
     }
 
     /**
@@ -282,7 +322,7 @@ class AuthSession
             return false;
         }
 
-        $recentCutoff = now()->subMinutes(5)->getTimestamp();
+        $recentCutoff = now()->subMinutes(self::singleSessionIdleMinutes())->getTimestamp();
 
         $query = DB::table(self::sessionTable())
             ->where('user_id', $userId)

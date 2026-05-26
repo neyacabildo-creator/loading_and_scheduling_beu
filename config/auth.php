@@ -112,4 +112,16 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Single-session login lock idle window
+    |--------------------------------------------------------------------------
+    |
+    | How recently the account must have been active (active_session_at) before
+    | another browser is blocked from signing in. Heartbeats and page requests
+    | refresh this timestamp while a tab is open.
+    |
+    */
+    'single_session_idle_minutes' => (int) env('AUTH_SINGLE_SESSION_IDLE_MINUTES', 5),
+
 ];
