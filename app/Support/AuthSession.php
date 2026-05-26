@@ -80,6 +80,36 @@ class AuthSession
     }
 
     /**
+     * Fully release single-session lock so the user can sign in again immediately.
+     */
+    public static function releaseLoginLock(User $user, ?string $exceptSessionId = null): void
+    {
+        self::clearActiveSession($user);
+
+        if (! self::usesDatabaseSessions()) {
+            return;
+        }
+
+        $query = DB::table(self::sessionTable())->where('user_id', $user->id);
+        if ($exceptSessionId !== null && $exceptSessionId !== '') {
+            $query->where('id', '!=', $exceptSessionId);
+        }
+        $query->delete();
+    }
+
+    /**
+     * Delete all persisted session rows for this account (used on explicit logout).
+     */
+    public static function purgeAllSessionsForUser(int $userId): void
+    {
+        if (! self::usesDatabaseSessions()) {
+            return;
+        }
+
+        DB::table(self::sessionTable())->where('user_id', $userId)->delete();
+    }
+
+    /**
      * Reload user from DB so we always compare the latest active session.
      */
     public static function freshUser(User $user): User
@@ -104,7 +134,12 @@ class AuthSession
 
         if (self::hasActiveSessionColumn() && ! empty($user->active_session_id) && ! self::storedSessionIsAlive($user)) {
             self::clearActiveSession($user);
+            self::purgeAllSessionsForUser((int) $user->id);
             $user = self::freshUser($user);
+        }
+
+        if (self::usesDatabaseSessions() && empty($user->active_session_id)) {
+            DB::table(self::sessionTable())->where('user_id', $user->id)->delete();
         }
     }
 
@@ -116,21 +151,15 @@ class AuthSession
         self::prepareUserForLogin($user);
         $user = self::freshUser($user);
 
-        if (self::usesDatabaseSessions() && ! self::userHasRecentlyActiveSession($user->id, $exceptSessionId)) {
-            DB::table(self::sessionTable())->where('user_id', $user->id)->delete();
-            self::clearActiveSession($user);
-            $user = self::freshUser($user);
+        if (empty($user->active_session_id)) {
+            return false;
         }
 
-        if (self::hasActiveSessionColumn() && ! empty($user->active_session_id)) {
-            if ($exceptSessionId !== null && hash_equals((string) $user->active_session_id, $exceptSessionId)) {
-                return false;
-            }
-
-            return self::storedSessionIsAlive($user);
+        if ($exceptSessionId !== null && hash_equals((string) $user->active_session_id, $exceptSessionId)) {
+            return false;
         }
 
-        return self::hasOtherLiveDatabaseSession($user, $exceptSessionId);
+        return self::storedSessionIsAlive($user);
     }
 
     /**

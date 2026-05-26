@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Support\AuthPublicRoutes;
+use App\Support\AuthSession;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -38,6 +39,11 @@ class RequireRecentAuthActivity
 
         if ((now()->timestamp - $lastSeen) <= 1800) {
             return $next($request);
+        }
+
+        if ($user = Auth::user()) {
+            AuthSession::releaseLoginLock($user);
+            AuthSession::purgeAllSessionsForUser((int) $user->id);
         }
 
         Auth::guard('web')->logout();

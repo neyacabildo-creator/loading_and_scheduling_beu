@@ -73,7 +73,8 @@ class AuthenticatedSessionController extends Controller
         }
 
         if ($user = Auth::user()) {
-            AuthSession::clearActiveSession($user);
+            AuthSession::releaseLoginLock($user);
+            AuthSession::purgeAllSessionsForUser((int) $user->id);
         }
 
         Auth::guard('web')->logout();
@@ -113,7 +114,8 @@ class AuthenticatedSessionController extends Controller
         }
 
         if ($user = Auth::user()) {
-            AuthSession::clearActiveSession($user);
+            AuthSession::releaseLoginLock($user);
+            AuthSession::purgeAllSessionsForUser((int) $user->id);
         }
 
         Auth::guard('web')->logout();

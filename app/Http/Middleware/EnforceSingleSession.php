@@ -25,7 +25,8 @@ class EnforceSingleSession
         $sessionId = $request->session()->getId();
 
         if (! AuthSession::isActiveSession($user, $sessionId)) {
-            AuthSession::clearActiveSession($user);
+            AuthSession::releaseLoginLock($user);
+            AuthSession::purgeAllSessionsForUser((int) $user->id);
 
             Auth::guard('web')->logout();
             $request->session()->forget('auth_tab_last_seen');
