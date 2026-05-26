@@ -76,10 +76,10 @@
             </div>
             <div class="sf-control-group">
                 <label for="schedule_date">Schedule Date</label>
-                <input type="date" name="schedule_date" id="schedule_date" class="sf-select" value="{{ old('schedule_date') }}">
+                <input type="date" name="schedule_date" id="schedule_date" class="sf-select" required value="{{ old('schedule_date', now()->toDateString()) }}">
             </div>
         </div>
-        <p style="font-size:.8rem;color:var(--text-secondary);margin:0;">Select a grade level and day, then fill in subjects and assign teachers per section/time slot. Sections update automatically per grade.</p>
+        <p style="font-size:.8rem;color:var(--text-secondary);margin:0;">Select grade, day, and schedule date, then fill subjects and teachers per section/time slot. Duplicate day + time + date + section (or double-booked teacher) is not allowed.</p>
         <div id="sfSlotAssistantStatus" style="margin-top:.75rem;"></div>
     </div>
 
@@ -828,10 +828,47 @@
         if (isKinderGrade(grade)) {
             return window.gsKinderClientValidate();
         }
+        var schedDate = document.getElementById('schedule_date');
+        var dateVal = schedDate ? schedDate.value : '';
         if (!grade || !day) {
             gsToast('Please select both a Grade Level and a Day of Week before saving.');
             return false;
         }
+        if (!dateVal) {
+            gsToast('Please select a Schedule Date. Duplicates are checked by day, time, and date.');
+            return false;
+        }
+        var seenTeachers = {};
+        var seenSections = {};
+        var inFormDup = false;
+        document.querySelectorAll('.sf-cell').forEach(function(cell) {
+            var sub = cell.querySelector('.sf-subject');
+            if (!sub || !sub.name) return;
+            var m = sub.name.match(/slots\[([^\]]+)\]\[([^\]]+)\]/);
+            if (!m) return;
+            var timeKey = m[1];
+            var secKey = m[2];
+            var secNameEl = document.getElementById('gs-sec-name-' + secKey);
+            var secName = secNameEl ? secNameEl.value : secKey;
+            gsGetCellAssignmentPairs(cell).forEach(function(p) {
+                if (!p.subject || !p.facultyId) return;
+                var tKey = p.facultyId + '|' + day + '|' + timeKey + '|' + dateVal;
+                if (seenTeachers[tKey]) {
+                    inFormDup = true;
+                    gsToast('Duplicate: the same teacher cannot teach two sections at the same time on this date.');
+                    return;
+                }
+                seenTeachers[tKey] = true;
+                var sKey = grade + '|' + secName + '|' + day + '|' + timeKey + '|' + dateVal;
+                if (seenSections[sKey]) {
+                    inFormDup = true;
+                    gsToast('Duplicate: ' + secName + ' already has an assignment for this time on the selected date.');
+                    return;
+                }
+                seenSections[sKey] = true;
+            });
+        });
+        if (inFormDup) return false;
         var missingTeacher = false;
         document.querySelectorAll('.sf-subject-row').forEach(function(row) {
             var subj  = row.querySelector('.sf-subject');
@@ -875,7 +912,21 @@
         return true;
     };
 
-    /** Direct POST — avoids submit-guard intercept issues. */
+    function gsShowConflictToasts(messages) {
+        var list = Array.isArray(messages) ? messages : [String(messages)];
+        if (!window.spupToast) {
+            alert(list.join('\n'));
+            return;
+        }
+        list.forEach(function (msg, i) {
+            if (!msg) return;
+            setTimeout(function () {
+                window.spupToast.error(msg, 9000);
+            }, i * 350);
+        });
+    }
+
+    /** Validate, check duplicates on server, then POST. */
     window.gsSubmitScheduleForm = function (clickedBtn) {
         var form = document.getElementById('scheduleGridForm');
         if (!form) {
@@ -885,14 +936,63 @@
             return;
         }
         var btn = clickedBtn || document.getElementById('sfSubmitBtn') || document.getElementById('sfKinderSubmitBtn');
-        if (btn) {
-            if (!btn.dataset.gsOrigLabel) {
-                btn.dataset.gsOrigLabel = btn.textContent.trim();
+        var grade = document.getElementById('grade_level');
+        var isKinder = grade && ['Kinder 2', 'Kinder 1', 'Nursery'].indexOf(grade.value) >= 0;
+        if (isKinder) {
+            if (btn) {
+                if (!btn.dataset.gsOrigLabel) btn.dataset.gsOrigLabel = btn.textContent.trim();
+                btn.disabled = false;
+                btn.textContent = 'Saving…';
             }
-            btn.disabled = false;
-            btn.textContent = 'Saving…';
+            form.submit();
+            return;
         }
-        form.submit();
+        var checkUrl = @json(route('grade-school-admin.schedule.check-grid'));
+        var csrf = document.querySelector('meta[name="csrf-token"]');
+        if (btn) {
+            if (!btn.dataset.gsOrigLabel) btn.dataset.gsOrigLabel = btn.textContent.trim();
+            btn.disabled = false;
+            btn.textContent = 'Checking…';
+        }
+        fetch(checkUrl, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrf ? csrf.getAttribute('content') : '',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+            },
+            credentials: 'same-origin',
+            body: new FormData(form),
+        })
+            .then(function (res) { return res.text().then(function (text) {
+                var data = {};
+                try { data = text ? JSON.parse(text) : {}; } catch (e) { data = {}; }
+                return { ok: res.ok, data: data };
+            }); })
+            .then(function (result) {
+                var conflicts = (result.data && result.data.conflicts) || [];
+                if (result.data && result.data.errors) {
+                    Object.keys(result.data.errors).forEach(function (k) {
+                        (result.data.errors[k] || []).forEach(function (m) { conflicts.push(m); });
+                    });
+                }
+                if (conflicts.length) {
+                    if (btn) btn.textContent = btn.dataset.gsOrigLabel || 'Submit Schedule for Approval';
+                    gsShowConflictToasts(conflicts);
+                    return;
+                }
+                if (!result.ok && !(result.data && result.data.ok)) {
+                    if (btn) btn.textContent = btn.dataset.gsOrigLabel || 'Submit Schedule for Approval';
+                    gsShowConflictToasts([(result.data && result.data.message) || 'Could not verify schedule. Please review your entries.']);
+                    return;
+                }
+                if (btn) btn.textContent = 'Saving…';
+                form.submit();
+            })
+            .catch(function () {
+                if (btn) btn.textContent = 'Saving…';
+                form.submit();
+            });
     };
 
     var gsForm = document.getElementById('scheduleGridForm');

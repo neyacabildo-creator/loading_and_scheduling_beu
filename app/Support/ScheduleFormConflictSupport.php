@@ -327,13 +327,57 @@ class ScheduleFormConflictSupport
      */
     private static function applyScheduleDateScope($query, ?string $scheduleDate): void
     {
-        if ($scheduleDate !== null && trim($scheduleDate) !== '') {
-            $date = substr(trim($scheduleDate), 0, 10);
-            $query->where(function ($q) use ($date) {
-                $q->whereDate('schedule_date', $date)
-                    ->orWhereNull('schedule_date');
-            });
+        if ($scheduleDate === null || trim($scheduleDate) === '') {
+            return;
         }
+
+        $date = substr(trim($scheduleDate), 0, 10);
+        $query->where(function ($q) use ($date) {
+            $q->whereDate('schedule_date', $date)
+                ->orWhereNull('schedule_date');
+        });
+    }
+
+    /**
+     * Same grade + section + day + time already present in this submission grid.
+     */
+    public static function inFormSectionSlotDuplicateMessage(
+        string $gradeLevel,
+        string $sectionName,
+        string $dayOfWeek,
+        string $startTime,
+        ?string $scheduleDate,
+        ?string $endTime = null,
+    ): string {
+        return 'This form already assigns '
+            . self::sectionRoomLabel($gradeLevel, $sectionName)
+            . " on {$dayOfWeek}"
+            . ($scheduleDate ? ', ' . \Carbon\Carbon::parse(substr($scheduleDate, 0, 10))->format('m/d/Y') : '')
+            . ' at ' . self::normalizeTime($startTime)
+            . ($endTime ? ' – ' . self::normalizeTime($endTime) : '')
+            . '. Remove the duplicate row before saving.';
+    }
+
+    /**
+     * Teacher assigned to more than one section at the same day/time in this form.
+     */
+    public static function inFormTeacherSlotDuplicateMessage(
+        int $facultyId,
+        string $dayOfWeek,
+        string $startTime,
+        ?string $scheduleDate,
+        ?string $endTime = null,
+    ): string {
+        $teacher = User::find($facultyId);
+        $name = $teacher ? trim($teacher->first_name . ' ' . $teacher->last_name) ?: $teacher->name : "Teacher #{$facultyId}";
+        $datePart = ($scheduleDate && trim($scheduleDate) !== '')
+            ? \Carbon\Carbon::parse(substr(trim($scheduleDate), 0, 10))->format('m/d/Y') . ', '
+            : '';
+
+        return "{$name} is assigned to multiple sections on {$dayOfWeek}, {$datePart}"
+            . self::normalizeTime($startTime)
+            . ($endTime ? ' – ' . self::normalizeTime($endTime) : '')
+            . ' in this form. Each teacher can only teach one class per period.';
     }
 
     /**
@@ -505,9 +549,12 @@ class ScheduleFormConflictSupport
                     continue;
                 }
 
-                $sectionSlotKey = $gradeLevel . '|' . $displaySec . '|' . $timeKey . '|' . ($scheduleDate ?? '');
+                $dateKey = ($scheduleDate !== null && trim($scheduleDate) !== '')
+                    ? substr(trim($scheduleDate), 0, 10)
+                    : '';
+                $sectionSlotKey = $gradeLevel . '|' . $displaySec . '|' . $dayOfWeek . '|' . $timeKey . '|' . $dateKey;
                 if (isset($seenSectionSlots[$sectionSlotKey])) {
-                    $conflicts[] = self::duplicateScheduleForSlotMessage(
+                    $conflicts[] = self::inFormSectionSlotDuplicateMessage(
                         $gradeLevel, $displaySec, $dayOfWeek, $startTime, $scheduleDate, $endTime
                     );
                 } else {
@@ -545,6 +592,15 @@ class ScheduleFormConflictSupport
                     if ($availMsg) {
                         $conflicts[] = "{$displaySec} at {$startTime}: {$availMsg}";
                         continue;
+                    }
+
+                    $teacherSlotKey = $primaryFaculty . '|' . $dayOfWeek . '|' . $timeKey . '|' . $dateKey;
+                    if (isset($seenTeacherSlots[$teacherSlotKey])) {
+                        $conflicts[] = self::inFormTeacherSlotDuplicateMessage(
+                            (int) $primaryFaculty, $dayOfWeek, $startTime, $scheduleDate, $endTime
+                        );
+                    } else {
+                        $seenTeacherSlots[$teacherSlotKey] = $displaySec;
                     }
 
                     $teacherSlotMsg = self::teacherSlotConflictMessage(

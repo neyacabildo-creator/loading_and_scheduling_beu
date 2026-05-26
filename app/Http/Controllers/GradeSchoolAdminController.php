@@ -1384,6 +1384,7 @@ class GradeSchoolAdminController extends Controller
             $request->validate([
                 'grade_level' => 'required|string|in:Grade 1,Grade 2,Grade 3,Grade 4,Grade 5,Grade 6',
                 'day_of_week' => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday',
+                'schedule_date' => 'required|date',
                 'slots' => 'nullable|array',
             ]);
 
@@ -1450,6 +1451,7 @@ class GradeSchoolAdminController extends Controller
             $request->validate([
                 'grade_level' => 'required|string|in:Grade 1,Grade 2,Grade 3,Grade 4,Grade 5,Grade 6',
                 'day_of_week' => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday',
+                'schedule_date' => 'required|date',
                 'slots'       => 'nullable|array',
             ]);
 
