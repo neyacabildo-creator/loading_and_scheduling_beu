@@ -79,7 +79,8 @@ class FacultyLoadSupport
     }
 
     /**
-     * After grade/subject change on a load row, keep approved schedules aligned so Create Schedule filters stay correct.
+     * Faculty load edits must not change class_schedules — pending/approved rows keep the subject
+     * stored at create/approve time (e.g. "ENGLISH"), not the load CSV (e.g. "ENGLISH, MAKABANSA").
      */
     public static function syncSchedulesAfterLoadChange(
         int $facultyId,
@@ -88,49 +89,7 @@ class FacultyLoadSupport
         ?string $newGrade,
         ?string $newSubject
     ): int {
-        if ($facultyId <= 0) {
-            return 0;
-        }
-
-        $oldGrade = trim((string) $oldGrade);
-        $oldSubject = trim((string) $oldSubject);
-        $newGrade = trim((string) $newGrade);
-        $newSubject = trim((string) $newSubject);
-
-        if ($oldGrade === $newGrade && strcasecmp($oldSubject, $newSubject) === 0) {
-            return 0;
-        }
-
-        $query = ClassSchedule::where('faculty_id', $facultyId)
-            ->where('admin_approved', true);
-
-        if ($oldGrade !== '') {
-            $query->where('grade_level', $oldGrade);
-        }
-
-        $schedules = $query->get();
-        $updated = 0;
-
-        foreach ($schedules as $schedule) {
-            if ($oldSubject !== '' && ! self::subjectMatches($schedule->subject, $oldSubject)) {
-                continue;
-            }
-
-            $changes = [];
-            if ($newGrade !== '' && $schedule->grade_level !== $newGrade) {
-                $changes['grade_level'] = $newGrade;
-            }
-            if ($newSubject !== '' && ! self::subjectMatches($schedule->subject, $newSubject)) {
-                $changes['subject'] = $newSubject;
-            }
-
-            if ($changes !== []) {
-                $schedule->update($changes);
-                $updated++;
-            }
-        }
-
-        return $updated;
+        return 0;
     }
 
     /**
