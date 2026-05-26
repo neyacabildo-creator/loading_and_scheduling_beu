@@ -1,11 +1,11 @@
 /**
- * Intercepts create-schedule form submit, checks grid conflicts via API, shows right-side toasts.
+ * Optional pre-check before create-schedule form POST. Always ends in form.submit().
  */
 (function () {
     'use strict';
 
     var cfg = window.SCHEDULE_FORM_GUARD;
-    if (!cfg || !cfg.checkUrl || !cfg.formId) {
+    if (!cfg || !cfg.formId) {
         return;
     }
 
@@ -15,10 +15,34 @@
     }
 
     var activeSubmitBtn = null;
+    var pending = false;
 
     function getCsrf() {
         var meta = document.querySelector('meta[name="csrf-token"]');
         return meta ? meta.getAttribute('content') : '';
+    }
+
+    function resolveSubmitBtn() {
+        return activeSubmitBtn || document.getElementById('sfSubmitBtn') || form.querySelector('button[type="submit"]');
+    }
+
+    function setSubmitBusy(busy) {
+        var btn = resolveSubmitBtn();
+        if (!btn) {
+            return;
+        }
+        if (!btn.dataset.sfOrigLabel) {
+            btn.dataset.sfOrigLabel = btn.textContent.trim();
+        }
+        if (busy) {
+            btn.setAttribute('aria-busy', 'true');
+            btn.textContent = 'Saving…';
+        } else {
+            btn.removeAttribute('aria-busy');
+            btn.textContent = btn.dataset.sfOrigLabel;
+        }
+        // Never disable — disabled submitters block form.submit() / requestSubmit().
+        btn.disabled = false;
     }
 
     function showConflictToasts(messages) {
@@ -38,16 +62,6 @@
             });
         }
         emit();
-    }
-
-    function showWarningToast(message) {
-        if (window.spupToast && typeof window.spupToast.warning === 'function') {
-            window.spupToast.warning(message, 6000);
-            return;
-        }
-        if (window.spupToast) {
-            window.spupToast.error(message, 6000);
-        }
     }
 
     function runClientValidation() {
@@ -87,14 +101,84 @@
         return out;
     }
 
-    function proceedSubmit() {
-        form.dataset.sfSkipGuard = '1';
-        var btn = activeSubmitBtn || form.querySelector(cfg.submitSelector || 'button[type="submit"]');
-        if (typeof form.requestSubmit === 'function') {
-            form.requestSubmit(btn || undefined);
+    /** Native POST — does not re-fire this submit listener. */
+    function postForm() {
+        pending = false;
+        setSubmitBusy(false);
+        var btn = resolveSubmitBtn();
+        if (btn) {
+            btn.disabled = false;
+        }
+        if (typeof form.checkValidity === 'function' && !form.checkValidity()) {
+            form.reportValidity();
             return;
         }
         form.submit();
+    }
+
+    function runPreCheckThenPost() {
+        if (!cfg.checkUrl) {
+            postForm();
+            return;
+        }
+
+        pending = true;
+        setSubmitBusy(true);
+
+        fetch(cfg.checkUrl, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': getCsrf(),
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+            },
+            credentials: 'same-origin',
+            body: new FormData(form),
+        })
+            .then(parseResponse)
+            .then(function (result) {
+                var conflicts = (result.data && result.data.conflicts) || [];
+                var explicitOk = result.data && Object.prototype.hasOwnProperty.call(result.data, 'ok')
+                    ? !!result.data.ok
+                    : result.ok;
+
+                if (conflicts.length) {
+                    pending = false;
+                    setSubmitBusy(false);
+                    showConflictToasts(conflicts);
+                    return;
+                }
+
+                var validation = validationMessages(result.data);
+                if (validation.length) {
+                    pending = false;
+                    setSubmitBusy(false);
+                    showConflictToasts(validation);
+                    return;
+                }
+
+                if (!result.ok && !explicitOk) {
+                    pending = false;
+                    setSubmitBusy(false);
+                    showConflictToasts([
+                        (result.data && result.data.message) ||
+                            'Could not verify the schedule. Please review your entries.',
+                    ]);
+                    return;
+                }
+
+                postForm();
+            })
+            .catch(function () {
+                // Server will validate again on store.
+                postForm();
+            })
+            .finally(function () {
+                if (pending) {
+                    pending = false;
+                    setSubmitBusy(false);
+                }
+            });
     }
 
     form.querySelectorAll('button[type="submit"]').forEach(function (btn) {
@@ -104,8 +188,8 @@
     });
 
     form.addEventListener('submit', function (e) {
-        if (form.dataset.sfSkipGuard === '1') {
-            delete form.dataset.sfSkipGuard;
+        if (pending) {
+            e.preventDefault();
             return;
         }
 
@@ -120,73 +204,11 @@
 
         e.preventDefault();
 
-        var submitBtn = activeSubmitBtn || form.querySelector(cfg.submitSelector || 'button[type="submit"]');
-        if (submitBtn) {
-            if (!submitBtn.dataset.sfOrigLabel) {
-                submitBtn.dataset.sfOrigLabel = submitBtn.textContent;
-            }
-            submitBtn.disabled = true;
+        if (typeof form.checkValidity === 'function' && !form.checkValidity()) {
+            form.reportValidity();
+            return;
         }
 
-        var body = new FormData(form);
-
-        fetch(cfg.checkUrl, {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': getCsrf(),
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json',
-            },
-            credentials: 'same-origin',
-            body: body,
-        })
-            .then(parseResponse)
-            .then(function (result) {
-                var conflicts = (result.data && result.data.conflicts) || [];
-                var explicitOk = result.data && Object.prototype.hasOwnProperty.call(result.data, 'ok')
-                    ? !!result.data.ok
-                    : result.ok;
-
-                if (result.ok && explicitOk && conflicts.length === 0) {
-                    proceedSubmit();
-                    return;
-                }
-
-                if (conflicts.length) {
-                    showConflictToasts(conflicts);
-                    return;
-                }
-
-                var validation = validationMessages(result.data);
-                if (validation.length) {
-                    showConflictToasts(validation);
-                    return;
-                }
-
-                if (!result.ok) {
-                    showConflictToasts([
-                        (result.data && result.data.message) ||
-                            'Could not verify the schedule. Please review your entries.',
-                    ]);
-                    return;
-                }
-
-                proceedSubmit();
-            })
-            .catch(function (err) {
-                showWarningToast(
-                    (err && err.message) ||
-                        'Could not verify conflicts online. Saving anyway — the server will validate your entries.'
-                );
-                proceedSubmit();
-            })
-            .finally(function () {
-                if (submitBtn) {
-                    submitBtn.disabled = false;
-                    if (submitBtn.dataset.sfOrigLabel) {
-                        submitBtn.textContent = submitBtn.dataset.sfOrigLabel;
-                    }
-                }
-            });
+        runPreCheckThenPost();
     });
 })();

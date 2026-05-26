@@ -115,18 +115,19 @@
     </div>
 
     <!-- Grid -->
-    <div class="sf-card" style="overflow-x:auto;position:relative;" id="gsGridCard">
-        <div id="gsGridOverlay" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.04);display:flex;align-items:center;justify-content:center;z-index:10;border-radius:.75rem;backdrop-filter:blur(3px);">
-            <div style="background:var(--bg-secondary);border:2px dashed var(--border-color);border-radius:.75rem;padding:2rem 3rem;text-align:center;box-shadow:var(--shadow-sm);">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--green-primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto 1rem;display:block;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                <p style="font-size:1rem;font-weight:700;color:var(--text-primary);margin:0 0 .4rem;">Select a Grade Level First</p>
-                <p style="font-size:.82rem;color:var(--text-secondary);margin:0;">Choose a grade level above to unlock the schedule grid.</p>
-            </div>
-        </div>
+    <div class="sf-card" style="overflow-x:auto;" id="gsGridCard">
         {{-- Hidden inputs carry section names (outside table so all browsers include them in POST) --}}
         <input type="hidden" name="section_names[0]" id="gs-sec-name-0" value="STEPHEN">
         <input type="hidden" name="section_names[1]" id="gs-sec-name-1" value="PETER">
         <input type="hidden" name="section_names[2]" id="gs-sec-name-2" value="ST. PAUL">
+        <div style="position:relative;min-height:120px;" id="gsGridTableWrap">
+            <div id="gsGridOverlay" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.04);display:flex;align-items:center;justify-content:center;z-index:10;border-radius:.75rem;backdrop-filter:blur(3px);">
+                <div style="background:var(--bg-secondary);border:2px dashed var(--border-color);border-radius:.75rem;padding:2rem 3rem;text-align:center;box-shadow:var(--shadow-sm);">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--green-primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto 1rem;display:block;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    <p style="font-size:1rem;font-weight:700;color:var(--text-primary);margin:0 0 .4rem;">Select a Grade Level First</p>
+                    <p style="font-size:.82rem;color:var(--text-secondary);margin:0;">Choose a grade level above to unlock the schedule grid.</p>
+                </div>
+            </div>
         <table class="sf-table">
             <thead>
                 <tr>
@@ -148,6 +149,7 @@
                 ])
             </tbody>
         </table>
+        </div>
 
         <div style="display:flex;gap:1rem;padding:1.25rem;border-top:1px solid var(--border-color);">
             <button type="submit" class="sf-submit-btn" id="sfSubmitBtn">
@@ -415,9 +417,12 @@
         var submitBtn = document.getElementById('sfSubmitBtn');
         if (overlay) overlay.style.display = (grade && !kinder) ? 'none' : (kinder ? 'none' : 'flex');
         if (submitBtn) {
-            submitBtn.disabled = !grade || kinder;
-            submitBtn.style.opacity = (grade && !kinder) ? '1' : '0.45';
-            submitBtn.style.cursor = (grade && !kinder) ? 'pointer' : 'not-allowed';
+            // Keep button clickable — validation runs on submit (disabled buttons ignore clicks).
+            submitBtn.disabled = false;
+            submitBtn.removeAttribute('aria-disabled');
+            var ready = !!(grade && !kinder);
+            submitBtn.style.opacity = ready ? '1' : '0.7';
+            submitBtn.style.cursor = 'pointer';
         }
     }
 
@@ -855,6 +860,16 @@
                 return false;
             }
         }
+        var hasEntry = false;
+        document.querySelectorAll('.sf-cell').forEach(function(cell) {
+            gsGetCellAssignmentPairs(cell).forEach(function(p) {
+                if (p.subject && p.facultyId) hasEntry = true;
+            });
+        });
+        if (!hasEntry) {
+            gsToast('Please fill at least one time slot with both a subject and a teacher before submitting.');
+            return false;
+        }
         return true;
     };
 })();
@@ -874,7 +889,6 @@ window.SF_SLOT_ASSISTANT = {
 window.SCHEDULE_FORM_GUARD = {
     formId: 'scheduleGridForm',
     checkUrl: @json(route('grade-school-admin.schedule.check-grid')),
-    submitSelector: 'button[type="submit"]:not(:disabled)',
     clientValidate: function () { return window.gsFormClientValidate ? window.gsFormClientValidate() : true; },
     skipGridCheck: function () {
         var g = document.getElementById('grade_level');
@@ -882,5 +896,5 @@ window.SCHEDULE_FORM_GUARD = {
     },
 };
 </script>
-<script src="{{ asset('js/schedule-form-submit-guard.js') }}"></script>
+<script src="{{ asset('js/schedule-form-submit-guard.js') }}?v={{ @filemtime(public_path('js/schedule-form-submit-guard.js')) }}"></script>
 @endpush

@@ -549,9 +549,8 @@ window.SF_SLOT_ASSISTANT = {
 window.SCHEDULE_FORM_GUARD = {
     formId: 'sfForm',
     checkUrl: @json(route('admin.schedules.check-grid')),
-    submitSelector: 'button[type="submit"]:not(:disabled)',
     clientValidate: function () { return sfValidate(); },
 };
 </script>
-<script src="{{ asset('js/schedule-form-submit-guard.js') }}"></script>
+<script src="{{ asset('js/schedule-form-submit-guard.js') }}?v={{ @filemtime(public_path('js/schedule-form-submit-guard.js')) }}"></script>
 @endpush
