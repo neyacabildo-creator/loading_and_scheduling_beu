@@ -20,7 +20,7 @@
 .sf-subject:focus{outline:none;border-color:var(--green-primary);}
 .sf-teacher{width:100%;padding:.3rem .35rem;border:1px solid var(--border-color);border-radius:.25rem;background:var(--bg-secondary);color:var(--text-primary);font-size:.72rem;box-sizing:border-box;}
 .sf-teacher:focus{outline:none;border-color:var(--green-primary);}
-.sf-submit-btn{padding:.75rem 2rem;background:linear-gradient(135deg,var(--green-primary),#0d3d20);color:#fff;border:none;border-radius:.5rem;cursor:pointer;font-weight:600;font-size:.9rem;transition:all .2s;}
+.sf-submit-btn{padding:.75rem 2rem;background:linear-gradient(135deg,var(--green-primary),#0d3d20);color:#fff;border:none;border-radius:.5rem;cursor:pointer;font-weight:600;font-size:.9rem;transition:all .2s;pointer-events:auto;position:relative;z-index:30;}
 .sf-submit-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(45,122,80,.3);}
 .sf-submit-btn:disabled{opacity:.55;cursor:not-allowed;transform:none;}
 .sf-cancel-link{padding:.75rem 1.5rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:.5rem;font-weight:600;font-size:.875rem;text-decoration:none;display:inline-block;transition:background .2s,border-color .2s;}
@@ -50,7 +50,7 @@
 </div>
 @endif
 
-<form action="{{ route('grade-school-admin.schedule.store') }}" method="POST" id="scheduleGridForm">
+<form action="{{ route('grade-school-admin.schedule.store') }}" method="POST" id="scheduleGridForm" novalidate>
     @csrf
 
     <!-- Controls -->
@@ -109,7 +109,7 @@
             'weeklyActivity' => old('activity', []),
         ])
         <div style="display:flex;gap:1rem;padding-top:1.25rem;border-top:1px solid var(--border-color);margin-top:1rem;">
-            <button type="submit" class="sf-submit-btn" id="sfKinderSubmitBtn">Save Kinder Schedule</button>
+            <button type="button" class="sf-submit-btn" id="sfKinderSubmitBtn">Save Kinder Schedule</button>
             <a href="{{ route('grade-school-admin.class-schedule') }}" class="sf-cancel-link">Cancel</a>
         </div>
     </div>
@@ -152,7 +152,7 @@
         </div>
 
         <div style="display:flex;gap:1rem;padding:1.25rem;border-top:1px solid var(--border-color);">
-            <button type="submit" class="sf-submit-btn" id="sfSubmitBtn">
+            <button type="button" class="sf-submit-btn" id="sfSubmitBtn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:.4rem;"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v14a2 2 0 01-2 2z" stroke="currentColor" stroke-width="2"/><polyline points="17 21 17 13 7 13 7 21" stroke="currentColor" stroke-width="2"/><polyline points="7 3 7 8 15 8" stroke="currentColor" stroke-width="2"/></svg>
                 Submit Schedule for Approval
             </button>
@@ -852,10 +852,12 @@
             gsToast('Cannot save: the same subject and teacher cannot be assigned twice in one section slot.');
             return false;
         }
-        var warnEls = document.querySelectorAll('.sf-conflict-warn');
+        var gridCard = document.getElementById('gsGridCard');
+        var warnScope = gridCard && gridCard.style.display !== 'none' ? gridCard : document;
+        var warnEls = warnScope.querySelectorAll('.sf-conflict-warn');
         for (var i = 0; i < warnEls.length; i++) {
             var w = warnEls[i];
-            if (w.style.display !== 'none' && w.textContent.trim()) {
+            if (w.offsetParent !== null && w.textContent.trim()) {
                 gsToast('Cannot save: ' + w.textContent.trim());
                 return false;
             }
@@ -872,6 +874,46 @@
         }
         return true;
     };
+
+    /** Direct POST — avoids submit-guard intercept issues. */
+    window.gsSubmitScheduleForm = function (clickedBtn) {
+        var form = document.getElementById('scheduleGridForm');
+        if (!form) {
+            return;
+        }
+        if (typeof window.gsFormClientValidate === 'function' && !window.gsFormClientValidate()) {
+            return;
+        }
+        var btn = clickedBtn || document.getElementById('sfSubmitBtn') || document.getElementById('sfKinderSubmitBtn');
+        if (btn) {
+            if (!btn.dataset.gsOrigLabel) {
+                btn.dataset.gsOrigLabel = btn.textContent.trim();
+            }
+            btn.disabled = false;
+            btn.textContent = 'Saving…';
+        }
+        form.submit();
+    };
+
+    var gsForm = document.getElementById('scheduleGridForm');
+    var gsSubmitBtn = document.getElementById('sfSubmitBtn');
+    var gsKinderBtn = document.getElementById('sfKinderSubmitBtn');
+    if (gsSubmitBtn) {
+        gsSubmitBtn.addEventListener('click', function () {
+            window.gsSubmitScheduleForm(gsSubmitBtn);
+        });
+    }
+    if (gsKinderBtn) {
+        gsKinderBtn.addEventListener('click', function () {
+            window.gsSubmitScheduleForm(gsKinderBtn);
+        });
+    }
+    if (gsForm) {
+        gsForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            window.gsSubmitScheduleForm();
+        });
+    }
 })();
 </script>
 <script>
@@ -883,18 +925,3 @@ window.SF_SLOT_ASSISTANT = {
 <script src="{{ asset('js/schedule-slot-assistant.js') }}"></script>
 
 @endsection
-
-@push('scripts')
-<script>
-window.SCHEDULE_FORM_GUARD = {
-    formId: 'scheduleGridForm',
-    checkUrl: @json(route('grade-school-admin.schedule.check-grid')),
-    clientValidate: function () { return window.gsFormClientValidate ? window.gsFormClientValidate() : true; },
-    skipGridCheck: function () {
-        var g = document.getElementById('grade_level');
-        return g && ['Kinder 2', 'Kinder 1', 'Nursery'].indexOf(g.value) >= 0;
-    },
-};
-</script>
-<script src="{{ asset('js/schedule-form-submit-guard.js') }}?v={{ @filemtime(public_path('js/schedule-form-submit-guard.js')) }}"></script>
-@endpush
