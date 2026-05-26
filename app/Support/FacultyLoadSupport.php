@@ -163,6 +163,20 @@ class FacultyLoadSupport
     }
 
     /**
+     * Map admin form status values to faculty_loads.status (available | not_available).
+     */
+    public static function normalizeAvailabilityStatus(?string $status): string
+    {
+        $normalized = strtolower(trim(str_replace([' ', '-'], '_', (string) $status)));
+
+        return match ($normalized) {
+            'not_available', 'unavailable', 'inactive', 'overloaded' => 'not_available',
+            'available', 'active', 'part_time', 'parttime' => 'available',
+            default => 'available',
+        };
+    }
+
+    /**
      * After a GS faculty load row changes, align shared-teacher registry and kinder subject text.
      */
     public static function syncSharedTeacherAfterGsLoad(FacultyLoad $load): void

@@ -996,18 +996,20 @@
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '', 'Accept': 'application/json' },
                 body: JSON.stringify(data)
             })
-            .then(r => r.json())
-            .then(res => {
-                if (res.success !== false) {
-                    alert(' Faculty load added successfully');
-                    document.getElementById('addFacultyLoadModal').style.display = 'none';
-                    loadFacultyLoads();
-                } else {
+            .then(function (r) { return AdminFacultyLoadForm.parseJsonResponse(r); })
+            .then(function (res) {
+                if (res.success === false) {
                     const msg = res.errors ? Object.values(res.errors).flat().join(', ') : res.message;
-                    alert(' ' + (msg || 'Error adding faculty load'));
+                    AdminFacultyLoadForm.notifyFacultyLoadError(msg || 'Error adding faculty load');
+                    return;
                 }
+                AdminFacultyLoadForm.notifyFacultyLoadSuccess(res.message || 'Faculty load added successfully');
+                document.getElementById('addFacultyLoadModal').style.display = 'none';
+                loadFacultyLoads();
             })
-            .catch(() => alert(' Error adding faculty load'));
+            .catch(function (err) {
+                AdminFacultyLoadForm.notifyFacultyLoadError(err.message || 'Error adding faculty load');
+            });
         });
 
 

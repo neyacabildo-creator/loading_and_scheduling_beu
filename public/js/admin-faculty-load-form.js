@@ -242,5 +242,52 @@
         }
     }
 
-    global.AdminFacultyLoadForm = { init, countOngoingSchedules, getApprovedSchedules, timeToMins };
+    async function parseJsonResponse(response) {
+        const text = await response.text();
+        let data = {};
+        try {
+            data = text ? JSON.parse(text) : {};
+        } catch (e) {
+            if (!response.ok) {
+                const snippet = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 220);
+                throw new Error(snippet || response.statusText || 'Server error');
+            }
+            return data;
+        }
+        if (!response.ok) {
+            const msg = data.errors
+                ? Object.values(data.errors).flat().join(', ')
+                : (data.message || response.statusText || 'Request failed');
+            throw new Error(msg);
+        }
+        return data;
+    }
+
+    function notifyFacultyLoadError(message) {
+        const text = String(message || 'Request failed').trim();
+        if (window.spupToast && typeof window.spupToast.error === 'function') {
+            window.spupToast.error(text);
+            return;
+        }
+        alert('\u2717 ' + text);
+    }
+
+    function notifyFacultyLoadSuccess(message) {
+        const text = String(message || 'Saved successfully').trim();
+        if (window.spupToast && typeof window.spupToast.success === 'function') {
+            window.spupToast.success(text);
+            return;
+        }
+        alert('\u2713 ' + text);
+    }
+
+    global.AdminFacultyLoadForm = {
+        init,
+        countOngoingSchedules,
+        getApprovedSchedules,
+        timeToMins,
+        parseJsonResponse,
+        notifyFacultyLoadError,
+        notifyFacultyLoadSuccess,
+    };
 })(window);

@@ -796,12 +796,27 @@
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
                 body: JSON.stringify(data)
             })
-            .then(r => r.json())
-            .then(res => {
-                if (res.success) { showSuccess('Faculty load added'); closeAddFacultyLoadModal(); loadFacultyLoads(); }
-                else { const msg = res.errors ? Object.values(res.errors).flat().join(', ') : res.message; showError(msg || 'Error adding faculty load'); }
+            .then(async function (r) {
+                const text = await r.text();
+                let res = {};
+                try { res = text ? JSON.parse(text) : {}; } catch (e) { throw new Error('Server error'); }
+                if (!r.ok) {
+                    const msg = res.errors ? Object.values(res.errors).flat().join(', ') : (res.message || 'Error adding faculty load');
+                    throw new Error(msg);
+                }
+                return res;
             })
-            .catch(() => showError('Error adding faculty load'));
+            .then(function (res) {
+                if (res.success === false) {
+                    const msg = res.errors ? Object.values(res.errors).flat().join(', ') : res.message;
+                    showError(msg || 'Error adding faculty load');
+                    return;
+                }
+                showSuccess(res.message || 'Faculty load added');
+                closeAddFacultyLoadModal();
+                loadFacultyLoads();
+            })
+            .catch(function (err) { showError(err.message || 'Error adding faculty load'); });
         });
 
         // ─── Add Teacher ───────────────────────────────────────────────────────────

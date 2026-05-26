@@ -871,18 +871,20 @@
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
                 body: JSON.stringify(data)
             })
-            .then(r => r.json())
-            .then(res => {
-                if (res.success) {
-                    alert('\u2713 Faculty load added successfully');
-                    document.getElementById('addFacultyLoadModal').style.display = 'none';
-                    loadFacultyLoads();
-                } else {
+            .then(function (r) { return AdminFacultyLoadForm.parseJsonResponse(r); })
+            .then(function (res) {
+                if (res.success === false) {
                     const msg = res.errors ? Object.values(res.errors).flat().join(', ') : res.message;
-                    alert('\u2717 ' + (msg || 'Error adding faculty load'));
+                    AdminFacultyLoadForm.notifyFacultyLoadError(msg || 'Error adding faculty load');
+                    return;
                 }
+                AdminFacultyLoadForm.notifyFacultyLoadSuccess(res.message || 'Faculty load added successfully');
+                document.getElementById('addFacultyLoadModal').style.display = 'none';
+                loadFacultyLoads();
             })
-            .catch(() => alert('\u2717 Error adding faculty load'));
+            .catch(function (err) {
+                AdminFacultyLoadForm.notifyFacultyLoadError(err.message || 'Error adding faculty load');
+            });
         });
 
         // Edit Faculty Load

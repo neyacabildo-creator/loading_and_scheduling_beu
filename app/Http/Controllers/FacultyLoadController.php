@@ -152,18 +152,35 @@ class FacultyLoadController extends Controller
         if (! empty($validated['status'])) {
             $validated['status'] = FacultyLoadSupport::normalizeAvailabilityStatus($validated['status']);
         } else {
-            $validated['status'] = FacultyLoadStats::resolveStatus((int) $validated['faculty_id']);
+            $validated['status'] = FacultyLoadSupport::normalizeAvailabilityStatus(
+                FacultyLoadStats::resolveStatus((int) $validated['faculty_id'])
+            );
         }
 
-        $load = FacultyLoad::create($validated);
-        FacultyLoadSupport::refreshTeacherLoadingScheduleRow($load);
-        FacultyLoadSupport::applySharedTeacherLoadConflict((int) $load->faculty_id, $load->id);
+        try {
+            $load = FacultyLoad::create($validated);
 
-        if ($request->wantsJson() || $request->ajax()) {
-            return response()->json(['success' => true, 'message' => 'Faculty load added successfully.']);
+            try {
+                FacultyLoadSupport::refreshTeacherLoadingScheduleRow($load);
+                FacultyLoadSupport::applySharedTeacherLoadConflict((int) $load->faculty_id, $load->id);
+            } catch (\Throwable $syncError) {
+                Log::warning('JH addFacultyLoad post-create sync: '.$syncError->getMessage());
+            }
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => true, 'message' => 'Faculty load added successfully.', 'data' => $load]);
+            }
+
+            return redirect()->route('admin.faculty-loading')->with('success', 'Faculty load added successfully.');
+        } catch (\Throwable $e) {
+            Log::error('JH addFacultyLoad: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'Error adding faculty load: '.$e->getMessage()], 500);
+            }
+
+            return redirect()->route('admin.faculty-loading')->with('error', 'Error adding faculty load: '.$e->getMessage());
         }
-
-        return redirect()->route('admin.faculty-loading')->with('success', 'Faculty load added successfully.');
     }
 
     /**

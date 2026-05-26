@@ -986,20 +986,30 @@ class GradeSchoolAdminController extends Controller
             if (! empty($validated['status'])) {
                 $validated['status'] = FacultyLoadSupport::normalizeAvailabilityStatus($validated['status']);
             } else {
-                $validated['status'] = FacultyLoadStats::resolveStatus((int) $validated['faculty_id']);
+                $validated['status'] = FacultyLoadSupport::normalizeAvailabilityStatus(
+                    FacultyLoadStats::resolveStatus((int) $validated['faculty_id'])
+                );
             }
 
             $load = FacultyLoad::create($validated);
-            FacultyLoadSupport::syncSharedTeacherAfterGsLoad($load);
-            FacultyLoadSupport::refreshTeacherLoadingScheduleRow($load);
-            FacultyLoadSupport::applySharedTeacherLoadConflict((int) $load->faculty_id, $load->id);
+
+            try {
+                FacultyLoadSupport::syncSharedTeacherAfterGsLoad($load);
+                FacultyLoadSupport::refreshTeacherLoadingScheduleRow($load);
+                FacultyLoadSupport::applySharedTeacherLoadConflict((int) $load->faculty_id, $load->id);
+            } catch (\Throwable $syncError) {
+                Log::warning('GS addFacultyLoad post-create sync: '.$syncError->getMessage());
+            }
 
             $load->setRelation('faculty', null);
-            return response()->json(['success' => true, 'message' => 'Faculty load added', 'data' => $load], 201);
+
+            return response()->json(['success' => true, 'message' => 'Faculty load added successfully.', 'data' => $load], 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json(['success' => false, 'errors' => $e->errors()], 422);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Error adding faculty load'], 400);
+            return response()->json(['success' => false, 'errors' => $e->errors(), 'message' => 'Validation failed.'], 422);
+        } catch (\Throwable $e) {
+            Log::error('GS addFacultyLoad: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
+
+            return response()->json(['success' => false, 'message' => 'Error adding faculty load: '.$e->getMessage()], 500);
         }
     }
 
