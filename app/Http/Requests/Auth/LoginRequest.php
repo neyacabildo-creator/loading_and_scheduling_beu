@@ -45,13 +45,10 @@ class LoginRequest extends FormRequest
 
         $existing = User::where('email', $this->input('email'))->first();
         if ($existing) {
+            // Clear stale locks (e.g. after logout or closed tab). Do not block login here —
+            // a successful sign-in assigns the new session and ends other browsers via AuthSession.
             AuthSession::prepareUserForLogin($existing);
-            $existing = AuthSession::freshUser($existing);
-        }
-        if ($existing && AuthSession::hasActiveSessionElsewhere($existing)) {
-            throw ValidationException::withMessages([
-                'email' => 'This account is already signed in on another browser or device. Log out there first, or wait for that session to expire.',
-            ]);
+            AuthSession::releaseStaleLoginLock($existing);
         }
 
         if (! Auth::attempt($this->only('email', 'password'), false)) {

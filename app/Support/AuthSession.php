@@ -74,6 +74,11 @@ class AuthSession
 
     public static function clearActiveSession(User $user): void
     {
+        self::clearActiveSessionByUserId((int) $user->id);
+    }
+
+    public static function clearActiveSessionByUserId(int $userId): void
+    {
         if (! self::hasActiveSessionColumn()) {
             return;
         }
@@ -83,7 +88,7 @@ class AuthSession
             $payload['active_session_at'] = null;
         }
 
-        User::whereKey($user->id)->update($payload);
+        User::whereKey($userId)->update($payload);
     }
 
     /**
@@ -159,13 +164,22 @@ class AuthSession
         self::releaseStaleLoginLock($user);
         $user = self::freshUser($user);
 
+        // Orphan lock: active_session_id set but session row gone or idle.
+        if (! empty($user->active_session_id) && ! self::loginLockIsActive($user)) {
+            self::releaseLoginLock($user);
+            self::purgeAllSessionsForUser((int) $user->id);
+            $user = self::freshUser($user);
+        }
+
         if (self::usesDatabaseSessions() && empty($user->active_session_id)) {
             DB::table(self::sessionTable())->where('user_id', $user->id)->delete();
         }
     }
 
     /**
-     * True when this account is already signed in on a different browser/tab.
+     * True when another browser likely has an active session right now.
+     *
+     * Not used to block login (last successful sign-in wins). Kept for diagnostics/tests.
      */
     public static function hasActiveSessionElsewhere(User $user, ?string $exceptSessionId = null): bool
     {

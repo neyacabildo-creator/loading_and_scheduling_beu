@@ -72,9 +72,14 @@ class AuthenticatedSessionController extends Controller
             $lastLogin->update(['logout_at' => now()]);
         }
 
+        $userId = Auth::id();
         if ($user = Auth::user()) {
             AuthSession::releaseLoginLock($user);
-            AuthSession::purgeAllSessionsForUser((int) $user->id);
+        } elseif ($userId) {
+            AuthSession::clearActiveSessionByUserId((int) $userId);
+        }
+        if ($userId) {
+            AuthSession::purgeAllSessionsForUser((int) $userId);
         }
 
         Auth::guard('web')->logout();
@@ -114,9 +119,14 @@ class AuthenticatedSessionController extends Controller
             $lastLogin->update(['logout_at' => now()]);
         }
 
+        $userId = Auth::id();
         if ($user = Auth::user()) {
             AuthSession::releaseLoginLock($user);
-            AuthSession::purgeAllSessionsForUser((int) $user->id);
+        } elseif ($userId) {
+            AuthSession::clearActiveSessionByUserId((int) $userId);
+        }
+        if ($userId) {
+            AuthSession::purgeAllSessionsForUser((int) $userId);
         }
 
         Auth::guard('web')->logout();
