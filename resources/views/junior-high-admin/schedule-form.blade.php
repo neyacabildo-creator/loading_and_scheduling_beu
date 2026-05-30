@@ -162,6 +162,9 @@ function sfOnDayChange() {
     document.querySelectorAll('.sf-teacher').forEach(function (s) {
         if (s.value) checkConflict(s);
     });
+    if (window.ScheduleFormSubjectOptions && window.JH_SUBJECT_OPTS_CFG) {
+        ScheduleFormSubjectOptions.refresh(JH_SUBJECT_OPTS_CFG);
+    }
 }
 
 function sfUpdateSections() {
@@ -189,6 +192,9 @@ function sfUpdateSections() {
         submitBtn.disabled = false;
         submitBtn.style.opacity = grade ? '1' : '0.7';
         submitBtn.style.cursor = 'pointer';
+    }
+    if (window.ScheduleFormSubjectOptions && window.JH_SUBJECT_OPTS_CFG) {
+        ScheduleFormSubjectOptions.refresh(JH_SUBJECT_OPTS_CFG);
     }
 }
 
@@ -677,4 +683,20 @@ window.SF_SLOT_ASSISTANT = {
 };
 </script>
 <script src="{{ asset('js/schedule-slot-assistant.js') }}"></script>
+<script src="{{ asset('js/schedule-form-subject-options.js') }}?v={{ @filemtime(public_path('js/schedule-form-subject-options.js')) }}"></script>
+<script>
+window.JH_SUBJECT_OPTS = @json($jhSubjectOptions);
+window.JH_SUBJECT_OPTS_CFG = {
+    formId: 'sfForm',
+    getActiveRoot: function () {
+        return typeof sfActiveTbody === 'function' ? sfActiveTbody() : null;
+    },
+    getSubjects: function () {
+        return window.JH_SUBJECT_OPTS || [];
+    },
+};
+if (window.ScheduleFormSubjectOptions) {
+    ScheduleFormSubjectOptions.init(window.JH_SUBJECT_OPTS_CFG);
+}
+</script>
 @endsection

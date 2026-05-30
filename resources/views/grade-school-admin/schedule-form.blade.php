@@ -496,6 +496,9 @@
             if (sel.value !== current) sel.value = '';
             sel.dispatchEvent(new Event('change'));
         });
+        if (window.ScheduleFormSubjectOptions && window.GS_SUBJECT_OPTS_CFG) {
+            ScheduleFormSubjectOptions.refresh(GS_SUBJECT_OPTS_CFG);
+        }
     }
 
     // Helper: create a subject+teacher pair row
@@ -1023,5 +1026,22 @@ window.SF_SLOT_ASSISTANT = {
 };
 </script>
 <script src="{{ asset('js/schedule-slot-assistant.js') }}"></script>
+<script src="{{ asset('js/schedule-form-subject-options.js') }}?v={{ @filemtime(public_path('js/schedule-form-subject-options.js')) }}"></script>
+<script>
+window.GS_SUBJECT_OPTS_CFG = {
+    formId: 'scheduleGridForm',
+    getActiveRoot: function () {
+        return document.querySelector('#gsGridTableWrap table tbody');
+    },
+    getSubjects: function () {
+        var gradeEl = document.getElementById('grade_level');
+        var grade = gradeEl ? gradeEl.value : '';
+        return (grade && GS_GRADE_SUBJECTS[grade]) ? GS_GRADE_SUBJECTS[grade] : SF_GS_SUBJECTS;
+    },
+};
+if (window.ScheduleFormSubjectOptions) {
+    ScheduleFormSubjectOptions.init(window.GS_SUBJECT_OPTS_CFG);
+}
+</script>
 
 @endsection

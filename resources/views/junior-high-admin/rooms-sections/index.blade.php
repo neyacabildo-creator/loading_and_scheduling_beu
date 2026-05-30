@@ -414,7 +414,7 @@
                 const roomSec = m ? `Gr.${m[0]}-${s.section_name||'?'}` : s.section_name || '—';
                 const displayDate = rsFormatDate(rsNextOccurrenceDate(s));
                 const statusBadge = s._status === 'now'
-                    ? `<span class="in-use-badge">Now</span>`
+                    ? `<span class="in-use-badge">Ongoing</span>`
                     : s._status === 'today'
                     ? `<span style="display:inline-flex;align-items:center;padding:.2rem .6rem;border-radius:9999px;font-size:.72rem;font-weight:700;background:rgba(59,130,246,.1);color:#3b82f6;">Today</span>`
                     : s._status === 'upcoming'
