@@ -387,9 +387,20 @@
         gsRebuildTeacherSel(sel);
     }
 
+    function gsSyncGridOverlay() {
+        var grade = gradeSelect ? gradeSelect.value : '';
+        var overlay = document.getElementById('gsGridOverlay');
+        if (overlay) {
+            overlay.style.display = grade ? 'none' : 'flex';
+            overlay.style.pointerEvents = grade ? 'none' : 'auto';
+        }
+    }
+
     function updateBadges() {
         var grade = gradeSelect.value || '';
         var kinder = isKinderGrade(grade);
+
+        gsSyncGridOverlay();
 
         if (kinderPanel) kinderPanel.style.display = kinder ? 'block' : 'none';
         if (gridCard) gridCard.style.display = kinder ? 'none' : '';
@@ -403,7 +414,7 @@
             b.textContent = grade;
             b.style.display = grade && !kinder ? '' : 'none';
         });
-        if (grade && !kinder) {
+        if (grade && !kinder && typeof gsUpdateSections === 'function') {
             gsUpdateSections(grade);
             gsFilterTeachersByGrade(grade);
         }
@@ -413,16 +424,16 @@
             gsUpdateKinderDayTable();
         }
 
-        var overlay = document.getElementById('gsGridOverlay');
         var submitBtn = document.getElementById('sfSubmitBtn');
-        if (overlay) overlay.style.display = (grade && !kinder) ? 'none' : (kinder ? 'none' : 'flex');
         if (submitBtn) {
-            // Keep button clickable — validation runs on submit (disabled buttons ignore clicks).
             submitBtn.disabled = false;
             submitBtn.removeAttribute('aria-disabled');
             var ready = !!(grade && !kinder);
             submitBtn.style.opacity = ready ? '1' : '0.7';
             submitBtn.style.cursor = 'pointer';
+        }
+        if (window.ScheduleFormSubjectOptions && window.GS_SUBJECT_OPTS_CFG) {
+            ScheduleFormSubjectOptions.refresh(window.GS_SUBJECT_OPTS_CFG);
         }
     }
 
@@ -436,7 +447,6 @@
             if (isKinderGrade(gradeSelect.value)) gsUpdateKinderDayTable();
         });
     }
-    updateBadges();
 
     function gsWireSubjectFilter(inp, sel) {
         if (!inp || !sel) return;
@@ -892,6 +902,24 @@
             gsToast('Cannot save: the same subject and teacher cannot be assigned twice in one section slot.');
             return false;
         }
+        var dupSubjectInSection = false;
+        [0, 1, 2].forEach(function (secIdx) {
+            if (dupSubjectInSection) return;
+            var seenSubj = {};
+            document.querySelectorAll('.sf-subject').forEach(function (sel) {
+                var m = sel.name.match(/slots\[([^\]]+)\]\[(\d+)\]\[subject\]/);
+                if (!m || parseInt(m[2], 10) !== secIdx) return;
+                var v = sel.value.trim();
+                if (!v) return;
+                var k = v.toUpperCase();
+                if (seenSubj[k]) dupSubjectInSection = true;
+                seenSubj[k] = true;
+            });
+        });
+        if (dupSubjectInSection) {
+            gsToast('Cannot save: each subject can only be scheduled once per section.');
+            return false;
+        }
         var gridCard = document.getElementById('gsGridCard');
         var warnScope = gridCard && gridCard.style.display !== 'none' ? gridCard : document;
         var warnEls = warnScope.querySelectorAll('.sf-conflict-warn');
@@ -1017,6 +1045,12 @@
             window.gsSubmitScheduleForm();
         });
     }
+
+    gradeSelect.addEventListener('input', updateBadges);
+    window.GS_GRADE_SUBJECTS_BY_GRADE = GS_GRADE_SUBJECTS;
+    window.GS_DEFAULT_SUBJECTS = SF_GS_SUBJECTS;
+    window.gsSyncGridOverlay = gsSyncGridOverlay;
+    updateBadges();
 })();
 </script>
 <script>
@@ -1036,11 +1070,17 @@ window.GS_SUBJECT_OPTS_CFG = {
     getSubjects: function () {
         var gradeEl = document.getElementById('grade_level');
         var grade = gradeEl ? gradeEl.value : '';
-        return (grade && GS_GRADE_SUBJECTS[grade]) ? GS_GRADE_SUBJECTS[grade] : SF_GS_SUBJECTS;
+        var byGrade = window.GS_GRADE_SUBJECTS_BY_GRADE || {};
+        var fallback = window.GS_DEFAULT_SUBJECTS || [];
+        return (grade && byGrade[grade]) ? byGrade[grade] : fallback;
     },
 };
 if (window.ScheduleFormSubjectOptions) {
     ScheduleFormSubjectOptions.init(window.GS_SUBJECT_OPTS_CFG);
+    ScheduleFormSubjectOptions.refresh(window.GS_SUBJECT_OPTS_CFG);
+}
+if (typeof window.gsSyncGridOverlay === 'function') {
+    window.gsSyncGridOverlay();
 }
 </script>
 

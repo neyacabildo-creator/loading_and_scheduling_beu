@@ -1,5 +1,5 @@
 /**
- * Hide subjects already picked in earlier time slots (same section column).
+ * Each section column may use a subject only once across all time slots.
  */
 (function () {
     'use strict';
@@ -12,24 +12,6 @@
         return form ? form.querySelector('table tbody') : null;
     }
 
-    function slotOrder(root) {
-        var keys = [];
-        if (!root) {
-            return keys;
-        }
-        root.querySelectorAll('tr:not(.break-row)').forEach(function (tr) {
-            var sub = tr.querySelector('select.sf-subject');
-            if (!sub || !sub.name) {
-                return;
-            }
-            var m = sub.name.match(/slots\[([^\]]+)\]/);
-            if (m && keys.indexOf(m[1]) === -1) {
-                keys.push(m[1]);
-            }
-        });
-        return keys;
-    }
-
     function parseSubjectSelect(el) {
         var m = (el.name || '').match(/slots\[([^\]]+)\]\[(\d+)\]\[subject\]/);
         if (!m) {
@@ -38,24 +20,25 @@
         return { slotKey: m[1], secIdx: parseInt(m[2], 10) };
     }
 
-    function usedSubjectsBefore(slotKey, secIdx, root) {
-        var order = slotOrder(root);
-        var pos = order.indexOf(slotKey);
+    /** Subjects already chosen in other time slots of the same section column. */
+    function usedSubjectsInSection(secIdx, root, excludeSel) {
         var used = new Set();
-        if (pos <= 0) {
+        if (!root) {
             return used;
         }
-        for (var i = 0; i < pos; i++) {
-            var sel = root.querySelector(
-                'select.sf-subject[name="slots[' + order[i] + '][' + secIdx + '][subject]"]'
-            );
-            if (sel) {
-                var v = sel.value.trim();
-                if (v) {
-                    used.add(v.toUpperCase());
-                }
+        root.querySelectorAll('select.sf-subject').forEach(function (sel) {
+            if (sel === excludeSel) {
+                return;
             }
-        }
+            var parsed = parseSubjectSelect(sel);
+            if (!parsed || parsed.secIdx !== secIdx) {
+                return;
+            }
+            var v = sel.value.trim();
+            if (v) {
+                used.add(v.toUpperCase());
+            }
+        });
         return used;
     }
 
@@ -77,29 +60,29 @@
             if (!parsed) {
                 return;
             }
-            var used = usedSubjectsBefore(parsed.slotKey, parsed.secIdx, root);
-            var current = sel.value;
-            var placeholder = sel.querySelector('option[value=""]');
-            var placeholderText = placeholder ? placeholder.textContent : '— Subject —';
+            var used = usedSubjectsInSection(parsed.secIdx, root, sel);
+            var current = sel.value.trim();
+            var placeholderText = '— Subject —';
             sel.innerHTML = '';
             var blank = document.createElement('option');
             blank.value = '';
             blank.textContent = placeholderText;
             sel.appendChild(blank);
             pool.forEach(function (s) {
-                if (used.has(String(s).toUpperCase()) && s !== current) {
+                if (used.has(String(s).toUpperCase())) {
                     return;
                 }
                 var opt = document.createElement('option');
                 opt.value = s;
                 opt.textContent = s;
-                if (s === current) {
+                if (current && current.toUpperCase() === String(s).toUpperCase()) {
                     opt.selected = true;
                 }
                 sel.appendChild(opt);
             });
             if (current && sel.value !== current) {
                 sel.value = '';
+                sel.dispatchEvent(new Event('change', { bubbles: true }));
             }
         });
     }

@@ -167,8 +167,18 @@ function sfOnDayChange() {
     }
 }
 
+function sfSyncGridOverlay() {
+    const grade = (document.getElementById('sfGrade') || {}).value || '';
+    const overlay = document.getElementById('sfGridOverlay');
+    if (overlay) {
+        overlay.style.display = grade ? 'none' : 'flex';
+        overlay.style.pointerEvents = grade ? 'none' : 'auto';
+    }
+}
+
 function sfUpdateSections() {
     const grade = document.getElementById('sfGrade').value;
+    sfSyncGridOverlay();
     const secs  = JH_SECTIONS[grade] || ['SECTION 1','SECTION 2','SECTION 3','SECTION 4','SECTION 5'];
     for (let i = 0; i < 5; i++) {
         const badge = document.getElementById('sfBadge' + i);
@@ -184,10 +194,8 @@ function sfUpdateSections() {
     }
     sfFilterTeachersByGrade(grade);
 
-    // Toggle grid overlay and submit button based on grade selection
-    const overlay = document.getElementById('sfGridOverlay');
+    // Toggle submit button based on grade selection
     const submitBtn = document.getElementById('sfSubmitBtn');
-    if (overlay) overlay.style.display = grade ? 'none' : 'flex';
     if (submitBtn) {
         submitBtn.disabled = false;
         submitBtn.style.opacity = grade ? '1' : '0.7';
@@ -284,6 +292,26 @@ function sfValidate() {
         });
         if (hasCellDup) {
             sfToast('Cannot save: the same subject and teacher cannot be assigned twice in one section slot.', 'error');
+            return false;
+        }
+    }
+    if (tbody) {
+        let dupSubjectInSection = false;
+        for (let secIdx = 0; secIdx < 5; secIdx++) {
+            if (dupSubjectInSection) break;
+            const seenSubj = {};
+            tbody.querySelectorAll('.sf-subject').forEach(function (sel) {
+                const m = sel.name.match(/slots\[([^\]]+)\]\[(\d+)\]\[subject\]/);
+                if (!m || parseInt(m[2], 10) !== secIdx) return;
+                const v = sel.value.trim();
+                if (!v) return;
+                const k = v.toUpperCase();
+                if (seenSubj[k]) dupSubjectInSection = true;
+                seenSubj[k] = true;
+            });
+        }
+        if (dupSubjectInSection) {
+            sfToast('Cannot save: each subject can only be scheduled once per section.', 'error');
             return false;
         }
     }
@@ -697,6 +725,9 @@ window.JH_SUBJECT_OPTS_CFG = {
 };
 if (window.ScheduleFormSubjectOptions) {
     ScheduleFormSubjectOptions.init(window.JH_SUBJECT_OPTS_CFG);
+    ScheduleFormSubjectOptions.refresh(window.JH_SUBJECT_OPTS_CFG);
 }
+document.getElementById('sfGrade')?.addEventListener('input', sfUpdateSections);
+sfSyncGridOverlay();
 </script>
 @endsection
